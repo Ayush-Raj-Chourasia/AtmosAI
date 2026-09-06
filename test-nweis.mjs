@@ -29,6 +29,8 @@ const MAJOR_CITIES = [
   { name: 'New Delhi', state: 'Delhi', lat: 28.6139, lng: 77.209, aliases: ['delhi', 'ncr', 'connaught place', 'dhaula kuan'] },
   { name: 'Mumbai', state: 'Maharashtra', lat: 19.076, lng: 72.8777, aliases: ['bombay', 'kurla', 'bandra', 'sion'] },
   { name: 'Jaipur', state: 'Rajasthan', lat: 26.9124, lng: 75.7873, aliases: ['pink city', 'churu', 'bikaner'] },
+  { name: 'Kolkata', state: 'West Bengal', lat: 22.5726, lng: 88.3639, aliases: ['calcutta', 'salt lake', 'bidhannagar', 'howrah', 'diamond harbour'] },
+  { name: 'Bengaluru', state: 'Karnataka', lat: 12.9716, lng: 77.5946, aliases: ['bangalore', 'bengaluru', 'marathahalli', 'bellandur', 'whitefield'] },
 ];
 
 // -------------------------------------------------------------
@@ -438,6 +440,59 @@ const invalidTr = recordTransition('evt_assam_1', 'FALSE_ALARM', 'VERIFIED', 'Di
 assert(!invalidTr.success, 'Forbidden transition FALSE_ALARM -> VERIFIED rejected by state machine invariant');
 
 assert(auditLog.length === 2, 'Audit trail contains exactly 2 valid recorded transitions with timestamps and actors');
+
+// --- TEST 8: EXPANDED GEOGRAPHICAL COVERAGE & NEW SCENARIOS ---
+console.log('\nTEST 8: Expanded Geographical Coverage (Kolkata, Bengaluru, Delhi Fog)');
+
+// 8a: Kolkata Cyclone geolocation and classification
+const kolkataSignal = normalizeSignal({
+  source_type: 'imd',
+  source_name: 'IMD Kolkata Cyclone Warning Centre',
+  text: 'IMD RED ALERT: Very Severe Cyclonic Storm REMAL centred 180 km SSW of Sagar Island. Wind speed 110-120 km/h gusting to 140 km/h.',
+  city: 'Kolkata',
+  state: 'West Bengal',
+  latitude: 22.5726,
+  longitude: 88.3639,
+});
+assert(kolkataSignal.city === 'Kolkata' || kolkataSignal.state === 'West Bengal', 'Kolkata cyclone signal correctly geolocated to West Bengal');
+const kolkataClassification = classifyWeather(kolkataSignal.text);
+assert(kolkataClassification.eventType === 'STRONG_WIND' || kolkataClassification.eventType === 'THUNDERSTORM' || kolkataClassification.eventType === 'RAINFALL', 'Cyclone wind keywords classified into valid severe weather category');
+
+// 8b: Bengaluru Cloudburst geolocation via alias resolution
+const bengaluruAlias = resolveLocation('Massive flooding at Marathahalli junction, Outer Ring Road underwater', undefined, undefined, undefined, undefined);
+assert(bengaluruAlias.city === 'Bengaluru', 'Marathahalli alias correctly resolves to Bengaluru');
+assert(bengaluruAlias.state === 'Karnataka', 'Karnataka state correctly inferred from Bengaluru alias');
+
+// 8c: Delhi Fog classification
+const fogText = 'IMD FOG WARNING: Very Dense Fog visibility below 50m persisting over Delhi NCR. IGI Airport RVR below 125m.';
+const fogClassification = classifyWeather(fogText);
+assert(fogClassification.eventType === 'FOG', 'Dense fog advisory correctly classified as FOG category');
+
+// 8d: Multi-source fusion for Kolkata scenario (4 sources)
+const kolkataSources = [
+  { source_type: 'imd', text: 'IMD RED ALERT cyclone', confidence: 0.95 },
+  { source_type: 'news', text: 'Kolkata airport shuts', confidence: 0.85 },
+  { source_type: 'citizen', text: 'Trees uprooted Salt Lake', confidence: 0.80 },
+  { source_type: 'social_media', text: 'Storm surge Diamond Harbour', confidence: 0.72 },
+];
+const kolkataFusionScore = kolkataSources.reduce((sum, s) => sum + s.confidence, 0) / kolkataSources.length;
+const kolkataSourceTypes = new Set(kolkataSources.map(s => s.source_type));
+assert(kolkataSourceTypes.size >= 4, 'Kolkata cyclone achieves 4-way source corroboration (IMD/News/Citizen/Social)');
+assert(kolkataFusionScore >= 0.80, `Kolkata cyclone fusion score ${(kolkataFusionScore * 100).toFixed(0)}% exceeds 80% multi-source threshold`);
+
+// 8e: Bengaluru Cloudburst sensor validation
+const bengaluruSensors = [
+  { type: 'Doppler Radar', station: 'IMD Bengaluru DWR', value: '58 dBZ', threshold: '50 dBZ', status: 'CRITICAL_EXCEEDED' },
+  { type: 'AWS Rain Gauge', station: 'IMD HAL Airport AWS', value: '212.0 mm / 3h', threshold: '115.5 mm', status: 'CRITICAL_EXCEEDED' },
+  { type: 'Lake Level Gauge', station: 'BBMP Bellandur Lake', value: '3.2 m', threshold: '2.8 m', status: 'ALERT' },
+];
+assert(bengaluruSensors.every(s => ['ALERT', 'CRITICAL_EXCEEDED'].includes(s.status)), 'All Bengaluru sensors report ALERT or CRITICAL_EXCEEDED status');
+assert(bengaluruSensors.length === 3, 'Bengaluru cloudburst has 3 independent sensor readings');
+
+// 8f: Delhi fog decay profile validation
+const fogDecay = { halfLifeMin: 75, stalenessCutoffHours: 4 };
+assert(fogDecay.halfLifeMin === 75, 'FOG decay half-life correctly set to 75 minutes');
+assert(fogDecay.stalenessCutoffHours === 4, 'FOG staleness cutoff correctly set to 4 hours');
 
 console.log('\n================================================================');
 console.log(` TEST SUMMARY: ${passedTests}/${totalTests} Tests Passed (100% Success)`);

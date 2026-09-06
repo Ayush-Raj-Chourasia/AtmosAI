@@ -599,6 +599,165 @@ async function runRajasthanHeatwaveDemo() {
   };
 }
 
+async function runKolkataCycloneDemo() {
+  await ingestSignal({
+    source_type: 'imd',
+    source_name: 'IMD Kolkata Cyclone Warning Centre',
+    text: 'IMD RED ALERT: Very Severe Cyclonic Storm "REMAL" centred 180 km SSW of Sagar Island, moving NNE at 15 km/h. Landfall expected between Sagar Island and Khepupara (Bangladesh) tonight. Wind speed 110-120 km/h gusting to 140 km/h.',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    latitude: 22.5726,
+    longitude: 88.3639,
+    hashtags: ['#IMD', '#CycloneRemal', '#WestBengal'],
+  });
+
+  await ingestSignal({
+    source_type: 'news',
+    source_name: 'The Telegraph Online',
+    text: 'Kolkata airport shuts operations ahead of Cyclone Remal landfall. Heavy rain lashing South 24 Parganas and Diamond Harbour since morning. NDRF teams deployed in Kakdwip.',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    latitude: 22.55,
+    longitude: 88.35,
+    media_urls: ['https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=800&q=80'],
+  });
+
+  await ingestSignal({
+    source_type: 'citizen',
+    source_name: 'Citizen (Supriyo Das)',
+    text: 'Trees uprooted near Salt Lake Sector V IT hub. Power lines down in Bidhannagar. Strong sustained winds from 6 PM. Rain coming horizontally. Very scary.',
+    latitude: 22.5764,
+    longitude: 88.4345,
+    city: 'Kolkata',
+    state: 'West Bengal',
+  });
+
+  await ingestSignal({
+    source_type: 'social_media',
+    source_name: 'X (Twitter)',
+    text: 'Storm surge reaching 1.5m at Diamond Harbour coast. Fishermen evacuated from Fraserganj. Roofs flying off in Kakdwip market area. #CycloneRemal #Kolkata #IMD',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    latitude: 22.19,
+    longitude: 88.19,
+  });
+
+  const events = Array.from(memEvents.values());
+  const kolkata = events.find(e => e.state.toLowerCase().includes('west bengal'));
+  if (kolkata) {
+    kolkata.sensors = [
+      { type: 'Anemometer', station: 'IMD Alipore Observatory', value: '118 km/h Sustained', threshold: '89 km/h (Very Severe Cyclone)', status: 'CRITICAL_EXCEEDED' },
+      { type: 'Tide Gauge', station: 'Diamond Harbour Port', value: '1.52 m Surge', threshold: '1.0 m (Storm Surge Warning)', status: 'CRITICAL_EXCEEDED' },
+      { type: 'AWS Rain Gauge', station: 'IMD Dum Dum AWS', value: '142.0 mm / 6h', threshold: '115.5 mm (Extremely Heavy)', status: 'ALERT' },
+    ];
+  }
+  return {
+    success: true,
+    scenario: 'cyclone-kolkata',
+    verifiedEvent: kolkata,
+    message: 'Kolkata Cyclone Remal scenario executed: 4 signals ingested, very severe cyclonic storm with storm surge detected at high confidence.',
+  };
+}
+
+async function runBengaluruCloudburstDemo() {
+  await ingestSignal({
+    source_type: 'imd',
+    source_name: 'IMD Bengaluru Centre',
+    text: 'IMD ORANGE ALERT: Extremely heavy rainfall (>200 mm in 3 hours) over Bengaluru Urban and Bengaluru Rural districts. Cumulonimbus cloud burst activity detected by Doppler radar.',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    latitude: 12.9716,
+    longitude: 77.5946,
+    hashtags: ['#IMD', '#BengaluruRains', '#Cloudburst'],
+  });
+
+  await ingestSignal({
+    source_type: 'news',
+    source_name: 'Deccan Herald',
+    text: 'Bengaluru cloudburst: Outer Ring Road between Marathahalli and Bellandur completely flooded. IT corridors shut. Varthur Lake overflows into residential areas. BBMP opens emergency control room.',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    latitude: 12.937,
+    longitude: 77.681,
+    media_urls: ['https://images.unsplash.com/photo-1446034295857-c899f4c6fbbe?auto=format&fit=crop&w=800&q=80'],
+  });
+
+  await ingestSignal({
+    source_type: 'citizen',
+    source_name: 'Citizen (Priya Nair)',
+    text: 'Waist-deep water in Bellandur underpass. Cars floating near ORR-Sarjapur junction. 3 IT parks have water entering basement parking. Fire department rescuing office workers.',
+    latitude: 12.926,
+    longitude: 77.674,
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    media_urls: ['https://images.unsplash.com/photo-1583245177254-75a6269f7cbe?auto=format&fit=crop&w=800&q=80'],
+  });
+
+  const events = Array.from(memEvents.values());
+  const bengaluru = events.find(e => e.city.toLowerCase().includes('bengaluru'));
+  if (bengaluru) {
+    bengaluru.sensors = [
+      { type: 'Doppler Radar', station: 'IMD Bengaluru DWR', value: '58 dBZ Reflectivity', threshold: '50 dBZ (Cloudburst-class)', status: 'CRITICAL_EXCEEDED' },
+      { type: 'AWS Rain Gauge', station: 'IMD HAL Airport AWS', value: '212.0 mm / 3h', threshold: '115.5 mm (Extremely Heavy)', status: 'CRITICAL_EXCEEDED' },
+      { type: 'Lake Level Gauge', station: 'BBMP Bellandur Lake', value: '3.2 m (Overflow)', threshold: '2.8 m (Spill Level)', status: 'ALERT' },
+    ];
+  }
+  return {
+    success: true,
+    scenario: 'cloudburst-bengaluru',
+    verifiedEvent: bengaluru,
+    message: 'Bengaluru Cloudburst scenario executed: ORR flooding, lake overflow, and IT corridor disruption detected.',
+  };
+}
+
+async function runDelhiFogDemo() {
+  await ingestSignal({
+    source_type: 'imd',
+    source_name: 'IMD National Met Centre',
+    text: 'IMD FOG WARNING: Very Dense Fog (visibility below 50m) persisting over Delhi, Haryana, Punjab, and Western UP. IGI Airport RVR below 125m on all three runways. Cold wave conditions continue with minimum temperature at 3.2°C.',
+    city: 'New Delhi',
+    state: 'Delhi',
+    latitude: 28.5562,
+    longitude: 77.1,
+    hashtags: ['#IMD', '#DelhiFog', '#ColdWave'],
+  });
+
+  await ingestSignal({
+    source_type: 'news',
+    source_name: 'Hindustan Times',
+    text: 'Delhi airport fog disruption: 45 flights diverted, 120+ delayed as visibility drops to zero at IGI. NH-44 pile-up near Panipat kills 3 as trucks collide in dense fog. Train services running 4-8 hours late.',
+    city: 'New Delhi',
+    state: 'Delhi',
+    latitude: 28.5562,
+    longitude: 77.1,
+  });
+
+  await ingestSignal({
+    source_type: 'social_media',
+    source_name: 'X (Twitter)',
+    text: 'Cannot see 2 feet ahead of me walking in Lodhi Garden. This is the worst fog Delhi has seen in years. Complete whiteout. Stay home if you can. #DelhiFog #IMD #Visibility',
+    city: 'New Delhi',
+    state: 'Delhi',
+    latitude: 28.594,
+    longitude: 77.22,
+  });
+
+  const events = Array.from(memEvents.values());
+  const delhiFog = events.find(e => e.city.toLowerCase().includes('delhi') && e.event_type === 'FOG');
+  if (delhiFog) {
+    delhiFog.sensors = [
+      { type: 'Visibility Sensor', station: 'IGI Airport RVR System', value: '25 m', threshold: '50 m (Very Dense Fog)', status: 'CRITICAL_EXCEEDED' },
+      { type: 'Surface Thermometer', station: 'IMD Safdarjung Observatory', value: '3.2 °C', threshold: '4.0 °C (Cold Wave)', status: 'ALERT' },
+    ];
+  }
+  return {
+    success: true,
+    scenario: 'fog-delhi',
+    verifiedEvent: delhiFog,
+    message: 'Delhi Dense Fog scenario executed: Airport disruption, highway pile-up, and very dense fog with near-zero visibility detected.',
+  };
+}
+
 // -------------------------------------------------------------
 // HTTP ROUTER & SERVER
 // -------------------------------------------------------------
@@ -740,6 +899,9 @@ const server = http.createServer(async (req, res) => {
     if (scenarioId === 'thunderstorm-delhi') return sendJson(200, await runDelhiStormDemo());
     if (scenarioId === 'mumbai-rainfall') return sendJson(200, await runMumbaiRainDemo());
     if (scenarioId === 'heatwave-rajasthan') return sendJson(200, await runRajasthanHeatwaveDemo());
+    if (scenarioId === 'cyclone-kolkata') return sendJson(200, await runKolkataCycloneDemo());
+    if (scenarioId === 'cloudburst-bengaluru') return sendJson(200, await runBengaluruCloudburstDemo());
+    if (scenarioId === 'fog-delhi') return sendJson(200, await runDelhiFogDemo());
     return sendJson(400, { success: false, message: `Unknown scenario ${scenarioId}` });
   }
 

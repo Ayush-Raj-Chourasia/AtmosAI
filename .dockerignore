@@ -1,0 +1,25 @@
+# Dependencies and version control
+node_modules
+.git
+
+# Monorepo apps and packages
+apps/
+packages/
+
+# Media, documentation and specifications
+media/
+specs/
+docs/
+
+# Markdown documentation (preserve any inside public/)
+*.md
+!public/**/*.md
+!public/*.md
+
+# Test suites and utility scripts
+test-*.mjs
+test-push.sh
+
+# Agent and IDE workspace configurations
+.agent/
+.claude/

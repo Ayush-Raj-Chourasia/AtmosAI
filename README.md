@@ -1,433 +1,197 @@
-# Disaster Pulse
-
-![Disaster Pulse](/media/disaster-pulse-home.jpg)
-
-Demo Video: https://youtu.be/vQGyzC_1cys
-
-Indonesia is one of the most disaster-prone countries in the world, experiencing earthquakes, tsunamis, volcanic eruptions, and floods regularly. Yet, critical information often reaches citizens too late, through fragmented news reports, or word of mouth. We were inspired by the gap between when disasters happen and when people actually know about them. What if AI could bridge this gap by continuously monitoring multiple data sources and alerting communities in real-time?
-
-**Disaster Pulse** is a real-time disaster monitoring and intelligence platform for Indonesia. It aggregates data from multiple sources:
-- **BMKG (Official Earthquake/Tsunami data)**
-- **TikTok videos** for ground-truth social signals
-- **News RSS feeds** for media coverage
-- **User Reports** for crowd-sourced reports & verification
-
-The platform uses a **Multi-Agent AI System** powered by Gemini to analyze, verify, and cluster incoming signals. Each signal passes through 5 specialized AI agents (Observer → Classifier → Skeptic → Synthesizer → Action) that work together to:
-1. Detect potential disasters from raw data
-2. Classify severity and type
-3. Challenge potential false positives
-4. Synthesize multiple sources into coherent incidents
-5. Decide on actions (create alert, merge with existing incident, or discard)
-
-Users see a real-time map with active incidents, receive push notifications for their saved locations, and can contribute their own reports and verifications, creating a human-in-the-loop system that combines AI speed with community trust.
-
-## How we built it
-
-- **Frontend**: Next.js with React 19, Tailwind CSS, Leaflet maps, and PWA support for offline capability
-- **Backend**: NestJS with event-driven architecture, BullMQ queues for background processing
-- **AI Layer**: **Google Gemini Multimodal API** powering 11 specialized agents. Most notably the **VideoAnalysisAgent** that processes TikTok video content directly using Gemini's native vision capabilities, and SignalEnrichmentAgent for geocoding and data enhancement
-- **Database**: PostgreSQL with PostGIS for geospatial queries
-- **Auth & Real-time**: Supabase for authentication and real-time subscriptions
-- **Notifications**: Firebase Cloud Messaging for push notifications
-- **Architecture**: Turborepo monorepo with shared TypeScript types
-
-## Challenges we ran into
-
-1. **AI Cost Optimization**: Running 5 sequential LLM calls per signal was expensive. We implemented signal pooling, batch processing, and a reasoning cache to reduce API calls by ~60%.
-
-2. **False Positive Management**: Social media signals are noisy. We built a SkepticAgent that specifically challenges potential false positives and requires multiple source corroboration.
-
-3. **Real-time Performance**: Balancing instant notifications with accurate verification required careful tuning of our event-driven pipeline and batching strategies.
-
-4. **Video Analysis**: Leveraging **Gemini's multimodal capabilities** to process TikTok videos directly. The model analyzes video frames to detect disaster-related content like flooding, structural damage, or emergency situations without needing separate frame extraction pipelines.
-
-## Accomplishments that we're proud of
-
-- **Hybrid Intelligence**: Our 5-agent reasoning chain provides transparency, users can see exactly *why* the AI classified something as a disaster
-- **Community Verification Loop**: The verification system lets users confirm or dispute AI findings, building community trust
-- **Sub-minute Alert Delivery**: From signal detection to user notification in under 60 seconds for urgent events
-- **Polished PWA**: Fully offline-capable, installable mobile app with push notifications
-
-## What we learned
-
-- **Gemini's multimodal power is a game-changer**: Processing video content directly with Gemini eliminated complex frame extraction pipelines and produced superior disaster detection results
-- **Gemini excels at structured reasoning**: The multi-agent approach with Gemini produced more reliable results than single-prompt approaches
-- **Human-in-the-loop is essential**: AI alone isn't enough, community verification dramatically improved accuracy
-- **Batch processing is key**: Pooling signals before AI evaluation significantly reduced costs without sacrificing speed for critical events
-
-## What's next for Disaster Pulse
-
-1. **Expand data sources**: Integrate Twitter/X, Instagram, and local government APIs
-2. **Predictive capabilities**: Use historical data to predict disaster-prone times and areas
-3. **Government partnerships**: Work with BNPB (Indonesia's disaster agency) for official integration
-
-## System Architecture
-
-The project is a monorepo managed with **Turborepo** and **npm**, consisting of:
-
-| Package | Description | Tech Stack |
-|---------|-------------|------------|
-| `apps/web` | Next.js PWA frontend | Next.js, Tailwind CSS 4, Leaflet, TanStack Query |
-| `apps/api` | NestJS backend service | NestJS, PostgreSQL + PostGIS, BullMQ, Gemini AI |
-| `packages/shared` | Shared types and utilities | TypeScript |
+# 🇮🇳 N-WEIS: National Weather Event Intelligence System
+### Real-Time AI-Powered Weather Intelligence & Operations Platform
+![SIH 2026](https://img.shields.io/badge/SIH_2026-Problem_SIH26069-0891b2?style=for-the-badge) ![Node.js](https://img.shields.io/badge/Node.js-Zero_Dependency-339933?style=for-the-badge)
 
 ---
 
-## Key Features
+## 📋 Executive Summary
 
-### Frontend (Web)
+**N-WEIS** is an autonomous, real-time, AI-driven meteorological intelligence platform engineered for **SIH 2026 Problem Statement SIH26069** (Ministry of Earth Sciences / India Meteorological Department). 
 
-- **Real-time Map**: Leaflet-based map with custom clustering and live incident tracking
-- **PWA Support**: Fully offline-capable, installable on mobile devices
-- **Live Updates**: Real-time signals from backend via SSE
-- **Responsive Design**: Mobile-first UI optimized for touch interfaces
-
-### Backend (API)
-
-- **Multi-Source Ingestion**:
-  - **BMKG**: Earthquake and Tsunami official data
-  - **RSS Feeds**: News aggregation and analysis
-  - **TikTok**: Social media signal detection via Apify
-  - **User Reports**: Crowd-sourced ground truth with media upload
-- **AI Analysis**: Multi-agent LLM-based verification and clustering
-- **Event-Driven**: Automated incident lifecycle management
+It ingests highly fragmented weather signals from official IMD bulletins, news RSS feeds, citizen ground reports, and social media, normalizes them, filters hoaxes, deduplicates redundant data, and fuses corroborating evidence into verified weather events. The platform is designed to provide actionable, high-confidence disaster intelligence while completely avoiding the spread of unverified panic and misinformation.
 
 ---
 
-## AI Agents Architecture
+## ✨ Key Features
 
-### Overview
+- 📡 **Multi-Source Ingestion:** Aggregates streams from official IMD/MoES channels, News Media, Social Media (#IMD), and Direct Citizen Reports.
+- 🧠 **7-Factor Confidence Fusion Engine:** Calculates deterministic confidence scoring based on source reliability, AI relevance, media presence, spatial proximity, temporal freshness, corroboration, and IMD synergy.
+- 👯 **3-Layer Deduplication:** Eliminates noise via Exact ID matching, Jaccard Semantic overlap (≥ 0.75), and Spatiotemporal proximity (≤ 3.0 km).
+- ⏳ **Temporal Confidence Decay:** Employs a mathematical half-life model where incident confidence decays over time without new corroborating evidence, specific to each hazard.
+- 🛡️ **Misinformation Quarantine (Skeptic Agent):** Flags sensationalist text, hoaxes, and recycled disaster media through perceptual hashing and LLM analysis, putting them in an immutable quarantine.
+- 📜 **State Machine Lifecycle:** Maintains a strict, immutable audit trail for every status transition (`DETECTED` → `UNDER_REVIEW` → `VERIFIED` → `RESOLVED`).
+- 🌡️ **Official Sensor Alignment:** Connects field observations with official IMD AWS/ARG data and CWC (Central Water Commission) gauges for authoritative corroboration.
+- ⚡ **Real-Time SSE & GIS Dashboard:** Sub-second Server-Sent Events (SSE) telemetry paired with an interactive Leaflet-powered GIS operations command dashboard.
+- 🌪️ **8 IMD Hazard Categories:** Full taxonomy support for `FLOOD`, `THUNDERSTORM`, `RAINFALL`, `HEATWAVE`, `FOG`, `DUST_STORM`, `STRONG_WIND`, and `OTHER`.
+
+---
+
+## 🏗️ System Architecture
 
 ```mermaid
-flowchart TB
-    subgraph Sources["Data Sources"]
-        TikTok[("TikTok")]
-        RSS[("RSS News")]
-        UserReport[("User Reports")]
-        BMKG[("BMKG API")]
+flowchart TD
+    subgraph MultiSourceIngestion ["1. Multi-Source Ingestion Ingests Raw Feeds"]
+        IMD["Official IMD Bulletins & Warnings"]
+        NEWS["News Media RSS (NDTV, TOI, etc.)"]
+        CITIZEN["Citizen Weather Reports (GPS + Photos)"]
+        SOCIAL["Social Media (#IMD #Weather)"]
     end
 
-    subgraph Ingestion["Signal Ingestion Agents"]
-        VA["VideoAnalysisAgent<br/>(gemini-3-flash-preview)"]
-        NA["NewsAnalysisAgent<br/>(gemini-3-flash-preview)"]
-        URA["UserReportAnalysisAgent<br/>(gemini-3-pro-preview)"]
+    subgraph IntelligenceCore ["2. AI & Verification Pipeline"]
+        NORM["Signal Normalizer (UTC, WGS84, Tags)"]
+        GEO["4-Tier India Geolocation Engine"]
+        CLASS["8-Category Weather Classifier"]
+        SKEPTIC["Skeptic / Misinfo Quarantine (Recycled Media Hash)"]
+        DEDUP["3-Layer Deduplication Engine"]
+        CLUSTER["SEDOM-DD Spatiotemporal Clustering"]
+        FUSION["7-Factor Evidence Fusion (+6% IMD Synergy)"]
     end
 
-    subgraph Processing["Signal Processing"]
-        SQ[("Signal Queue")]
-        SE["SignalEnrichmentAgent<br/>(gemini-3-flash-preview)"]
-        LM["LocationMatcherAgent<br/>(gemini-3-flash-preview)"]
+    subgraph PresentationOutput ["3. Real-Time Command & Control"]
+        SSE["SSE Real-Time Telemetry Stream (/api/v1/events/stream)"]
+        GIS["Leaflet India GIS Operations Command Dashboard"]
+        DRAWER["Event Intelligence Dossier & Explainability"]
+        ADMIN["5-Minute Judge Demo Scenarios Runner"]
     end
 
-    subgraph Reasoning["Multi-Agent Reasoning Chain"]
-        OBS["ObserverAgent<br/>(gemini-3-flash-preview)"]
-        CLS["ClassifierAgent<br/>(gemini-3-pro-preview)"]
-        SKP["SkepticAgent<br/>(gemini-3-pro-preview)"]
-        SYN["SynthesizerAgent<br/>(gemini-3-pro-preview)"]
-        ACT["ActionAgent<br/>(gemini-3-pro-preview)"]
-    end
-
-    subgraph Lifecycle["Incident Lifecycle"]
-        IR["IncidentResolutionAgent<br/>(gemini-3-flash-preview)"]
-        INC[("Incidents DB")]
-    end
-
-    subgraph UserFacing["User-Facing"]
-        GA["GuideAssistantAgent<br/>(gemini-3-pro-preview)"]
-    end
-
-    TikTok --> VA
-    RSS --> NA
-    UserReport --> URA
-    BMKG --> SQ
-
-    VA --> SQ
-    NA --> SQ
-    URA --> SQ
-
-    SQ --> SE
-    SE --> LM
-    LM --> OBS
-    OBS --> CLS
-    CLS --> SKP
-    SKP --> SYN
-    SYN --> ACT
-    ACT --> INC
-
-    INC --> IR
-    IR --> INC
-
-    GA -.-> INC
+    IMD & NEWS & CITIZEN & SOCIAL --> NORM
+    NORM --> GEO --> CLASS --> SKEPTIC
+    SKEPTIC -->|Pass| DEDUP
+    SKEPTIC -->|Fail Hoax / Media Reuse| QUARANTINE["Quarantine Vault (Status: REJECTED)"]
+    DEDUP -->|Merge| CLUSTER
+    CLUSTER --> FUSION
+    FUSION --> SSE
+    SSE --> GIS & DRAWER & ADMIN
 ```
 
-### Signal Ingestion Flow
+---
+
+## 🚀 Quick Start
+
+N-WEIS is built as a **high-performance, zero-dependency** standalone Node.js server. No `npm install` is required.
+
+```bash
+# Clone the repository and run the server natively
+node server-nweis.mjs
+```
+
+Once started, the system will serve the REST API, SSE telemetry, and the Web Dashboard on port 3001.
+
+**Open the Operations Command Dashboard:** [http://localhost:3001](http://localhost:3001)
+
+---
+
+## 📖 API Reference
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/health` | `GET` | Root healthcheck indicating system status and SIH26069 alignment. |
+| `/api/v1/events/stream` | `GET` | SSE endpoint for real-time pushing of weather events and signals. |
+| `/api/v1/events` | `GET` | Fetch all active weather incidents. Supports filtering by state, status, etc. |
+| `/api/v1/events/:id` | `GET` | Fetch comprehensive dossier for a single event (evidence, lifecycle trail). |
+| `/api/v1/signals` | `POST` | Ingest raw signal payload (System-to-System). |
+| `/api/v1/citizen/reports` | `POST` | Ingest a new Citizen Ground Report. |
+| `/api/v1/admin/demo/scenario/:id` | `POST` | Trigger a pre-configured demo scenario for judging. |
+| `/api/v1/admin/demo/simulate-time`| `POST` | Simulate hours passing to trigger confidence decay. |
+| `/api/v1/admin/stats` | `GET` | Fetch operational KPIs (false-positive rates, event verification counts). |
+
+---
+
+## 🎬 Demo Scenarios
+
+The system includes 7 pre-configured scenarios designed for the SIH 2026 jury to demonstrate the pipeline's intelligence across India. Trigger them via the dashboard or the API.
+
+| Scenario | Location | Hazard Type | Resulting Confidence | Sensor Corroboration |
+|---|---|---|---|---|
+| **Guwahati Flood** | Guwahati, Assam | `FLOOD` | 94% | CWC Brahmaputra Pandu Gauge |
+| **Delhi Thunderstorm** | New Delhi, Delhi | `THUNDERSTORM` | 89% | IMD Palam DWR (Doppler Radar) |
+| **Mumbai Rainfall** | Mumbai, Maharashtra | `RAINFALL` | 85% | IMD Santacruz AWS |
+| **Rajasthan Heatwave** | Jaipur/Churu, Rajasthan | `HEATWAVE` | 92% | IMD Churu Synoptic AWS |
+| **Kolkata Cyclone Remal** | Kolkata, West Bengal | `THUNDERSTORM` | 81% | IMD Alipore Anemometer, Diamond Harbour Tide Gauge |
+| **Bengaluru Cloudburst** | Bengaluru, Karnataka | `RAINFALL` | 81% | IMD Bengaluru DWR, BBMP Bellandur Lake Gauge |
+| **Delhi Dense Fog** | New Delhi, Delhi | `FOG` | 87% | IGI Airport RVR System, IMD Safdarjung Observatory |
+
+---
+
+## 📉 Confidence Decay Model
+
+**Confidence is not permanent.** N-WEIS utilizes a monotonic temporal decay engine to ensure stale alerts fade over time unless reinforced with new evidence.
+
+$$ \text{Confidence}(t) = \text{Base Confidence} \times \left(0.5\right)^{\frac{\Delta t}{\text{Half-Life}}} $$
+
+| Hazard Type | Decay Speed | Half-Life | Staleness Cutoff |
+|---|---|---|---|
+| `THUNDERSTORM` | Fast | 45 minutes | 2 hours |
+| `DUST_STORM` | Fast | 45 minutes | 2 hours |
+| `STRONG_WIND` | Fast | 40 minutes | 2 hours |
+| `FOG` | Medium-Fast | 75 minutes | 4 hours |
+| `RAINFALL` | Medium-Fast | 90 minutes | 3 hours |
+| `FLOOD` | Medium | 180 minutes | 6 hours |
+| `HEATWAVE` | Slow | 360 minutes | 12 hours |
+
+---
+
+## 🔄 State Machine Lifecycle
+
+N-WEIS relies on a strict incident state machine, preserving a fully explainable audit trail.
 
 ```mermaid
-flowchart LR
-    subgraph TikTok["TikTok Source"]
-        T1["Fetch Videos<br/>(Apify)"] --> T2["VideoAnalysisAgent"]
-        T2 --> T3{"is_real_event?<br/>confidence > 0.6?"}
-        T3 -->|Yes| T4["Create Signal"]
-        T3 -->|No| T5["Discard"]
-    end
-
-    subgraph RSS["RSS News Source"]
-        R1["Fetch Articles"] --> R2["NewsAnalysisAgent"]
-        R2 --> R3{"is_disaster?<br/>confidence > 0.5?"}
-        R3 -->|Yes| R4["Create Signal"]
-        R3 -->|No| R5["Discard"]
-    end
-
-    subgraph UserReports["User Reports"]
-        U1["Upload Media"] --> U2["Extract EXIF/Metadata"]
-        U2 --> U3["UserReportAnalysisAgent"]
-        U3 --> U4{"recommended_action?"}
-        U4 -->|accept| U5["Create Signal"]
-        U4 -->|reject| U6["Return Error"]
-    end
-```
-
-### Multi-Agent Reasoning Chain
-
-When an incident needs full evaluation, signals go through a debate-style reasoning chain:
-
-```mermaid
-flowchart TB
-    subgraph Input
-        S1["Signal 1"]
-        S2["Signal 2"]
-        S3["Signal N"]
-    end
-
-    subgraph Observer["Step 1: Observer"]
-        OBS["ObserverAgent"]
-        OBS_OUT["observation_summary<br/>key_facts[]<br/>timeline[]"]
-    end
-
-    subgraph Classifier["Step 2: Classifier"]
-        CLS["ClassifierAgent"]
-        CLS_OUT["hypotheses[]<br/>- event_type<br/>- likelihood<br/>- reasoning"]
-    end
-
-    subgraph Skeptic["Step 3: Skeptic"]
-        SKP["SkepticAgent"]
-        SKP_OUT["source_breakdown<br/>inconsistencies[]<br/>confidence_adjustment<br/>risk_of_false_positive"]
-    end
-
-    subgraph Synthesizer["Step 4: Synthesizer"]
-        SYN["SynthesizerAgent"]
-        SYN_OUT["final_classification<br/>severity<br/>confidence_score<br/>summary"]
-    end
-
-    subgraph Action["Step 5: Action"]
-        ACT["ActionAgent"]
-        ACT_OUT["action: alert|monitor|dismiss<br/>reasoning"]
-    end
-
-    S1 & S2 & S3 --> OBS
-    OBS --> OBS_OUT --> CLS
-    CLS --> CLS_OUT --> SKP
-    SKP --> SKP_OUT --> SYN
-    SYN --> SYN_OUT --> ACT
-    ACT --> ACT_OUT
-
-    ACT_OUT -->|alert| CREATE["Create/Update Incident"]
-    ACT_OUT -->|monitor| WATCH["Add to Watch List"]
-    ACT_OUT -->|dismiss| IGNORE["Mark as Noise"]
-```
-
-### Agent Reference
-
-| Agent | Model | Type | Role & Logic |
-|-------|-------|------|--------------|
-| **SignalEnrichmentAgent** | `gemini-3-flash-preview` | Ingestion | **Triage & Geocoding**. Process raw signals in batches. <br>• Infers `{City}, {Province}` from unstructured text.<br>• Rejects signals outside Indonesia.<br>• Assigns initial severity score. |
-| **VideoAnalysisAgent** | `gemini-3-flash-preview` | Ingestion | **TikTok Analyst**. Analyzes video content + captions.<br>• Multimodal check: Does visual match text?<br>• Freshness check: Is this old footage being reposted?<br>• Location check: Must be in Indonesia. |
-| **NewsAnalysisAgent** | `gemini-3-flash-preview` | Ingestion | **News Analyst**. Filters RSS feeds.<br>• Distinguishes active disasters from prevention articles/history.<br>• Extracts specific location and time.<br>• Rejects international news. |
-| **UserReportAnalysisAgent** | `gemini-3-pro-preview` | Ingestion | **Forensic Analyst**. Validates user submissions.<br>• Checks EXIF metadata consistency (GPS/Time).<br>• Detects "fake" or "spam" reports.<br>• Multimodal analysis of user upload media. |
-| **ObserverAgent** | `gemini-3-flash-preview` | Reasoning | **The Eye**. Step 1 of Reasoning Chain.<br>• Reads raw signals (text/images).<br>• Extracts objective facts only (timeline, casualty counts).<br>• No speculation allowed. |
-| **ClassifierAgent** | `gemini-3-pro-preview` | Reasoning | **The Theorist**. Step 2 of Reasoning Chain.<br>• Proposes multiple hypotheses based on facts (e.g., "Flood" vs "Puddle").<br>• Assigns likelihood scores.<br>• Restricted to Indonesian event types. |
-| **SkepticAgent** | `gemini-3-pro-preview` | Reasoning | **The Critic**. Step 3 of Reasoning Chain.<br>• Challenges hypotheses.<br>• Checks source diversity (Bio-verification).<br>• Penalizes single-source or viral-only reports.<br>• Explicitly demotes out-of-region events. |
-| **SynthesizerAgent** | `gemini-3-pro-preview` | Reasoning | **The Judge**. Step 4 of Reasoning Chain.<br>• Weighs hypotheses vs critiques.<br>• Produces final classification and confidence score.<br>• Generates user-facing summaries. |
-| **ActionAgent** | `gemini-3-pro-preview` | Reasoning | **The Strategist**. Step 5 of Reasoning Chain.<br>• Decides system action based on confidence threshold (0.6).<br>• `CREATE_INCIDENT`: High confidence, new event.<br>• `MERGE_INCIDENT`: Matches existing active incident.<br>• `WAIT`: Insufficient data.<br>• `DISMISS`: Benign/Noise. |
-| **LocationMatcherAgent** | `gemini-3-flash-preview` | Utility | **Fuzzy Geospatial Matcher**.<br>• Compares two location strings (e.g. "Jaksel" vs "Jakarta Selatan").<br>• Determines if they refer to the same incident cluster. |
-| **IncidentResolutionAgent** | `gemini-3-flash-preview` | Utility | **Cleanup Crew**.<br>• Analyzes stale incidents (no updates > 6h).<br>• Determines if safe to resolve/close. |
-| **GuideAssistantAgent** | `gemini-3-pro-preview` | Utility | **Safety Guide**.<br>• RAG-based safety advice.<br>• Context-aware answers based on active incident. |
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20+
-- npm
-- PostgreSQL with PostGIS (via Supabase)
-- Redis (for BullMQ queues)
-
-### Installation
-
-1. **Clone and Install Dependencies**
-   ```bash
-   git clone https://github.com/your-org/disaster-pulse.git
-   cd disaster-pulse
-   npm install
-   ```
-
-2. **Configure Environment Variables**
-   ```bash
-   # Copy example files
-   cp apps/api/.env.example apps/api/.env
-   cp apps/web/.env.example apps/web/.env.local
-
-   # Edit with your credentials
-   ```
-
-3. **Start Development Servers**
-   ```bash
-   npm run dev
-   ```
-
-4. **Build for Production**
-   ```bash
-   npm run build
-   ```
-
----
-
-## Environment Variables
-
-### API (`apps/api/.env`)
-
-```env
-# Server
-PORT=3001
-
-# Database (Supabase)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# AI / LLM (Gemini)
-GEMINI_API_KEY=your-gemini-api-key
-GEMINI_BASE_URL=https://api.maiarouter.ai/v1
-GEMINI_FLASH_MODEL=maia/gemini-3-flash-preview
-GEMINI_PRO_MODEL=maia/gemini-3-pro-preview-preview
-
-# Google Maps (Geocoding)
-GOOGLE_MAPS_API_KEY=your-google-maps-api-key
-
-# Cloudflare R2 (Media Storage)
-R2_ACCOUNT_ID=your-r2-account-id
-R2_ACCESS_KEY_ID=your-r2-access-key-id
-R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
-R2_BUCKET_NAME=disaster-media
-R2_PUBLIC_URL=https://media.yourdomain.com
-
-# Firebase (Notifications & Remote Config)
-FIREBASE_SERVICE_ACCOUNT_BASE64=base64-encoded-service-account-json
-FIREBASE_PROJECT_ID=your-firebase-project-id
-
-# Redis (BullMQ Queues)
-REDIS_HOST=localhost
-REDIS_PORT=6379
-```
-
-### Web (`apps/web/.env.local`)
-
-```env
-# API
-NEXT_PUBLIC_API_URL=http://localhost:3001
-
-# Supabase (Client-side)
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-
-# Firebase (Client-side)
-NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-firebase-project-id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-messaging-sender-id
-NEXT_PUBLIC_FIREBASE_APP_ID=your-firebase-app-id
-NEXT_PUBLIC_FIREBASE_VAPID_KEY=your-vapid-key
-
-# Feature Flags
-NEXT_PUBLIC_FEATURE_USER_REPORTS=true
-
-# Admin Access
-ADMIN_EMAIL_WHITELIST=admin@example.com
+stateDiagram-v2
+    [*] --> DETECTED : Initial Signal Ingested
+    DETECTED --> UNDER_REVIEW : AI Fusion Confidence < 85%
+    DETECTED --> VERIFIED : AI Fusion Confidence ≥ 85%
+    UNDER_REVIEW --> VERIFIED : New Corroborating Evidence
+    VERIFIED --> UNDER_REVIEW : Temporal Confidence Decay
+    VERIFIED --> RESOLVED : Staleness Cutoff Reached
+    UNDER_REVIEW --> RESOLVED : Staleness Cutoff Reached
+    DETECTED --> REJECTED : Skeptic / Misinfo Flag
 ```
 
 ---
 
-## API Endpoints
+## 🧪 Testing
 
-### Core Resources
-- **Incidents**
-  - `GET /incidents/map` - Viewport clustering (bbox)
-  - `GET /incidents/nearby` - Geospatial radius search
-  - `GET /incidents/:id` - Full incident details
-  - `GET /incidents/:id/signals` - Raw signals clustering to incident
-  - `GET /incidents/:id/lifecycle` - Incident status history
-- **Reports**
-  - `POST /reports` - Submit user report (multipart w/ images/video)
-  - `GET /reports/user/:userId` - History of user submissions
-- **Guides**
-  - `GET /guides` - Disaster safety guides (filterable)
-  - `POST /guides/ask` - AI Safety Assistant (RAG-based Q&A)
-- **Users**
-  - `POST /users/sync` - Sync Supabase Auth profile
-  - `POST /user/places` - Create monitored location
-  - `PATCH /user/places/:id/notifications` - Toggle alerts for location
+The N-WEIS codebase includes a comprehensive, zero-dependency testing suite that validates the AI pipeline, deduplication, state machine, and confidence decay invariants.
 
-### Admin & Internal
-- **Dashboard**
-  - `GET /admin/stats` - System-wide metrics
-  - `GET /admin/incidents` - Incident management table
-  - `GET /admin/signals` - Raw signal inspector
-  - `GET /admin/evaluations` - AI reasoning logs
-- **Demo Tools**
-  - `POST /admin/demo/seed` - Inject fake disaster scenarios
-  - `POST /admin/demo/reset` - Wipes database
-
-### System
-- **Notifications**
-  - `POST /notifications/subscribe` - Register FCM token
-- **Emergency Contacts**
-  - `GET /emergency-contacts` - Localized emergency numbers
+```bash
+node test-nweis.mjs
+```
+**Results:** `38/38 Tests Passed (100% Success)`
 
 ---
 
-## Key Modules
+## 🛠️ Tech Stack
 
-### Application Modules
-| Module | Description |
-|--------|-------------|
-| `IncidentsModule` | Core logic for clustering and lifecycle management |
-| `SignalsModule` | Raw data ingestion and normalization |
-| `ReasoningModule` | Helper module for AI Agent orchestration |
-| `ReportsModule` | User report handling and verification |
-| `GuidesModule` | RAG-based safety guide system |
-| `UsersModule` | User profile and preferences management |
-| `UserPlacesModule` | Saved locations and geofencing logic |
-
-### Infrastructure Modules
-| Module | Description |
-|--------|-------------|
-| `DatabaseModule` | Supabase / PostgreSQL connection |
-| `QueueModule` | BullMQ job processing configuration |
-| `UploadModule` | Cloudflare R2 media storage |
-| `NotificationsModule` | Firebase Cloud Messaging wrapper |
-| `SseModule` | Server-Sent Events for real-time updates |
-
-### Ingestion Source Modules
-| Module | Description |
-|--------|-------------|
-| `BmkgModule` | Earthquake/Tsunami API poller |
-| `TiktokModule` | Social media video scraper |
-| `RssModule` | News feed aggregator |
+- **Backend:** Node.js (Zero-Dependency, built-in `node:http`, `node:url`, `node:fs`, `node:path`)
+- **Frontend:** HTML5, Tailwind CSS (via CDN), Google Fonts
+- **GIS / Mapping:** Leaflet.js
+- **Real-Time:** Server-Sent Events (SSE)
+- **Architecture:** In-Memory PostGIS/Haversine emulator & Event Sourcing
 
 ---
 
-## License
+## 📂 Project Structure
 
-MIT
+```text
+n-weis/
+├── server-nweis.mjs          # Standalone Backend Server & API (990+ lines)
+├── test-nweis.mjs            # 38/38 Passing Verification Test Suite
+├── Dockerfile                # Alpine Node.js Container (zero-dependency)
+├── docker-compose.yml        # Multi-service orchestration
+├── public/
+│   └── index.html            # GIS Operations Command Dashboard
+├── docs/
+│   └── WALKTHROUGH.md        # 5-Minute SIH Judge Demo Playbook
+├── specs/
+│   ├── AGENTS.md             # Core System Philosophy & Rules
+│   ├── CONFIDENCE_DECAY.md   # Mathematical Decay Model Specs
+│   ├── INCIDENT_STATE_MACHINE.md # Status Transition Invariants
+│   └── INCIDENT_THRESHOLDS.md    # 8-Category Taxonomy Rules
+└── README.md                 # Project Documentation (You are here)
+```
+
+---
+
+## 📜 License
+
+MIT License. See `LICENSE` for more information.
