@@ -1,0 +1,244 @@
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calm Notification Interface</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body { font-family: 'Inter', sans-serif; }
+/* Custom scrollbar hiding for clean UI */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+/* Map Pattern Background */
+.map-pattern {
+background-color: #f8fafc;
+background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+background-size: 20px 20px;
+}
+/* Subtle pulse for live indicator */
+@keyframes subtle-pulse {
+0%, 100% { opacity: 1; }
+50% { opacity: 0.5; }
+}
+.animate-pulse-slow {
+animation: subtle-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+/* Gradient mask for map fade */
+.mask-bottom {
+mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+-webkit-mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+}
+</style></head>
+<body class="bg-slate-100 text-slate-800 antialiased selection:bg-slate-200 min-h-screen flex items-center justify-center py-0 sm:py-8">
+
+    <!-- Mobile Wrapper -->
+    <main class="w-full max-w-md bg-slate-50 min-h-screen sm:min-h-[850px] sm:h-auto sm:rounded-[2.5rem] sm:border sm:border-slate-200 sm:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] relative overflow-hidden flex flex-col">
+        
+        <!-- Header / Top Navigation -->
+        <header class="pt-12 pb-4 px-6 flex items-center justify-between bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="h-8 w-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
+                    <span class="iconify" data-icon="lucide:shield" data-width="18"></span>
+                </div>
+                <h1 class="font-semibold tracking-tight text-lg text-slate-900">Vigilant</h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-100 rounded-full">
+                    <div class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse-slow"></div>
+                    <span class="text-xs font-medium text-emerald-700">Online</span>
+                </div>
+                <button class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <span class="iconify" data-icon="lucide:settings-2" data-width="20"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Scrollable Content -->
+        <div class="flex-1 overflow-y-auto no-scrollbar pb-24">
+            
+            <!-- Hero Status Card -->
+            <section class="px-6 pt-6 pb-2">
+                <div class="relative bg-white rounded-3xl p-6 shadow-sm border border-slate-200 overflow-hidden group">
+                    <!-- Decorational background elements -->
+                    <div class="absolute top-0 right-0 p-6 opacity-5">
+                        <span class="iconify" data-icon="lucide:wind" data-width="120"></span>
+                    </div>
+
+                    <div class="relative z-10">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-600">
+                                <span class="iconify" data-icon="lucide:alert-circle" data-width="14"></span>
+                            </span>
+                            <span class="text-xs font-semibold uppercase tracking-wider text-amber-600">Advisory</span>
+                        </div>
+                        
+                        <h2 class="text-3xl font-semibold tracking-tight text-slate-900 mb-2 leading-tight">High winds near your location.</h2>
+                        <p class="text-slate-500 leading-relaxed text-base">
+                            Wind speeds reaching 45mph detected 12 miles north. No immediate evacuation required.
+                        </p>
+
+                        <!-- Accordion / Action -->
+                        <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between cursor-pointer">
+                            <div class="flex items-center gap-3">
+                                <span class="text-sm font-medium text-slate-700">Recommended Actions</span>
+                                <span class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">2</span>
+                            </div>
+                            <span class="iconify text-slate-400" data-icon="lucide:chevron-down" data-width="18"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Map Snippet Area -->
+            <section class="mt-8 px-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold tracking-tight text-slate-900">Live Radius</h3>
+                    <button class="text-sm font-medium text-slate-500 hover:text-slate-900 flex items-center gap-1">
+                        Expand Map <span class="iconify" data-icon="lucide:arrow-right" data-width="14"></span>
+                    </button>
+                </div>
+
+                <div class="w-full h-48 rounded-2xl border border-slate-200 map-pattern relative overflow-hidden mask-bottom">
+                    <!-- Map Markers -->
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-md z-10"></div>
+                    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 bg-blue-500/10 rounded-full animate-ping"></div>
+                    
+                    <!-- Incident Marker -->
+                    <div class="absolute top-10 right-12 flex flex-col items-center gap-1">
+                        <div class="w-8 h-8 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center border border-white shadow-sm">
+                            <span class="iconify" data-icon="lucide:wind" data-width="14"></span>
+                        </div>
+                    </div>
+
+                    <!-- Safe Marker -->
+                    <div class="absolute bottom-12 left-8 flex flex-col items-center gap-1">
+                        <div class="w-6 h-6 bg-slate-200 text-slate-500 rounded-full flex items-center justify-center border border-white">
+                            <span class="iconify" data-icon="lucide:check" data-width="12"></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Verified Feed -->
+            <section class="mt-6 px-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold tracking-tight text-slate-900">Nearby Incidents</h3>
+                    <span class="iconify text-slate-400" data-icon="lucide:sliders-horizontal" data-width="18"></span>
+                </div>
+
+                <div class="space-y-4">
+                    
+                    <!-- Incident Card 1 -->
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.02)] active:scale-[0.99] transition-transform duration-100">
+                        <div class="flex items-start justify-between">
+                            <div class="flex gap-4">
+                                <div class="mt-1 w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                                    <span class="iconify text-slate-500" data-icon="lucide:cloud-rain" data-width="20"></span>
+                                </div>
+                                <div>
+                                    <h4 class="text-base font-semibold text-slate-900">Localized Flooding</h4>
+                                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-slate-500">
+                                        <span class="flex items-center gap-1">
+                                            <span class="iconify" data-icon="lucide:map-pin" data-width="12"></span>
+                                            3.2 mi
+                                        </span>
+                                        <span class="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                        <span>24m ago</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end gap-1">
+                                <span class="bg-slate-100 text-slate-600 text-xs font-medium px-2 py-0.5 rounded-full">Verified</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Confidence & Source -->
+                        <div class="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <div class="flex -space-x-2">
+                                    <div class="w-6 h-6 rounded-full bg-slate-200 border-2 border-white"></div>
+                                    <div class="w-6 h-6 rounded-full bg-slate-300 border-2 border-white"></div>
+                                </div>
+                                <span class="text-xs text-slate-400">Confirmed by 5 locals</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-xs text-blue-600 font-medium cursor-pointer">
+                                Explain
+                                <span class="iconify" data-icon="lucide:info" data-width="12"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Incident Card 2 (Lower priority) -->
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.02)] opacity-80">
+                        <div class="flex items-start justify-between">
+                            <div class="flex gap-4">
+                                <div class="mt-1 w-10 h-10 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                                    <span class="iconify text-slate-400" data-icon="lucide:zap" data-width="20"></span>
+                                </div>
+                                <div>
+                                    <h4 class="text-base font-medium text-slate-900">Power Fluctuation</h4>
+                                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-sm text-slate-500">
+                                        <span class="flex items-center gap-1">
+                                            <span class="iconify" data-icon="lucide:map-pin" data-width="12"></span>
+                                            8.5 mi
+                                        </span>
+                                        <span class="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                        <span>1h ago</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Trust Indicator -->
+                        <div class="mt-3 flex items-center gap-2">
+                            <div class="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
+                                <div class="h-full bg-slate-300 w-[40%] rounded-full"></div>
+                            </div>
+                            <span class="text-xs text-slate-400 font-medium">Low Confidence</span>
+                        </div>
+                    </div>
+
+                    <!-- "All Clear" Section Break -->
+                    <div class="py-4 flex items-center gap-4">
+                        <div class="h-px bg-slate-200 flex-1"></div>
+                        <span class="text-xs font-medium text-slate-400 uppercase tracking-widest">Everything else looks good</span>
+                        <div class="h-px bg-slate-200 flex-1"></div>
+                    </div>
+
+                </div>
+            </section>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <nav class="absolute bottom-0 w-full bg-white/90 backdrop-blur-xl border-t border-slate-200 pb-safe z-40">
+            <div class="flex items-center justify-around py-4 pb-6">
+                <button class="flex flex-col items-center gap-1 text-slate-900">
+                    <span class="iconify" data-icon="lucide:home" data-width="22" data-stroke-width="2"></span>
+                    <span class="text-[10px] font-semibold">Home</span>
+                </button>
+                <button class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
+                    <span class="iconify" data-icon="lucide:map" data-width="22"></span>
+                    <span class="text-[10px] font-medium">Map</span>
+                </button>
+                <div class="relative">
+                    <button class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
+                        <span class="iconify" data-icon="lucide:bell" data-width="22"></span>
+                        <span class="text-[10px] font-medium">Alerts</span>
+                    </button>
+                    <span class="absolute -top-0.5 right-1 w-2 h-2 bg-amber-500 rounded-full border border-white"></span>
+                </div>
+                <button class="flex flex-col items-center gap-1 text-slate-400 hover:text-slate-600 transition-colors">
+                    <span class="iconify" data-icon="lucide:user" data-width="22"></span>
+                    <span class="text-[10px] font-medium">Profile</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Offline Status (Hidden by default, shown for demo structure) -->
+        <div class="hidden absolute top-0 left-0 w-full h-1 bg-slate-300"></div>
+
+    </main>
+
+</body></html>

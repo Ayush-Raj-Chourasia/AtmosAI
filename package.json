@@ -1,0 +1,22 @@
+{
+  "name": "n-weis",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "concurrently -n \"WEB,API\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "lint": "turbo lint",
+    "test": "npm run test -w apps/api",
+    "clean": "turbo clean"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "prettier": "^3.4.0",
+    "turbo": "^2.3.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "sources": [
+    {
+      "name": "Detik News",
+      "url": "https://news.detik.com/berita/rss",
+      "category": "news"
+    },
+    {
+      "name": "Kompas",
+      "url": "https://rss.kompas.com/api/feed/social?apikey=bc58c81819dff4b8d5c53540a2fc7ffd83e6314a",
+      "category": "news"
+    },
+    {
+      "name": "CNN Indonesia",
+      "url": "https://www.cnnindonesia.com/nasional/rss",
+      "category": "news"
+    },
+    {
+      "name": "Liputan 6",
+      "url": "https://feed.liputan6.com/rss/news",
+      "category": "news"
+    },
+    {
+      "name": "Antara",
+      "url": "https://www.antaranews.com/rss/top-news",
+      "category": "news"
+    },
+    {
+      "name": "Tempo",
+      "url": "https://rss.tempo.co/nasional",
+      "category": "news"
+    },
+    {
+      "name": "Republika",
+      "url": "https://www.republika.co.id/rss",
+      "category": "news"
+    },
+    {
+      "name": "Media Indonesia",
+      "url": "https://mediaindonesia.com/feed/all",
+      "category": "news"
+    },
+    {
+      "name": "Kumparan",
+      "url": "https://lapi.kumparan.com/v2.0/rss/",
+      "category": "news"
+    },
+    {
+      "name": "BBC Indonesia",
+      "url": "https://feeds.bbci.co.uk/indonesia/rss.xml",
+      "category": "news"
+    },
+    {
+      "name": "CNA.id",
+      "url": "https://www.cna.id/api/v1/rss-outbound-feed?_format=xml",
+      "category": "news"
+    }
+  ],
+  "keywords": [
+    "banjir",
+    "gempa",
+    "longsor",
+    "kebakaran",
+    "tsunami",
+    "puting beliung",
+    "bencana",
+    "evakuasi",
+    "korban",
+    "tanggap darurat",
+    "darurat"
+  ]
+}
