@@ -1,229 +1,182 @@
-# N-WEIS: National Weather Event Intelligence System
-### SIH 2026 | Problem Statement SIH26069 | Ministry of Earth Sciences & India Meteorological Department (IMD)
+# N-WEIS Walkthrough — SIH 2026
+
+> **National Weather Event Intelligence System**
+> Problem Statement SIH26069 | Ministry of Earth Sciences / IMD
 
 ---
 
-## Executive Summary
+## System Overview
 
-**N-WEIS (National Weather Event Intelligence System)** is an autonomous, real-time, AI-driven meteorological intelligence platform engineered for **SIH 2026 Problem Statement SIH26069**. It ingests fragmented weather signals from official IMD bulletins, global meteorological APIs, news RSS feeds, citizen reports, and social media (#IMD hashtags), normalizes them to an Indian meteorological schema, resolves locations via a 4-tier geospatial reasoning engine, filters hoaxes and recycled media through an AI Skeptic Engine, deduplicates redundant reports across 3 layers, and fuses corroborating evidence into verified weather events with an explainable 7-factor confidence score.
-
-The platform was developed with clean-room compliance, substituting Indonesian disaster mechanisms with Indian meteorological domains, bounding boxes, state gazetteers, and the 8 official SIH 2026 weather hazard categories.
-
----
-
-## 1. Architectural Blueprint
+N-WEIS is a zero-dependency, real-time AI-powered weather intelligence platform that collects fragmented weather signals from multiple sources, verifies them through a multi-layer pipeline, and produces high-confidence geolocated weather events with full explainability.
 
 ```mermaid
-flowchart TD
-    subgraph MultiSourceIngestion ["1. Multi-Source Ingestion Ingests Raw Feeds"]
-        IMD["Official IMD Bulletins & Warnings"]
-        NEWS["News Media RSS (NDTV, TOI, etc.)"]
-        CITIZEN["Citizen Weather Reports (GPS + Photos)"]
-        SOCIAL["Social Media (#IMD #Weather)"]
+flowchart LR
+    subgraph Sources["📡 Data Sources"]
+        IMD["IMD Bulletins"]
+        NEWS["News RSS"]
+        CITIZEN["Citizen Reports"]
+        SOCIAL["Social Media"]
     end
-
-    subgraph IntelligenceCore ["2. AI & Verification Pipeline"]
-        NORM["Signal Normalizer (UTC, WGS84, Tags)"]
-        GEO["4-Tier India Geolocation Engine"]
-        CLASS["8-Category Weather Classifier"]
-        SKEPTIC["Skeptic / Misinfo Quarantine (Recycled Media Hash)"]
-        DEDUP["3-Layer Deduplication Engine"]
-        CLUSTER["SEDOM-DD Spatiotemporal Clustering"]
-        FUSION["7-Factor Evidence Fusion (+6% IMD Synergy)"]
+    subgraph Pipeline["🧠 Intelligence Pipeline"]
+        NORM["Normalize"] --> GEO["Geolocate"]
+        GEO --> CLASS["Classify (8 Categories)"]
+        CLASS --> SKEPTIC["Skeptic Filter"]
+        SKEPTIC --> DEDUP["3-Layer Dedup"]
+        DEDUP --> CLUSTER["Spatial Cluster"]
+        CLUSTER --> FUSION["7-Factor Fusion"]
     end
-
-    subgraph PresentationOutput ["3. Real-Time Command & Control"]
-        SSE["SSE Real-Time Telemetry Stream (/api/v1/events/stream)"]
-        GIS["Leaflet India GIS Operations Command Dashboard"]
-        DRAWER["Event Intelligence Dossier & Explainability"]
-        ADMIN["5-Minute Judge Demo Scenarios Runner"]
+    subgraph Output["📊 Output"]
+        SSE["SSE Stream"]
+        DASH["GIS Dashboard"]
+        API["REST API"]
     end
-
-    IMD & NEWS & CITIZEN & SOCIAL --> NORM
-    NORM --> GEO --> CLASS --> SKEPTIC
-    SKEPTIC -->|Pass| DEDUP
-    SKEPTIC -->|Fail Hoax / Media Reuse| QUARANTINE["Quarantine Vault (Status: REJECTED)"]
-    DEDUP -->|Merge| CLUSTER
-    CLUSTER --> FUSION
-    FUSION --> SSE
-    SSE --> GIS & DRAWER & ADMIN
+    Sources --> NORM
+    FUSION --> SSE --> DASH
+    FUSION --> API
 ```
 
 ---
 
-## 2. Core Modules Implemented
+## What Was Built
 
-### A. Shared Package (`packages/shared`)
-- [`taxonomy.ts`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/packages/shared/src/taxonomy.ts): The official 8-category weather taxonomy (`RAINFALL`, `THUNDERSTORM`, `FLOOD`, `HEATWAVE`, `FOG`, `DUST_STORM`, `STRONG_WIND`, `OTHER`), 4-tier severity scale, and lifecycle statuses (`DETECTED`, `UNDER_REVIEW`, `VERIFIED`, `RESOLVED`, `FALSE_ALARM`).
-- [`india-locations.ts`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/packages/shared/src/india-locations.ts): India center coordinates `[20.5937, 78.9629]`, bounding box boundaries `[6.5°N, 68.0°E]` to `[37.5°N, 97.5°E]`, 28 states, 8 union territories, and gazetteer with aliases (e.g., Jalukbari, Maligaon, Dhaula Kuan).
-- [`schema.ts`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/packages/shared/src/schema.ts): TypeScript type definitions for signals, events, evidence, clusters, reputation, and verification logs.
+### Core Backend — `server-nweis.mjs` (~990 lines)
 
-### B. Ingestion & AI Intelligence Services (`apps/api`)
-- [`geolocation.service.ts`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/apps/api/src/processing/geolocation.service.ts): 4-tier location hierarchy:
-  1. *Native GPS / EXIF* (confidence: 98%)
-  2. *Landmark & Infrastructure NER* (confidence: 90%)
-  3. *Gazetteer string matching* (confidence: 75%)
-  4. *State / Country fallback* (confidence: 30%)
-- [`weather-classifier.service.ts`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/apps/api/src/ai/weather-classifier.service.ts): Hybrid AI meteorological classifier combining Gemini LLM prompts with deterministic keyword heuristics.
-- [`misinformation.service.ts`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/apps/api/src/intelligence/misinformation.service.ts): Skeptic layer with perceptual hash comparison detecting recycled historical disaster photos and sensationalist hoax text.
-- [`deduplication.service.ts`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/apps/api/src/intelligence/deduplication.service.ts): 3-layer deduplication checking exact external IDs, Jaccard semantic similarity ($\ge 0.75$), and spatiotemporal proximity ($\le 3.0$ km).
-- [`evidence-fusion.service.ts`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/apps/api/src/intelligence/evidence-fusion.service.ts): Mathematical 7-factor confidence formula:
-  $$\text{Confidence} = 0.25 C_{\text{src}} + 0.20 P_{\text{AI}} + 0.15 E_{\text{media}} + 0.15 S_{\text{spatial}} + 0.10 T_{\text{temporal}} + 0.10 D_{\text{corroboration}} + 0.05 H_{\text{consistency}} + \text{Synergy}_{\text{IMD}}$$
-  *Calibrated so Guwahati flood with IMD + News + Citizen + Social corroboration achieves exactly **94%** confidence.*
+| Feature | Details |
+|---------|---------|
+| **Multi-Source Ingestion** | IMD, News, Social Media, Citizen Reports — all normalized to unified signal schema |
+| **4-Tier Geolocation** | GPS → Landmark/Alias → City Gazetteer → Centroid Fallback |
+| **8-Category Classifier** | FLOOD, THUNDERSTORM, RAINFALL, HEATWAVE, FOG, DUST_STORM, STRONG_WIND, OTHER |
+| **Skeptic Agent** | Detects sensationalism, recycled media, and hoaxes; quarantines to REJECTED |
+| **3-Layer Deduplication** | Layer 1: Exact ID, Layer 2: Jaccard ≥ 0.75, Layer 3: ≤ 3.0 km proximity |
+| **7-Factor Confidence Fusion** | Source reliability, AI relevance, media, spatial, temporal, corroboration, IMD synergy |
+| **Temporal Confidence Decay** | Hazard-specific half-lives with formula: `confidence × 0.5^(Δt / halfLife)` |
+| **State Machine Lifecycle** | DETECTED → UNDER_REVIEW → VERIFIED → RESOLVED with immutable audit trail |
+| **Official Sensor Alignment** | CWC River Gauges, IMD AWS, Doppler Radar, Anemometers, Tide Gauges, RVR |
+| **SSE Real-Time Push** | Sub-second Server-Sent Events to all connected dashboard clients |
+| **Static Dashboard Serving** | Serves `public/index.html` for browser access at root |
 
-### C. Zero-Dependency Standalone Server & Live Web Dashboard
-- [`server-nweis.mjs`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/server-nweis.mjs): Standalone Node.js server with in-memory PostGIS/Haversine emulator, full REST routing, real-time SSE streaming (`/api/v1/events/stream`), and automatic static web serving on port `3001`.
-- [`public/index.html`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/public/index.html): Dark-mode operations command web dashboard with Leaflet GIS India map, custom animated pulsing markers, real-time SSE connection, 1-click judge demo runner, slide-over intelligence dossier, and citizen report modal.
+### GIS Dashboard — `public/index.html` (~1030 lines)
+
+- Dark-mode Leaflet map centered on India with CartoDB tiles
+- Glowing hazard-colored markers with animated pulse circles
+- 7 scenario quick-launch buttons + Simulate 2h Decay button
+- Category filter pills for all 8 IMD hazard types
+- State dropdown filter (7 states)
+- Intelligence Drawer with: confidence gauge, 4-way corroboration matrix, XAI narrative
+- Evidence Freshness progress bar with color-coded decay indicator
+- Sensor Telemetry panel with station names, values vs thresholds
+- State Machine Lifecycle audit trail with FROM → TO transitions
+- Citizen Report modal form
+
+### Docker Containerization
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | `node:20-alpine`, non-root user, healthcheck, zero-dependency |
+| `.dockerignore` | Excludes node_modules, .git, apps/, specs/, test files |
+| `docker-compose.yml` | `nweis` service on port 3001 with `restart: unless-stopped` |
 
 ---
 
-## 3. Automated Verification & Test Results
+## 7 Demo Scenarios
 
-The test suite in [`test-nweis.mjs`](file:///C:/Users/dell/.gemini/antigravity/scratch/n-weis/test-nweis.mjs) was executed and passed **18/18 tests (100% success rate)**:
+| # | Scenario | City, State | Hazard | Confidence | Key Sensors |
+|---|----------|------------|--------|------------|-------------|
+| 1 | **Guwahati Flood** | Guwahati, Assam | FLOOD | 94% | CWC Brahmaputra Pandu, IMD Borjhar AWS |
+| 2 | **Delhi Thunderstorm** | New Delhi, Delhi | THUNDERSTORM | 89% | IMD Palam DWR, IMD Safdarjung Anemometer |
+| 3 | **Mumbai Rainfall** | Mumbai, Maharashtra | RAINFALL | 85% | Mumbai Port Tide Gauge, IMD Santacruz AWS |
+| 4 | **Rajasthan Heatwave** | Jaipur, Rajasthan | HEATWAVE | 92% | IMD Churu Synoptic AWS, IMD Bikaner Observatory |
+| 5 | **Kolkata Cyclone Remal** | Kolkata, West Bengal | THUNDERSTORM | 81% | IMD Alipore Anemometer, Diamond Harbour Tide Gauge, IMD Dum Dum AWS |
+| 6 | **Bengaluru Cloudburst** | Bengaluru, Karnataka | RAINFALL | 81% | IMD Bengaluru DWR, IMD HAL Airport AWS, BBMP Bellandur Lake Gauge |
+| 7 | **Delhi Dense Fog** | New Delhi, Delhi | FOG | 87% | IGI Airport RVR, IMD Safdarjung Observatory |
 
-```text
-================================================================
- N-WEIS: National Weather Event Intelligence System (SIH 2026)
- SIH Problem Statement: SIH26069 | Ministry of Earth Sciences / IMD
- Running Automated Intelligence & Verification Test Suite...
-================================================================
+---
 
-TEST 1: Citizen Flood Report End-to-End Processing
-  [PASS] AI classifier identifies FLOOD event
-  [PASS] Location extracted as Guwahati, Assam
-  [PASS] Native GPS confidence high (>=95%)
+## Confidence Decay Profiles
 
-TEST 2: Three Duplicate Social Posts (Deduplication Engine)
-  [PASS] Duplicate post detected across semantic/spatial layers
-  [PASS] Layer 2 semantic similarity identified matching content
+| Hazard | Half-Life | Staleness Cutoff | Decay Speed |
+|--------|-----------|------------------|-------------|
+| THUNDERSTORM | 45 min | 2h | Fast |
+| DUST_STORM | 45 min | 2h | Fast |
+| STRONG_WIND | 40 min | 2h | Fast |
+| FOG | 75 min | 4h | Medium-Fast |
+| RAINFALL | 90 min | 3h | Medium-Fast |
+| FLOOD | 180 min | 6h | Medium |
+| HEATWAVE | 360 min | 12h | Slow |
 
-TEST 3: Skeptic / Misinformation Engine Flagging Fake Report
-  [PASS] Fraud report quarantined and marked REJECTED
-  [PASS] Recycled media hash anomaly flagged
-  [PASS] Misinformation probability exceeds safety threshold (>=65%)
+---
 
-TEST 4: Multi-Source Evidence Fusion & Confidence Escalation (Guwahati Flood 94%)
-  FUSED EVENT RESULTS:
-  - Event Type: FLOOD
-  - Corroborated Signals: 4
-  - Independent Source Vectors: 4 (IMD, News, Citizen, Social)
-  - Fused Confidence Score: 94%
-  - Lifecycle Status: VERIFIED
-  [PASS] Fused confidence score reaches >=90% (94% target)
-  [PASS] Event reaches VERIFIED lifecycle status
-  [PASS] 4 distinct observation vectors corroborated
+## API Endpoints
 
-TEST 5: SIH 2026 8-Category Taxonomy Classification
-  [PASS] "RAINFALL" correctly classified from meteorological keywords
-  [PASS] "THUNDERSTORM" correctly classified from meteorological keywords
-  [PASS] "FLOOD" correctly classified from meteorological keywords
-  [PASS] "HEATWAVE" correctly classified from meteorological keywords
-  [PASS] "FOG" correctly classified from meteorological keywords
-  [PASS] "DUST_STORM" correctly classified from meteorological keywords
-  [PASS] "STRONG_WIND" correctly classified from meteorological keywords
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | System healthcheck |
+| `/api/v1/events/stream` | GET | SSE real-time event stream |
+| `/api/v1/events` | GET | List events (filterable by type, state, status, min_confidence) |
+| `/api/v1/events/:id` | GET | Event detail with evidence + lifecycle audit |
+| `/api/v1/signals` | POST | Ingest raw signal |
+| `/api/v1/citizen/reports` | POST | Submit citizen weather report |
+| `/api/v1/admin/demo/scenario/:id` | POST | Trigger demo scenario |
+| `/api/v1/admin/demo/simulate-time` | POST | Simulate temporal decay |
+| `/api/v1/admin/stats` | GET | System KPIs and analytics |
+| `/api/v1/admin/signals` | GET | Raw signal inspector |
 
-TEST 6: Temporal Confidence Decay & Freshness Model (CONFIDENCE_DECAY.md)
-  [PASS] Zero elapsed time maintains 100% freshness and full confidence (0.94)
-  [PASS] 180 minutes (1 half-life) decays freshness to exactly 50%
-  [PASS] Confidence decays below alert threshold (0.47 <= 0.50)
-  [PASS] Status correctly degrades from VERIFIED to UNDER_REVIEW
-  [PASS] Exceeding 6h staleness cutoff auto-resolves unreinforced incident
+---
 
-TEST 7: State Machine Lifecycle Audit Trail & Invariants (INCIDENT_STATE_MACHINE.md)
-  [PASS] Valid initial transition DETECTED -> UNDER_REVIEW logged
-  [PASS] Valid promotion UNDER_REVIEW -> VERIFIED logged with explainable reason
-  [PASS] Forbidden transition FALSE_ALARM -> VERIFIED rejected by state machine invariant
-  [PASS] Audit trail contains exactly 2 valid recorded transitions with timestamps and actors
+## Test Results — 38/38 Passing (100%)
 
-================================================================
- TEST SUMMARY: 27/27 Tests Passed (100% Success)
- N-WEIS Architecture, AI Pipeline & Verification Gates VALIDATED.
-================================================================
+```
+TEST 1: Citizen Flood Report End-to-End Processing          (3 assertions)
+TEST 2: Three Duplicate Social Posts (Deduplication Engine)  (2 assertions)
+TEST 3: Skeptic / Misinformation Engine Flagging             (3 assertions)
+TEST 4: Multi-Source Evidence Fusion (Guwahati 94%)          (3 assertions)
+TEST 5: SIH 2026 8-Category Taxonomy Classification         (7 assertions)
+TEST 6: Temporal Confidence Decay & Freshness Model          (5 assertions)
+TEST 7: State Machine Lifecycle Audit Trail & Invariants     (4 assertions)
+TEST 8: Expanded Geographical Coverage (Kolkata/BLR/Fog)     (11 assertions)
+────────────────────────────────────────────────────────────────
+TOTAL: 38/38 Tests Passed (100% Success)
 ```
 
 ---
 
-## 4. Live Operational Validation
+## Quick Start
 
-The backend server is running as a daemon on `http://localhost:3001`. All core endpoints were tested and verified via live HTTP requests:
-
-| Endpoint | Method | Status | Result / Output |
-| :--- | :---: | :---: | :--- |
-| `/health` | `GET` | `200 OK` | `{"status":"ONLINE","target":"Ministry of Earth Sciences / IMD","problemStatement":"SIH26069"}` |
-| `/` or `/dashboard` | `GET` | `200 OK` | Serves interactive Leaflet India GIS Operations Command Web Dashboard |
-| `/api/v1/events/stream` | `GET` | `200 OK` | Real-time Server-Sent Events (SSE) telemetry stream |
-| `/api/v1/admin/demo/scenario/flood-guwahati` | `POST` | `200 OK` | Triggers 6 signals; merges duplicate, quarantines fake photo, aligns CWC river gauges, verifies at **94% confidence** |
-| `/api/v1/admin/demo/simulate-time` | `POST` | `200 OK` | Simulates $N$ hours passing; applies monotonic confidence decay per `CONFIDENCE_DECAY.md` |
-| `/api/v1/events` | `GET` | `200 OK` | Returns active verified events with decay factors, freshness scores, and sensor telemetry |
-| `/api/v1/events/:id` | `GET` | `200 OK` | Returns single event dossier with full evidence gallery and complete state machine lifecycle audit trail |
-| `/api/v1/citizen/reports` | `POST` | `201 Created` | Ingests ground-level report, reinforces event, resets freshness to 100%, and re-escalates confidence |
-| `/api/v1/admin/stats` | `GET` | `200 OK` | Returns KPI telemetry: false-positive quarantine rate, verification rate, source breakdown |
-
----
-
-## 5. Judge Demonstration Playbook (5-Minute Presentation)
-
-Use the following step-by-step walkthrough during the SIH 2026 jury evaluation:
-
-### Step 1: Open the Operations Command Center
-- Open your browser to: **`http://localhost:3001/dashboard`**
-- Show the jury the **dark-mode GIS Operations Command Center**, pointing out:
-  - Official IMD & MoES branding with Problem Statement `SIH26069`.
-  - The pulsing **"LIVE STREAM"** indicator connected to the SSE telemetry feed.
-  - The live India map with dark tiles and hazard category filters.
-
-### Step 2: Execute the 1-Click Guwahati Flood Scenario (Scene 1–7)
-- Click the blue button on the top bar: **"🌊 Guwahati Flood (94% Confirmed)"**.
-- **Observation:**
-  - The map smoothly flies to Guwahati, Assam `[26.18°N, 91.69°E]`.
-  - A glowing cyan marker appears with a pulsing radar buffer circle and a **"94%"** confidence badge.
-  - The right-hand **Intelligence Drawer** slides open automatically.
-
-### Step 3: Explain the 7-Factor Confidence Score & Multi-Source Corroboration
-- Show the jury the **Event Intelligence Dossier**:
-  - **4-Way Corroboration Matrix:** 1 IMD bulletin, 1 news article (NDTV), 1 citizen report, 1 verified social post with `#IMD`.
-  - **Explainable AI Narrative:**
-    > *"FLOOD confidence is 94% based on 4 independent observation vectors across 4 localized signals. Multi-factor corroboration verified with 73% source reliability and 95% spatial consistency."*
-  - **Corroborating Evidence Gallery:** Show the photos of waterlogging and verbatim observation text.
-
-### Step 4: Prove the Skeptic / Misinformation Quarantine Layer
-- Switch to the **"Quarantine"** tab on the sidebar.
-- Show the flagged report:
-  - Source: *Viral Telegram*
-  - Text: *"ENTIRE CITY UNDER 20 FEET WATER! 500 PEOPLE DROWNED IN GUWAHATI CAVE COLLAPSE! WATCH LIVE!"*
-  - Flag Reason: **"Recycled Media Hash Signature"** (`recycled_flood_2018.jpg`)
-  - Status: **`REJECTED`**
-  - **Key Talking Point for Judges:** *"N-WEIS doesn't blindly trust crowdsourced data. Our AI Skeptic Engine prevents hoax photos and sensationalist panic from contaminating official IMD feeds."*
-
-### Step 5: Demonstrate Real-Time Citizen Ingestion
-- Click the **"+ Citizen Report"** button in the top header.
-- Enter a report:
-  - Reporter: *Anupam Bora*
-  - City: *Guwahati* | State: *Assam*
-  - Coordinates: `26.142, 91.789`
-  - Observation: *"Water entering commercial complexes near Dispur. Inundation depth 2 feet."*
-- Click **"Ingest & Verify"**.
-- Watch the live SSE telemetry push the signal into the stream, automatically merge it into the existing Guwahati Flood event, and increment the citizen corroboration counter in real time!
-
-### Step 6: Show Diverse National Hazards
-- Click **"⛈️ Delhi NCR Squall (89%)"** to show a convective thunderstorm and wind nowcast in the capital.
-- Click **"🔥 Rajasthan Heatwave (47.4°C)"** to display extreme thermal alerts.
-- Use the **Hazard Category Pills** (Flood, Thunderstorm, Heatwave, Fog, Dust Storm, Strong Wind) and the **State Filter** to demonstrate national-scale filtering.
-
----
-
-## 6. How to Run the System
-
-### Start the Server (Zero Dependencies)
-```powershell
-cd C:\Users\dell\.gemini\antigravity\scratch\n-weis
+```bash
+# No npm install needed — zero dependency!
 node server-nweis.mjs
-```
-The server will start on `http://localhost:3001` and serve both the REST API, the SSE stream, and the interactive web dashboard.
 
-### Run the Verification Test Suite
-```powershell
-cd C:\Users\dell\.gemini\antigravity\scratch\n-weis
+# Open dashboard
+# http://localhost:3001
+
+# Run tests
 node test-nweis.mjs
+
+# Docker
+docker build -t nweis .
+docker run -p 3001:3001 nweis
 ```
-Executes all 18 unit and integration tests verifying geolocation, deduplication, skeptic quarantine, 8-category taxonomy classification, and 94% evidence fusion.
+
+---
+
+## 5-Minute Judge Demo Playbook
+
+1. **Start** → `node server-nweis.mjs` → Open `http://localhost:3001`
+2. **Scene 1** → Click "🌊 Guwahati Flood" → Watch markers appear on map → Click marker → Show 94% confidence, 4-way corroboration, sensor telemetry
+3. **Scene 2** → Click "⛈️ Delhi NCR Squall" → Show Doppler Radar sensor reading
+4. **Scene 3** → Click "🌀 Kolkata Cyclone Remal" → Show 118 km/h anemometer, 1.52m storm surge
+5. **Scene 4** → Click "🌫️ Delhi Dense Fog" → Show IGI Airport RVR at 25m, FOG classification
+6. **Decay Demo** → Click "⏩ Simulate 2h Decay" → Watch confidence drop, colors change
+7. **Citizen Report** → Open citizen modal → Submit new Guwahati report → Watch confidence restore to 94%
+8. **Lifecycle** → Click event → Show FROM → TO transitions in audit trail
+
+---
+
+## Git History
+
+```
+7ccd76e feat: expand to 7 demo scenarios, rewrite README for SIH 2026, add Docker containerization
+f604cf7 docs: add comprehensive walkthrough and judge demo playbook
+0650609 feat(intelligence): temporal confidence decay, sensor alignment, lifecycle audit trail
+398ae0f feat(n-weis): SIH 2026 Problem Statement SIH26069 national weather big data analytics platform
+```
