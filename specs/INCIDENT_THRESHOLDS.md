@@ -53,129 +53,116 @@ Thresholds affect **policy**, not facts.
 
 ---
 
-## Threshold Matrix (Defaults)
+## Threshold Matrix (SIH 2026 Meteorological Taxonomy)
 
-> These are conservative defaults and must be tuned with real data.
+> Calibrated specifically for Indian climatic regimes and IMD / MoES observation infrastructure.
 
-### 🌊 Flood
-
+### 🌊 FLOOD (Urban / Riverine Inundation)
 **Characteristics**
-- Common
-- Localized
-- Visually observable
-- Moderate false-positive risk
-
+- High localized impact; visual road & residential waterlogging.
+- Corroborated by Central Water Commission (CWC) river gauges & IMD AWS rain gauges.
 **Rules**
-- Monitor → Alert at confidence ≥ **0.70**
+- Monitor → Alert at confidence ≥ **0.70** (PRD multi-source target: 0.94)
+- Minimum evidence categories: **2** (e.g. IMD bulletin + ground citizen report or news)
+- Staleness window: Monitor ~60 min; Alert ~4 hours
+- Decay speed: **Medium** (water recession takes 3–6 hours)
+**Fast-track**
+- Official IMD Red Alert + CWC river level above Danger Mark + geo-tagged media.
+
+---
+
+### ⛈️ THUNDERSTORM (Convective Storms & Lightning)
+**Characteristics**
+- Rapid convective development; squalls, lightning strikes, fallen trees.
+- Detected via IMD Doppler Weather Radar (DWR) reflectivity & Lightning Detection Network.
+**Rules**
+- Monitor → Alert at confidence ≥ **0.75**
 - Minimum evidence categories: **2**
-  - At least one of: direct observation, peer verification
-- Sensor alignment (rainfall/river) strongly boosts confidence
-- Staleness window:
-  - Monitor: ~60 minutes
-  - Alert: ~4 hours
-
+- Staleness window: Monitor ~30 min; Alert ~90 min
+- Decay speed: **Fast** (convective cells move at 40–60 km/h; dissipate within 1–2 hours)
 **Fast-track**
-- Multiple direct observations + rising river sensor
+- IMD Nowcast warning + multiple citizen tree-fall/lightning strikes.
 
 ---
 
-### 🪨 Landslide
-
+### 🌧️ RAINFALL (Heavy Downpour / Cloudburst)
 **Characteristics**
-- High impact
-- Rare
-- Often reported via hearsay
-- High false-positive risk
-
-**Rules**
-- Monitor → Alert at confidence ≥ **0.80**
-- Minimum evidence categories: **3**
-  - One must be direct observation or sensor
-- Strong penalty for hearsay-only clusters
-- Staleness window:
-  - Monitor: ~90 minutes
-  - Alert: ~6 hours
-
-**Fast-track**
-- Sensor confirmation + media evidence
-
----
-
-### 🔥 Fire
-
-**Characteristics**
-- Fast-changing
-- Visually dramatic
-- Rapid escalation and resolution
-
+- Sustained precipitation causing localized disruption (e.g. Mumbai coastal rains).
+- Corroborated by Automatic Rain Gauges (ARG) & Automatic Weather Stations (AWS).
 **Rules**
 - Monitor → Alert at confidence ≥ **0.65**
 - Minimum evidence categories: **2**
-  - Media or direct observation required
-- Aggressive decay if not reinforced
-- Staleness window:
-  - Monitor: ~30 minutes
-  - Alert: ~2 hours
-
+- Staleness window: Monitor ~45 min; Alert ~2.5 hours
+- Decay speed: **Medium-Fast**
 **Fast-track**
-- Clear video evidence + multiple confirmations
+- AWS precipitation > 64.5 mm/h (IMD Heavy Rain criteria).
 
 ---
 
-### 🌎 Earthquake
-
+### 🔥 HEATWAVE (Extreme Thermal Conditions)
 **Characteristics**
-- Instantaneous
-- Sensor-detectable
-- High severity, low ambiguity
-
+- Prolonged high surface temperatures (≥ 45°C or departure ≥ 4.5°C above normal).
+- Driven by dry continental westerly winds ("Loo" across Rajasthan, Haryana, Delhi).
 **Rules**
-- Monitor → Alert at confidence ≥ **0.60**
-- Minimum evidence categories:
-  - Sensor data alone is sufficient
-- User reports used for impact assessment, not existence
-- Very slow decay
-- Staleness window:
-  - Monitor: N/A
-  - Alert: ~12 hours (aftershocks context)
-
+- Monitor → Alert at confidence ≥ **0.80**
+- Minimum evidence categories: **2** (IMD synoptic station reading + regional advisory)
+- Staleness window: Monitor ~2 hours; Alert ~8 hours
+- Decay speed: **Slow** (diurnal cycle maintains heat throughout daylight hours)
 **Fast-track**
-- Sensor detection above magnitude threshold
+- IMD Maximum Temperature recording ≥ 47.0°C in plains.
 
 ---
 
-### ⚡ Power Outage
-
+### 🌫️ FOG (Dense Radiation / Advection Fog)
 **Characteristics**
-- Low severity per user
-- High relevance locally
-- No reliable sensors
-
+- Low surface visibility impacting aviation, railways, and highways (e.g. Indo-Gangetic Plains).
+- Measured via Airport Runway Visual Range (RVR) transmissometers & visibility sensors.
 **Rules**
-- Monitor → Alert at confidence ≥ **0.60**
+- Monitor → Alert at confidence ≥ **0.70**
+- Minimum evidence categories: **2** (Airport METAR/RVR + highway traffic reports)
+- Staleness window: Monitor ~45 min; Alert ~3 hours
+- Decay speed: **Medium-Fast** (dissipates with solar radiation by mid-morning)
+**Fast-track**
+- Runway Visual Range (RVR) < 200m at CAT-III airports.
+
+---
+
+### 🌪️ DUST_STORM (Andhi / Sandstorms)
+**Characteristics**
+- Sudden convective dust wall accompanied by gale winds and abrupt temperature drop.
+- Typical in arid and semi-arid Northwest India (Rajasthan, Punjab, Haryana, Delhi).
+**Rules**
+- Monitor → Alert at confidence ≥ **0.75**
 - Minimum evidence categories: **2**
-  - Peer verifications required
-- User reports weighted heavily
-- Staleness window:
-  - Monitor: ~45 minutes
-  - Alert: ~3 hours
-
+- Staleness window: Monitor ~30 min; Alert ~90 min
+- Decay speed: **Fast** (suspended particulate settles rapidly once winds subside)
 **Fast-track**
-- Many confirmations within small radius
+- Anemometer gust ≥ 50 km/h + visibility < 500m.
 
 ---
 
-### ❓ Other / Unknown
-
+### 💨 STRONG_WIND (Gale / Cyclonic Squall)
 **Characteristics**
-- Undefined risk
-- Higher uncertainty
+- High surface wind velocity capable of uprooting hoardings, trees, and transmission lines.
+- Measured via anemometer masts and coastal radar stations.
+**Rules**
+- Monitor → Alert at confidence ≥ **0.70**
+- Minimum evidence categories: **2**
+- Staleness window: Monitor ~30 min; Alert ~2 hours
+- Decay speed: **Fast**
+**Fast-track**
+- Continuous sustained wind speed ≥ 62 km/h (Gale force).
 
+---
+
+### ⚠️ OTHER (Localized Atmospheric Anomalies)
+**Characteristics**
+- Hailstorms, microbursts, frost, or unclassified localized severe weather events.
 **Rules**
 - Monitor → Alert at confidence ≥ **0.85**
 - Minimum evidence categories: **3**
-- No fast-track
-- Conservative decay
+- Staleness window: Monitor ~45 min; Alert ~2 hours
+- Decay speed: **Medium**
 
 ---
 

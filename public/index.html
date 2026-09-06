@@ -155,6 +155,10 @@
       <button onclick="runScenario('heatwave-rajasthan')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-medium transition">
         🔥 Rajasthan Heatwave (47.4°C)
       </button>
+      <button onclick="simulateTime(2)" id="btn-decay" class="px-2.5 py-1 rounded bg-amber-950/80 hover:bg-amber-900 border border-amber-700/60 text-amber-200 font-medium transition flex items-center gap-1.5" title="Simulate 2 hours passing without new evidence per CONFIDENCE_DECAY.md">
+        <span>⏩ Simulate 2h Decay</span>
+        <span class="text-[10px] bg-amber-600/50 px-1 py-0.2 rounded font-mono text-amber-200">Decay Engine</span>
+      </button>
     </div>
     <div class="text-[11px] text-slate-400 font-mono hidden xl:block">
       Multi-Source Fusion • SEDOM-DD Clustering • Skeptic Misinfo Filter
@@ -334,6 +338,38 @@
         </div>
       </div>
 
+      <!-- Evidence Freshness & Temporal Decay (CONFIDENCE_DECAY.md) -->
+      <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Evidence Freshness & Decay</span>
+          </span>
+          <span id="drawer-freshness-pct" class="font-mono font-bold text-cyan-400 text-xs">100%</span>
+        </div>
+        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+          <div id="drawer-freshness-bar" class="h-full bg-cyan-400 transition-all duration-500" style="width: 100%;"></div>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+          <span id="drawer-halflife-label">Half-Life: 3h (FLOOD)</span>
+          <span id="drawer-reinforced-label">Reinforced: Just now</span>
+        </div>
+      </div>
+
+      <!-- Official Station & Sensor Ground Truth (INCIDENT_THRESHOLDS.md) -->
+      <div id="drawer-sensors-box" class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between text-xs font-bold text-slate-300 uppercase tracking-wider">
+          <span class="flex items-center gap-1.5">
+            <span>📡</span>
+            <span>Station & Sensor Alignment</span>
+          </span>
+          <span id="drawer-sensors-status" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">CWC / IMD Gauges</span>
+        </div>
+        <div id="drawer-sensors-list" class="space-y-1.5 text-[11px]">
+          <div class="text-[11px] text-slate-500 font-mono">No telemetry attached.</div>
+        </div>
+      </div>
+
       <!-- Explainable AI Narrative -->
       <div class="p-4 rounded-xl bg-cyan-950/30 border border-cyan-800/50 space-y-2">
         <div class="flex items-center space-x-2 text-xs font-bold text-cyan-400 uppercase tracking-wider">
@@ -352,6 +388,17 @@
           <span id="drawer-evidence-count" class="font-mono text-cyan-400">0 signals</span>
         </div>
         <div id="drawer-evidence-list" class="space-y-2"></div>
+      </div>
+
+      <!-- State Machine Lifecycle Audit Trail (INCIDENT_STATE_MACHINE.md) -->
+      <div class="space-y-2 pt-2 border-t border-slate-800">
+        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+          <span>State Lifecycle Audit Trail</span>
+          <span id="drawer-lifecycle-count" class="font-mono text-cyan-400">0 transitions</span>
+        </div>
+        <div id="drawer-lifecycle-list" class="space-y-2">
+          <div class="text-[11px] text-slate-500 font-mono">No lifecycle transitions recorded yet.</div>
+        </div>
       </div>
 
     </div>
@@ -635,10 +682,46 @@
       document.getElementById('src-citizen').innerHTML = `<span>📱</span><span>Citizen: <strong class="text-white">${sb.citizen || 0}</strong></span>`;
       document.getElementById('src-social').innerHTML = `<span>🐦</span><span>Social: <strong class="text-white">${sb.social_media || 0}</strong></span>`;
 
+      // Freshness & Decay UI
+      const freshness = ev.freshness_score !== undefined ? ev.freshness_score : 100;
+      document.getElementById('drawer-freshness-pct').innerText = `${freshness}%`;
+      const bar = document.getElementById('drawer-freshness-bar');
+      bar.style.width = `${freshness}%`;
+      bar.className = freshness >= 70
+        ? 'h-full bg-cyan-400 transition-all duration-500'
+        : freshness >= 40
+        ? 'h-full bg-amber-400 transition-all duration-500'
+        : 'h-full bg-rose-400 transition-all duration-500';
+
+      const halfLife = ev.half_life_minutes ? `${(ev.half_life_minutes / 60).toFixed(1)}h` : '3h';
+      document.getElementById('drawer-halflife-label').innerText = `Half-Life: ${halfLife} (${ev.event_type})`;
+      const mins = ev.minutes_since_reinforcement || 0;
+      document.getElementById('drawer-reinforced-label').innerText = mins === 0 ? 'Reinforced: Just now' : `Last reinforced: ${mins}m ago`;
+
+      // Sensors UI
+      const sensors = ev.sensors || [];
+      const sList = document.getElementById('drawer-sensors-list');
+      if (sensors.length === 0) {
+        sList.innerHTML = `<div class="text-[11px] text-slate-500 font-mono">No station sensors aligned.</div>`;
+      } else {
+        sList.innerHTML = sensors.map(s => `
+          <div class="p-2 rounded bg-slate-900 border border-slate-800 flex items-center justify-between text-[11px]">
+            <div>
+              <div class="font-bold text-slate-200">${s.station} <span class="text-slate-500 font-normal">(${s.type})</span></div>
+              <div class="text-[10px] text-slate-400 font-mono">Threshold: ${s.threshold}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-mono font-bold text-cyan-400">${s.value}</div>
+              <span class="px-1 py-0.2 rounded text-[9px] font-mono ${s.status.includes('CRITICAL') ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-amber-950 text-amber-300 border border-amber-800'}">${s.status}</span>
+            </div>
+          </div>
+        `).join('');
+      }
+
       // AI Reasoning
       document.getElementById('drawer-ai-reasoning').innerText = ev.ai_reasoning || 'Multi-source spatial-temporal fusion verified.';
 
-      // Fetch Full Evidence
+      // Fetch Full Evidence & Lifecycle
       try {
         const res = await fetch(`${API_BASE}/api/v1/events/${ev.id}`);
         const data = await res.json();
@@ -655,11 +738,56 @@
             ${item.media_url ? `<img src="${item.media_url}" class="w-full h-32 object-cover rounded-md mt-2 border border-slate-700" />` : ''}
           </div>
         `).join('');
+
+        // Lifecycle Audit Trail
+        const lifecycle = data.data?.lifecycle || [];
+        document.getElementById('drawer-lifecycle-count').innerText = `${lifecycle.length} transitions`;
+        const lcList = document.getElementById('drawer-lifecycle-list');
+        if (lifecycle.length === 0) {
+          lcList.innerHTML = `<div class="text-[11px] text-slate-500 font-mono">Initial observation recorded.</div>`;
+        } else {
+          lcList.innerHTML = lifecycle.map(l => `
+            <div class="p-2.5 rounded bg-slate-950 border border-slate-800/80 text-xs space-y-1">
+              <div class="flex items-center justify-between text-[10px] font-mono">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-slate-400 uppercase font-bold">${l.from_status}</span>
+                  <span class="text-slate-600">→</span>
+                  <span class="text-cyan-400 uppercase font-bold">${l.to_status}</span>
+                </div>
+                <span class="text-slate-500">${new Date(l.timestamp).toLocaleTimeString()}</span>
+              </div>
+              <p class="text-[11px] text-slate-300">${l.reason}</p>
+              <div class="text-[9px] text-slate-500 font-mono">Triggered by: <span class="text-slate-400">${l.triggered_by}</span></div>
+            </div>
+          `).join('');
+        }
       } catch (err) {
-        console.error('Failed to load evidence', err);
+        console.error('Failed to load evidence or lifecycle', err);
       }
 
       document.getElementById('intel-drawer').classList.remove('translate-x-full');
+    }
+
+    async function simulateTime(hours = 2) {
+      const btn = document.getElementById('btn-decay');
+      if (btn) btn.classList.add('opacity-50', 'animate-pulse');
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/admin/demo/simulate-time`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hours }),
+        });
+        const data = await res.json();
+        await fetchInitialData();
+        if (selectedEventId) {
+          const updated = allEvents.find(e => e.id === selectedEventId);
+          if (updated) openDrawer(updated);
+        }
+      } catch (err) {
+        console.error('Decay simulation error', err);
+      } finally {
+        if (btn) btn.classList.remove('opacity-50', 'animate-pulse');
+      }
     }
 
     function closeDrawer() {

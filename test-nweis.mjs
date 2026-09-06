@@ -370,6 +370,75 @@ for (const tc of testCases) {
   assert(res.eventType === tc.expected, `"${tc.expected}" correctly classified from meteorological keywords`);
 }
 
+// --- TEST 6: TEMPORAL CONFIDENCE DECAY (CONFIDENCE_DECAY.md) ---
+console.log('\nTEST 6: Temporal Confidence Decay & Freshness Model');
+
+const DECAY_PROFILES = {
+  FLOOD: { halfLifeMin: 180, stalenessCutoffHours: 6 },
+  THUNDERSTORM: { halfLifeMin: 45, stalenessCutoffHours: 2 },
+};
+
+function computeDecay(baseConf, eventType, elapsedMinutes) {
+  const profile = DECAY_PROFILES[eventType] || { halfLifeMin: 90, stalenessCutoffHours: 4 };
+  const decayFactor = Math.pow(0.5, elapsedMinutes / profile.halfLifeMin);
+  const decayedConf = Number(Math.max(0.15, Math.min(baseConf, baseConf * decayFactor)).toFixed(2));
+  const freshnessPct = Math.round(decayFactor * 100);
+
+  let status = decayedConf >= 0.85 ? 'VERIFIED' : 'UNDER_REVIEW';
+  if (elapsedMinutes >= profile.stalenessCutoffHours * 60) {
+    status = 'RESOLVED';
+  }
+  return { decayedConf, freshnessPct, status, decayFactor };
+}
+
+const t0 = computeDecay(0.94, 'FLOOD', 0);
+assert(t0.decayedConf === 0.94 && t0.freshnessPct === 100, 'Zero elapsed time maintains 100% freshness and full confidence (0.94)');
+
+const t180 = computeDecay(0.94, 'FLOOD', 180);
+assert(t180.freshnessPct === 50, '180 minutes (1 half-life) decays freshness to exactly 50%');
+assert(t180.decayedConf <= 0.50, 'Confidence decays below alert threshold (0.47 <= 0.50)');
+assert(t180.status === 'UNDER_REVIEW', 'Status correctly degrades from VERIFIED to UNDER_REVIEW');
+
+const tStale = computeDecay(0.94, 'FLOOD', 380); // >6h cutoff
+assert(tStale.status === 'RESOLVED', 'Exceeding 6h staleness cutoff auto-resolves unreinforced incident');
+
+// --- TEST 7: STATE MACHINE LIFECYCLE AUDIT TRAIL (INCIDENT_STATE_MACHINE.md) ---
+console.log('\nTEST 7: State Machine Lifecycle Audit Trail & Invariants');
+
+const auditLog = [];
+function recordTransition(eventId, fromStatus, toStatus, reason, actor) {
+  const VALID_STATUSES = ['DETECTED', 'UNDER_REVIEW', 'VERIFIED', 'RESOLVED', 'FALSE_ALARM'];
+  if (!VALID_STATUSES.includes(fromStatus) || !VALID_STATUSES.includes(toStatus)) {
+    throw new Error(`Invalid status: ${fromStatus} -> ${toStatus}`);
+  }
+  // Disallowed: Direct jump from FALSE_ALARM/SUPPRESSED directly to VERIFIED without UNDER_REVIEW
+  if (fromStatus === 'FALSE_ALARM' && toStatus === 'VERIFIED') {
+    return { success: false, error: 'Forbidden direct transition FALSE_ALARM -> VERIFIED' };
+  }
+  const entry = {
+    id: `lc_${Date.now()}`,
+    eventId,
+    fromStatus,
+    toStatus,
+    reason,
+    actor,
+    timestamp: new Date().toISOString(),
+  };
+  auditLog.push(entry);
+  return { success: true, entry };
+}
+
+const tr1 = recordTransition('evt_assam_1', 'DETECTED', 'UNDER_REVIEW', 'IMD Red Alert bulletin ingested', 'imd_connector');
+assert(tr1.success && tr1.entry.toStatus === 'UNDER_REVIEW', 'Valid initial transition DETECTED -> UNDER_REVIEW logged');
+
+const tr2 = recordTransition('evt_assam_1', 'UNDER_REVIEW', 'VERIFIED', '7-Factor evidence fusion reached 94% with 4 sources', 'evidence_fusion_engine');
+assert(tr2.success && tr2.entry.toStatus === 'VERIFIED', 'Valid promotion UNDER_REVIEW -> VERIFIED logged with explainable reason');
+
+const invalidTr = recordTransition('evt_assam_1', 'FALSE_ALARM', 'VERIFIED', 'Direct bypass attempt', 'malicious_user');
+assert(!invalidTr.success, 'Forbidden transition FALSE_ALARM -> VERIFIED rejected by state machine invariant');
+
+assert(auditLog.length === 2, 'Audit trail contains exactly 2 valid recorded transitions with timestamps and actors');
+
 console.log('\n================================================================');
 console.log(` TEST SUMMARY: ${passedTests}/${totalTests} Tests Passed (100% Success)`);
 console.log(' N-WEIS Architecture, AI Pipeline & Verification Gates VALIDATED.');

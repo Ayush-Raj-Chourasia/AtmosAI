@@ -22,7 +22,74 @@ const memSignals = new Map();
 const memEvents = new Map();
 const memEvidence = new Map();
 const memVerifications = [];
+const memLifecycle = [];
 const sseClients = new Set();
+
+const DECAY_PROFILES = {
+  FLOOD: { halfLifeMin: 180, stalenessCutoffHours: 6, decaySpeed: 'medium' },
+  THUNDERSTORM: { halfLifeMin: 45, stalenessCutoffHours: 2, decaySpeed: 'fast' },
+  RAINFALL: { halfLifeMin: 90, stalenessCutoffHours: 3, decaySpeed: 'medium-fast' },
+  HEATWAVE: { halfLifeMin: 360, stalenessCutoffHours: 12, decaySpeed: 'slow' },
+  FOG: { halfLifeMin: 75, stalenessCutoffHours: 4, decaySpeed: 'medium-fast' },
+  DUST_STORM: { halfLifeMin: 45, stalenessCutoffHours: 2, decaySpeed: 'fast' },
+  STRONG_WIND: { halfLifeMin: 40, stalenessCutoffHours: 2, decaySpeed: 'fast' },
+  OTHER: { halfLifeMin: 90, stalenessCutoffHours: 3, decaySpeed: 'medium' },
+};
+
+function logLifecycleTransition(eventId, fromStatus, toStatus, reason, triggeredBy) {
+  const entry = {
+    id: `lc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    event_id: eventId,
+    from_status: fromStatus,
+    to_status: toStatus,
+    reason,
+    triggered_by: triggeredBy,
+    timestamp: new Date().toISOString(),
+  };
+  memLifecycle.push(entry);
+  broadcastSSE({ type: 'lifecycle_transition', log: entry });
+  return entry;
+}
+
+function applyConfidenceDecay(event, now = Date.now()) {
+  const profile = DECAY_PROFILES[event.event_type] || DECAY_PROFILES.OTHER;
+  const lastEv = new Date(event.last_evidence_at || event.last_updated_at).getTime();
+  const elapsedMin = Math.max(0, (now - lastEv) / 60000);
+
+  const decayFactor = Math.pow(0.5, elapsedMin / profile.halfLifeMin);
+  const base = event.base_confidence || event.confidence_score;
+  const decayedConf = Number(Math.max(0.15, Math.min(base, base * decayFactor)).toFixed(2));
+  const freshnessPct = Math.max(0, Math.min(100, Math.round(decayFactor * 100)));
+
+  const oldStatus = event.status;
+  let newStatus = oldStatus;
+
+  if (elapsedMin > profile.stalenessCutoffHours * 60) {
+    if (oldStatus !== 'RESOLVED') {
+      newStatus = 'RESOLVED';
+    }
+  } else if (decayedConf < 0.85 && oldStatus === 'VERIFIED') {
+    newStatus = 'UNDER_REVIEW';
+  }
+
+  if (newStatus !== oldStatus) {
+    event.status = newStatus;
+    logLifecycleTransition(
+      event.id,
+      oldStatus,
+      newStatus,
+      `Confidence decayed from ${(base * 100).toFixed(0)}% to ${(decayedConf * 100).toFixed(0)}% (elapsed ${Math.round(elapsedMin)}m without reinforcement)`,
+      'temporal_decay_engine'
+    );
+  }
+
+  event.confidence_score = decayedConf;
+  event.freshness_score = freshnessPct;
+  event.decay_factor = Number(decayFactor.toFixed(3));
+  event.minutes_since_reinforcement = Math.round(elapsedMin);
+  event.half_life_minutes = profile.halfLifeMin;
+  return event;
+}
 
 const WEATHER_TAXONOMY = [
   'RAINFALL',
@@ -256,6 +323,9 @@ async function ingestSignal(raw) {
 
   const aiReasoning = `${signal.event_candidate} confidence is ${(confidenceScore * 100).toFixed(0)}% based on ${uniqueSources.size} independent observation vectors across ${relatedSignals.length} localized signals. Multi-factor corroboration verified with ${(avgSource * 100).toFixed(0)}% source reliability and 95% spatial consistency.`;
 
+  const isNewEvent = !targetEvent;
+  const oldStatus = targetEvent?.status || 'DETECTED';
+
   const eventPayload = {
     id: eventId,
     event_type: signal.event_candidate,
@@ -267,17 +337,49 @@ async function ingestSignal(raw) {
     longitude: signal.longitude,
     city: signal.city,
     state: signal.state,
+    base_confidence: confidenceScore,
     confidence_score: confidenceScore,
+    freshness_score: 100,
+    decay_factor: 1.0,
+    half_life_minutes: (DECAY_PROFILES[signal.event_candidate] || DECAY_PROFILES.OTHER).halfLifeMin,
     first_detected_at: targetEvent?.first_detected_at || new Date().toISOString(),
+    last_evidence_at: new Date().toISOString(),
     last_updated_at: new Date().toISOString(),
     verified_at: eventStatus === 'VERIFIED' ? (targetEvent?.verified_at || new Date().toISOString()) : null,
     signal_count: relatedSignals.length,
     source_breakdown: sourceBreakdown,
     evidence_summary: evidenceSummary,
     ai_reasoning: aiReasoning,
+    sensors: targetEvent?.sensors || [],
   };
 
   memEvents.set(eventId, eventPayload);
+
+  if (isNewEvent) {
+    logLifecycleTransition(
+      eventId,
+      'DETECTED',
+      eventStatus,
+      `Initial weather event established from ${signal.source_name || signal.source_type} observation`,
+      signal.source_type
+    );
+  } else if (oldStatus !== eventStatus) {
+    logLifecycleTransition(
+      eventId,
+      oldStatus,
+      eventStatus,
+      `Evidence fusion score updated to ${(confidenceScore * 100).toFixed(0)}% with ${uniqueSources.size} corroborating source types`,
+      signal.source_type === 'citizen' ? 'citizen_reinforcement' : 'evidence_fusion'
+    );
+  } else {
+    logLifecycleTransition(
+      eventId,
+      eventStatus,
+      eventStatus,
+      `Reinforced by ${signal.source_name || signal.source_type} report. Freshness restored to 100%.`,
+      signal.source_type
+    );
+  }
 
   // Save evidence
   memEvidence.set(`ev_${signal.id}`, {
@@ -367,6 +469,12 @@ async function runGuwahatiFloodDemo() {
 
   const events = Array.from(memEvents.values());
   const guwahati = events.find(e => e.city.toLowerCase().includes('guwahati'));
+  if (guwahati) {
+    guwahati.sensors = [
+      { type: 'River Gauge', station: 'CWC Brahmaputra Pandu', value: '50.12 m', threshold: '49.68 m (Danger Mark)', status: 'CRITICAL_EXCEEDED' },
+      { type: 'AWS Rain Gauge', station: 'IMD Borjhar Met AWS', value: '118.5 mm / 24h', threshold: '64.5 mm (Heavy Rain)', status: 'ALERT' },
+    ];
+  }
   return {
     success: true,
     scenario: 'flood-guwahati',
@@ -410,10 +518,17 @@ async function runDelhiStormDemo() {
   });
 
   const events = Array.from(memEvents.values());
+  const delhi = events.find(e => e.city.toLowerCase().includes('delhi'));
+  if (delhi) {
+    delhi.sensors = [
+      { type: 'Doppler Radar', station: 'IMD Palam DWR', value: '52 dBZ Reflectivity', threshold: '45 dBZ (Severe Convective)', status: 'ALERT' },
+      { type: 'Anemometer', station: 'IMD Safdarjung Mast', value: '68 km/h Gust', threshold: '55 km/h (Squall)', status: 'ALERT' },
+    ];
+  }
   return {
     success: true,
     scenario: 'thunderstorm-delhi',
-    verifiedEvent: events.find(e => e.city.toLowerCase().includes('delhi')),
+    verifiedEvent: delhi,
     message: 'Delhi NCR Thunderstorm scenario executed: Squall and lightning corroborated at high confidence.',
   };
 }
@@ -441,10 +556,17 @@ async function runMumbaiRainDemo() {
   });
 
   const events = Array.from(memEvents.values());
+  const mumbai = events.find(e => e.city.toLowerCase().includes('mumbai'));
+  if (mumbai) {
+    mumbai.sensors = [
+      { type: 'Tide Gauge', station: 'Mumbai Port Trust', value: '4.20 m High Tide', threshold: '4.00 m (Overtopping)', status: 'ALERT' },
+      { type: 'AWS Rain Gauge', station: 'IMD Santacruz AWS', value: '84.0 mm / 3h', threshold: '64.5 mm (Heavy Rain)', status: 'ALERT' },
+    ];
+  }
   return {
     success: true,
     scenario: 'mumbai-rainfall',
-    verifiedEvent: events.find(e => e.city.toLowerCase().includes('mumbai')),
+    verifiedEvent: mumbai,
     message: 'Mumbai Coastal Rain scenario executed.',
   };
 }
@@ -462,10 +584,17 @@ async function runRajasthanHeatwaveDemo() {
   });
 
   const events = Array.from(memEvents.values());
+  const jaipur = events.find(e => e.state.toLowerCase().includes('rajasthan'));
+  if (jaipur) {
+    jaipur.sensors = [
+      { type: 'Surface Thermometer', station: 'IMD Churu Synoptic AWS', value: '47.4 °C', threshold: '45.0 °C (Severe Heatwave)', status: 'CRITICAL_EXCEEDED' },
+      { type: 'Departure Sensor', station: 'IMD Bikaner Observatory', value: '+5.4 °C Departure', threshold: '+4.5 °C (Heatwave Departure)', status: 'ALERT' },
+    ];
+  }
   return {
     success: true,
     scenario: 'heatwave-rajasthan',
-    verifiedEvent: events.find(e => e.state.toLowerCase().includes('rajasthan')),
+    verifiedEvent: jaipur,
     message: 'Rajasthan Heatwave scenario executed: 47.4°C thermal alert active.',
   };
 }
@@ -521,7 +650,7 @@ const server = http.createServer(async (req, res) => {
 
   // --- EVENTS MAP & LIST ---
   if ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/incidents' || pathname === '/api/v1/events/map') && req.method === 'GET') {
-    let events = Array.from(memEvents.values());
+    let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
     const cat = parsedUrl.searchParams.get('event_type');
     const state = parsedUrl.searchParams.get('state');
     const status = parsedUrl.searchParams.get('status');
@@ -544,8 +673,10 @@ const server = http.createServer(async (req, res) => {
     const id = eventMatch[1];
     const event = memEvents.get(id);
     if (!event) return sendJson(404, { success: false, message: 'Event not found' });
+    applyConfidenceDecay(event);
     const evidence = Array.from(memEvidence.values()).filter(e => e.event_id === id);
-    return sendJson(200, { success: true, data: { ...event, evidence } });
+    const lifecycle = memLifecycle.filter(l => l.event_id === id);
+    return sendJson(200, { success: true, data: { ...event, evidence, lifecycle } });
   }
 
   // --- CITIZEN & SIGNAL INGESTION ---
@@ -570,6 +701,28 @@ const server = http.createServer(async (req, res) => {
     return sendJson(201, { success: true, data: result });
   }
 
+  // --- SIMULATE TIME / CONFIDENCE DECAY ---
+  if ((pathname === '/api/v1/admin/demo/simulate-time' || pathname === '/admin/demo/simulate-time') && req.method === 'POST') {
+    const body = await getBody();
+    const hours = parseFloat(body.hours || 2);
+    const eventId = body.event_id;
+    const shiftMs = hours * 3600 * 1000;
+    const eventsToShift = eventId ? [memEvents.get(eventId)].filter(Boolean) : Array.from(memEvents.values());
+    const updated = [];
+    for (const ev of eventsToShift) {
+      const currentLast = new Date(ev.last_evidence_at || ev.last_updated_at).getTime();
+      ev.last_evidence_at = new Date(currentLast - shiftMs).toISOString();
+      applyConfidenceDecay(ev);
+      updated.push(ev);
+      broadcastSSE({ type: 'incident_update', event: ev });
+    }
+    return sendJson(200, {
+      success: true,
+      message: `Simulated ${hours} hour(s) elapsed without new evidence. Temporal decay executed.`,
+      events: updated,
+    });
+  }
+
   // --- ADMIN DEMO SCENARIOS ---
   const demoMatch = pathname.match(/^\/(?:api\/v1\/admin|admin)\/demo\/scenario\/([^\/]+)$/);
   if (demoMatch && req.method === 'POST') {
@@ -579,6 +732,7 @@ const server = http.createServer(async (req, res) => {
       memEvents.clear();
       memEvidence.clear();
       memVerifications.length = 0;
+      memLifecycle.length = 0;
       broadcastSSE({ type: 'demo_reset' });
       return sendJson(200, { success: true, message: 'System state reset to baseline.' });
     }
