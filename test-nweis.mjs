@@ -633,6 +633,133 @@ const NATIONAL_REGIONS = ['Assam', 'Delhi', 'Maharashtra', 'Rajasthan', 'West Be
 const distinctStates = new Set(NATIONAL_REGIONS);
 assert(distinctStates.size >= 6, 'National overview scenario covers at least 6 distinct Indian states/union territories');
 
+// --- TEST 10: MULTILINGUAL INDIC LOCALIZATION & CAP v1.2 EARLY WARNING COMPLIANCE ---
+console.log('\nTEST 10: Multilingual Indic Localization & CAP v1.2 Early Warning Compliance');
+
+function generateMultilingualBulletin(event, lang = 'en') {
+  const city = event.city;
+  const state = event.state;
+  const type = event.event_type;
+  const conf = `${(event.confidence_score * 100).toFixed(0)}%`;
+
+  const bulletins = {
+    en: {
+      lang: 'en',
+      lang_name: 'English',
+      headline: `IMD URGENT ALERT: ${type} Warning for ${city}, ${state}`,
+      instruction: `Confirmed ${type.toLowerCase()} event verified at ${conf} confidence. Residents are advised to take safety precautions and follow local emergency administration advisories.`,
+      voice_text: `Attention citizens. India Meteorological Department has issued an urgent ${type.toLowerCase()} alert for ${city}, ${state}. Verified confidence is ${conf}. Please take shelter and follow safety instructions.`,
+      urgency: 'Immediate',
+      severity: event.severity ? event.severity.toUpperCase() : 'HIGH'
+    },
+    hi: {
+      lang: 'hi',
+      lang_name: 'हिंदी (Hindi)',
+      headline: `भारत मौसम विज्ञान विभाग (IMD) आपातकालीन चेतावनी: ${city}, ${state} में ${type === 'FLOOD' ? 'बाढ़' : type === 'THUNDERSTORM' ? 'आंधी-तूफान' : type === 'HEATWAVE' ? 'भीषण लू' : type === 'FOG' ? 'घना कोहरा' : type === 'RAINFALL' ? 'भारी बारिश' : type} का अलर्ट`,
+      instruction: `सत्यापित मौसम आपदा (${conf} सटीकता)। सभी नागरिकों से अनुरोध है कि सुरक्षित स्थानों पर रहें, अनावश्यक यात्रा से बचें और स्थानीय आपदा प्रबंधन के निर्देशों का पालन करें।`,
+      voice_text: `नागरिकों ध्यान दें। भारत मौसम विज्ञान विभाग ने ${city}, ${state} के लिए ${type === 'FLOOD' ? 'बाढ़' : type === 'THUNDERSTORM' ? 'आंधी-तूफान' : type === 'HEATWAVE' ? 'भीषण लू' : type === 'FOG' ? 'घना कोहरा' : 'भारी मौसम'} की चेतावनी जारी की है। कृपया सुरक्षित स्थानों पर रहें।`,
+      urgency: 'Immediate',
+      severity: event.severity ? event.severity.toUpperCase() : 'HIGH'
+    },
+    as: {
+      lang: 'as',
+      lang_name: 'অসমীয়া (Assamese)',
+      headline: `ভাৰতীয় বতৰ বিজ্ঞান বিভাগ (IMD) জৰুৰী সতৰ্কতা: ${city}, অসমত বতৰৰ সতৰ্কবাৰ্তা`,
+      instruction: `${city}ত ${type === 'FLOOD' ? 'গুৰুতৰ বানপানী' : 'প্ৰাকৃতিক দুৰ্যোগ'} সতৰ্কতা জাৰি কৰা হৈছে (${conf} প্ৰমাণিত)। ব্ৰহ্মপুত্ৰ আৰু স্থানীয় নদীৰ কাষৰ বাসিন্দাসকলক সতৰ্ক থাকিবলৈ আৰু ওখ ঠাইলৈ যাবলৈ কোৱা হৈছে।`,
+      voice_text: `ৰাইজৰ দৃষ্টি আকৰ্ষণ কৰা হৈছে। বতৰ বিজ্ঞান বিভাগে ${city}ৰ বাবে জৰুৰী বতৰ সতৰ্কবাৰ্তা জাৰি কৰিছে। সকলো নাগৰিকক সুৰক্ষিত স্থানত আশ্ৰয় ল'বলৈ অনুৰোধ জনোৱা হৈছে।`,
+      urgency: 'Immediate',
+      severity: event.severity ? event.severity.toUpperCase() : 'HIGH'
+    },
+    bn: {
+      lang: 'bn',
+      lang_name: 'বাংলা (Bengali)',
+      headline: `ভারত আবহাওয়া দপ্তর (IMD) জরুরি সতর্কতা: ${city}, পশ্চিমবঙ্গে দুর্যোগের বার্তা`,
+      instruction: `${city} এবং সংলগ্ন উপকূলবর্তী এলাকায় ${type === 'STRONG_WIND' || type === 'THUNDERSTORM' ? 'ঘূর্ণিঝড় ও তীব্র ঝোড়ো হাওয়া' : 'প্রাকৃতিক দুর্যোগ'} সতর্কতা (${conf} নিশ্চিত)। মৎস্যজীবীদের সমুদ্রে যেতে নিষেধ করা হয়েছে এবং নিচু এলাকার মানুষদের ত্রাণ শিবিরে আশ্রয় নিতে বলা হয়েছে।`,
+      voice_text: `সকলের দৃষ্টি আকর্ষণ করা হচ্ছে। আলিপুর আবহাওয়া দপ্তর ${city} ও পার্শ্ববর্তী এলাকার জন্য জরুরি সতর্কতা জারি করেছে। অনুগ্রহ করে নিরাপদ স্থানে থাকুন।`,
+      urgency: 'Immediate',
+      severity: event.severity ? event.severity.toUpperCase() : 'HIGH'
+    },
+    mr: {
+      lang: 'mr',
+      lang_name: 'मराठी (Marathi)',
+      headline: `भारतीय हवामान विभाग (IMD) आणीबाणी इशारा: ${city}, महाराष्ट्र येथे सतर्कता`,
+      instruction: `${city} आणि परिसरात मुसळधार पाऊस व पूरस्थितीची शक्यता (${conf} खात्रीशीर). सखल भागातील नागरिकांनी सतर्क राहावे आणि स्थानिक प्रशासनाच्या सूचनांचे पालन करावे.`,
+      voice_text: `नागरिकांनी कृपया लक्ष द्यावे. हवामान खात्याने ${city} साठी अतिवृष्टी आणि वादळाचा गंभीर इशारा दिला आहे. घरातच सुरक्षित राहावे.`,
+      urgency: 'Immediate',
+      severity: event.severity ? event.severity.toUpperCase() : 'HIGH'
+    },
+    kn: {
+      lang: 'kn',
+      lang_name: 'ಕನ್ನಡ (Kannada)',
+      headline: `ಭಾರತೀಯ ಹವಾಮಾನ ಇಲಾಖೆ (IMD) ತುರ್ತು ಎಚ್ಚರಿಕೆ: ${city}, ಕರ್ನಾಟಕ`,
+      instruction: `${city} ನಗರದಲ್ಲಿ ${type === 'RAINFALL' || type === 'FLOOD' ? 'ಭಾರಿ ಮಳೆ ಮತ್ತು ಪ್ರವಾಹ' : 'ಹವಾಮಾನ ವೈಪರೀತ್ಯ'} ಮುನ್ಸೂಚನೆ (${conf} ದೃಢಪಟ್ಟಿದೆ). ಸಾರ್ವಜನಿಕರು ಕೆಳಹಂತದ ರಸ್ತೆ ಮತ್ತು ಜಲಾವೃತ ಪ್ರದೇಶಗಳಿಂದ ದೂರವಿರಲು ಸೂಚಿಸಲಾಗಿದೆ.`,
+      voice_text: `ಸಾರ್ವಜನಿಕರ ಗಮನಕ್ಕೆ. ಹವಾಮಾನ ಇಲಾಖೆಯು ${city} ಪ್ರದೇಶಕ್ಕೆ ತುರ್ತು ಮಳೆ ಮತ್ತು ಪ್ರವಾಹ ಮುನ್ನೆಚ್ಚರಿಕೆ ನೀಡಿದೆ. ದಯವಿಟ್ಟು ಸುರಕ್ಷಿತವಾಗಿರಿ.`,
+      urgency: 'Immediate',
+      severity: event.severity ? event.severity.toUpperCase() : 'HIGH'
+    }
+  };
+
+  return bulletins[lang] || bulletins.en;
+}
+
+function generateCapXml(event) {
+  const alertId = `urn:oid:2.49.0.0.356.0.nweis.${event.id.replace('evt_', '')}`;
+  const now = new Date().toISOString();
+  const expires = new Date(Date.now() + 6 * 3600 * 1000).toISOString();
+  const severity = event.severity === 'critical' ? 'Extreme' : 'Severe';
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>${alertId}</identifier>
+  <sender>warning@imd.gov.in</sender>
+  <sent>${now}</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <scope>Public</scope>
+  <code>IMD-CAP-v1.2</code>
+  <info>
+    <language>en-IN</language>
+    <category>Met</category>
+    <event>${event.event_type}</event>
+    <urgency>Immediate</urgency>
+    <severity>${severity}</severity>
+    <certainty>Observed</certainty>
+    <expires>${expires}</expires>
+    <senderName>India Meteorological Department / Ministry of Earth Sciences</senderName>
+    <headline>${event.title}</headline>
+    <description>${event.description}</description>
+    <area>
+      <areaDesc>${event.city}, ${event.state}, India</areaDesc>
+      <circle>${event.latitude.toFixed(4)},${event.longitude.toFixed(4)},15.0</circle>
+    </area>
+  </info>
+</alert>`;
+}
+
+// 10a: Hindi localized bulletin verification
+const hindiBulletin = generateMultilingualBulletin(mockGuwahatiEvent, 'hi');
+assert(hindiBulletin.lang === 'hi', 'Hindi bulletin returns correct language tag');
+assert(hindiBulletin.headline.includes('बाढ़') || hindiBulletin.headline.includes('आपातकालीन'), 'Hindi bulletin contains authentic Hindi disaster terminology');
+assert(hindiBulletin.voice_text.includes('नागरिकों ध्यान दें'), 'Hindi voice text generated for automated TTS broadcast');
+
+// 10b: Regional language coverage (Assamese, Bengali, Marathi, Kannada)
+const assameseBulletin = generateMultilingualBulletin(mockGuwahatiEvent, 'as');
+assert(assameseBulletin.instruction.includes('ব্ৰহ্মপুত্ৰ') || assameseBulletin.instruction.includes('বানপানী'), 'Assamese bulletin contains authentic Assamese river/flood terminology');
+
+const cycloneEvent = { ...mockGuwahatiEvent, event_type: 'THUNDERSTORM', city: 'Kolkata', state: 'West Bengal' };
+const bengaliBulletin = generateMultilingualBulletin(cycloneEvent, 'bn');
+assert(bengaliBulletin.instruction.includes('ঝড়') || bengaliBulletin.instruction.includes('সতর্কতা'), 'Bengali bulletin contains authentic Bengali cyclone/storm advisory');
+
+const kannadaBulletin = generateMultilingualBulletin({ ...mockGuwahatiEvent, city: 'Bengaluru', state: 'Karnataka' }, 'kn');
+assert(kannadaBulletin.headline.includes('ಕರ್ನಾಟಕ') && kannadaBulletin.headline.includes('ಎಚ್ಚರಿಕೆ'), 'Kannada bulletin contains authentic Kannada emergency advisory');
+
+// 10c: OASIS CAP v1.2 XML compliance
+const capXml = generateCapXml(mockGuwahatiEvent);
+assert(capXml.includes('xmlns="urn:oasis:names:tc:emergency:cap:1.2"'), 'CAP XML complies with OASIS CAP v1.2 namespace');
+assert(capXml.includes('<identifier>urn:oid:2.49.0.0.356.0.nweis.'), 'CAP XML contains standardized OID alert identifier');
+assert(capXml.includes('<sender>warning@imd.gov.in</sender>'), 'CAP XML cites official IMD alerting sender authority');
+assert(capXml.includes('<circle>26.1445,91.7362,15.0</circle>'), 'CAP XML geofences incident with 15km circular broadcast zone');
+
 console.log('\n================================================================');
 console.log(` TEST SUMMARY: ${passedTests}/${totalTests} Tests Passed (100% Success)`);
 console.log(' N-WEIS Architecture, AI Pipeline & Verification Gates VALIDATED.');

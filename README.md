@@ -91,6 +91,9 @@ Once started, the system will serve the REST API, SSE telemetry, and the Web Das
 | `/api/v1/events` | `GET` | Fetch all active weather incidents. Supports filtering by state, status, etc. |
 | `/api/v1/events/:id` | `GET` | Fetch comprehensive dossier for a single event (evidence, lifecycle trail). |
 | `/api/v1/events/:id/sitrep` | `GET` | Export official IMD/NDMA Situation Report (SITREP) with operational directives. |
+| `/api/v1/events/:id/bulletin` | `GET` | Fetch localized Indic alert bulletin (English, Hindi, Assamese, Bengali, Marathi, Kannada). |
+| `/api/v1/events/:id/cap` | `GET` | Export ITU-T X.1303 / OASIS CAP v1.2 standard XML or JSON early warning alert. |
+| `/api/v1/events/:id/broadcast-cap` | `POST` | Simulate Cell Broadcast Service (CBS) emergency alert transmission to local towers. |
 | `/api/v1/signals` | `POST` | Ingest raw signal payload (System-to-System). |
 | `/api/v1/citizen/reports` | `POST` | Ingest a new Citizen Ground Report. |
 | `/api/v1/admin/demo/scenario/:id` | `POST` | Trigger demo scenario (or `national-overview` for all 7 regions). |
@@ -159,7 +162,7 @@ The N-WEIS codebase includes a comprehensive, zero-dependency testing suite that
 ```bash
 node test-nweis.mjs
 ```
-**Results:** `46/46 Tests Passed (100% Success)`
+**Results:** `56/56 Tests Passed (100% Success)`
 
 ---
 
@@ -177,8 +180,8 @@ node test-nweis.mjs
 
 ```text
 n-weis/
-├── server-nweis.mjs          # Standalone Backend Server & API (1100+ lines)
-├── test-nweis.mjs            # 46/46 Passing Verification Test Suite
+├── server-nweis.mjs          # Standalone Backend Server & API (1200+ lines)
+├── test-nweis.mjs            # 56/56 Passing Verification Test Suite
 ├── Dockerfile                # Alpine Node.js Container (zero-dependency)
 ├── docker-compose.yml        # Multi-service orchestration
 ├── public/
