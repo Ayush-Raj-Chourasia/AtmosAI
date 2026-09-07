@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Disaster Pulse',
-    short_name: 'DisasterPulse',
-    description: 'Real-time disaster monitoring and alerts for Indonesia',
+    name: 'AtmosAI',
+    short_name: 'AtmosAI',
+    description: 'Autonomous Meteorological & Extreme Weather Intelligence Platform',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',

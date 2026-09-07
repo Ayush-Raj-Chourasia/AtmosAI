@@ -127,3 +127,35 @@ body {
   justify-content: center;
   line-height: 1;
 }
+
+/* ---------------------------------------------------------------- */
+/* Marketing landing page ( / ) — scoped typography & motion helpers */
+/* ---------------------------------------------------------------- */
+.font-display {
+  font-family: var(--font-display), ui-serif, Georgia, serif;
+}
+
+@keyframes radar-sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-radar-sweep {
+  animation: radar-sweep 8s linear infinite;
+}
+
+@keyframes drift-up {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-drift-up {
+  animation: drift-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-radar-sweep,
+  .animate-drift-up {
+    animation: none !important;
+  }
+}
