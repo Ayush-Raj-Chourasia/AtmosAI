@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, ReactNode } from 'react';
+import { useState, ReactNode, Fragment } from 'react';
 import { ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Column<T> {
@@ -119,9 +119,8 @@ export default function DataTable<T>({
                 const isExpanded = expandedRows.has(rowId);
 
                 return (
-                  <>
+                  <Fragment key={rowId}>
                     <tr
-                      key={rowId}
                       className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
                     >
                       {expandedContent && (
@@ -147,7 +146,7 @@ export default function DataTable<T>({
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })
             )}
