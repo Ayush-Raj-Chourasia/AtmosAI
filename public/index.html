@@ -157,6 +157,10 @@
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
         <span>Citizen Report</span>
       </button>
+      <button onclick="exportGeoJson()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm" title="Export Live Hazard Features in RFC 7946 GeoJSON format for QGIS / ArcGIS / Bhuvan">
+        <span>🗺️</span>
+        <span>GeoJSON</span>
+      </button>
       <button onclick="triggerReset()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition" title="Reset All Data">
         Reset
       </button>
@@ -2003,6 +2007,12 @@
       a.download = `CAP-ALERT-${currentCapData.broadcast_id}.xml`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    function exportGeoJson() {
+      const cat = currentCategoryFilter !== 'ALL' ? `?event_type=${encodeURIComponent(currentCategoryFilter)}` : '';
+      const url = `${API_BASE}/api/v1/events/geojson${cat}`;
+      window.open(url, '_blank');
     }
 
     function escapeHtml(str) {

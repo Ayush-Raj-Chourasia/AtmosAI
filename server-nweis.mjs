@@ -620,6 +620,57 @@ function generateCapXml(event) {
 }
 
 // -------------------------------------------------------------
+// RFC 7946 GeoJSON / OGC WFS FEATURE COLLECTION GENERATOR
+// -------------------------------------------------------------
+function generateGeoJson(events) {
+  return {
+    type: 'FeatureCollection',
+    crs: {
+      type: 'name',
+      properties: { name: 'urn:ogc:def:crs:OGC:1.3:CRS84' }
+    },
+    metadata: {
+      generated_at: new Date().toISOString(),
+      authority: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
+      system: 'N-WEIS: National Weather Event Intelligence System (SIH26069)',
+      standards_conformance: ['RFC 7946 GeoJSON', 'OGC WFS 2.0 Interoperable', 'ISRO Bhuvan Ready'],
+      total_features: events.length
+    },
+    features: events.map(event => ({
+      type: 'Feature',
+      id: event.id,
+      geometry: {
+        type: 'Point',
+        coordinates: [event.longitude, event.latitude]
+      },
+      properties: {
+        event_id: event.id,
+        title: event.title,
+        event_type: event.event_type,
+        severity: (event.severity || 'high').toUpperCase(),
+        status: event.status,
+        confidence_score: event.confidence_score,
+        confidence_percentage: `${(event.confidence_score * 100).toFixed(0)}%`,
+        freshness_score: event.freshness_score,
+        half_life_minutes: event.half_life_minutes,
+        city: event.city,
+        state: event.state,
+        signal_count: event.signal_count,
+        source_breakdown: event.source_breakdown,
+        sensors: event.sensors || [],
+        recommended_actions: event.recommended_actions || [],
+        first_detected_at: event.first_detected_at,
+        last_updated_at: event.last_updated_at,
+        verified_at: event.verified_at,
+        sitrep_endpoint: `/api/v1/events/${event.id}/sitrep`,
+        cap_endpoint: `/api/v1/events/${event.id}/cap`,
+        bulletin_endpoint: `/api/v1/events/${event.id}/bulletin`
+      }
+    }))
+  };
+}
+
+// -------------------------------------------------------------
 // EMERGENCY VOLUNTEER & SDRF SMS DISPATCH ENGINE
 // -------------------------------------------------------------
 const REGIONAL_EMERGENCY_UNITS = {
@@ -1322,6 +1373,28 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // --- RFC 7946 GeoJSON / OGC WFS INTEROPERABILITY LAYER ---
+  if ((pathname === '/api/v1/events/geojson' || pathname === '/events/geojson' || ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/api/v1/events/map') && parsedUrl.searchParams.get('format') === 'geojson')) && req.method === 'GET') {
+    let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
+    const cat = parsedUrl.searchParams.get('event_type');
+    const state = parsedUrl.searchParams.get('state');
+    const status = parsedUrl.searchParams.get('status');
+    const minConf = parsedUrl.searchParams.get('min_confidence');
+
+    if (cat && cat !== 'ALL') events = events.filter(e => e.event_type === cat);
+    if (state && state !== 'All India') events = events.filter(e => e.state.toLowerCase() === state.toLowerCase());
+    if (status && status !== 'ALL') events = events.filter(e => e.status === status);
+    if (minConf) events = events.filter(e => e.confidence_score >= parseFloat(minConf));
+
+    const geojson = generateGeoJson(events);
+    res.writeHead(200, {
+      'Content-Type': 'application/geo+json; charset=utf-8',
+      'Content-Disposition': 'inline; filename="nweis-hazards.geojson"'
+    });
+    res.end(JSON.stringify(geojson, null, 2));
+    return;
+  }
+
   // --- EVENTS MAP & LIST ---
   if ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/incidents' || pathname === '/api/v1/events/map') && req.method === 'GET') {
     let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
@@ -1733,6 +1806,10 @@ const server = http.createServer(async (req, res) => {
   if ((pathname === '/api/v1/admin/events' || pathname === '/admin/events' || pathname === '/admin/incidents') && req.method === 'GET') {
     const events = Array.from(memEvents.values());
     return sendJson(200, { success: true, count: events.length, data: events });
+  }
+
+  if ((pathname === '/api/v1/admin/audit-log' || pathname === '/admin/audit-log') && req.method === 'GET') {
+    return sendJson(200, { success: true, count: memLifecycle.length, data: memLifecycle });
   }
 
   // Web Healthcheck

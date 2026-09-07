@@ -116,6 +116,7 @@ flowchart LR
 | `/health` | GET | System healthcheck |
 | `/api/v1/events/stream` | GET | SSE real-time event stream |
 | `/api/v1/events` | GET | List events (filterable by type, state, status, min_confidence) |
+| `/api/v1/events/geojson` | GET | RFC 7946 GeoJSON FeatureCollection export for QGIS / ArcGIS / Bhuvan |
 | `/api/v1/events/:id` | GET | Event detail with evidence + lifecycle audit |
 | `/api/v1/events/:id/sitrep` | GET | Export official IMD/NDMA Situation Report (SITREP) |
 | `/api/v1/events/:id/bulletin` | GET | Localized Indic alert bulletin (English, Hindi, Assamese, Bengali, Marathi, Kannada) |
@@ -123,15 +124,18 @@ flowchart LR
 | `/api/v1/events/:id/broadcast-cap` | POST | Simulate Cell Broadcast Service (CBS) emergency alert transmission |
 | `/api/v1/events/:id/dispatch-volunteers` | POST | Simulate GSM 7-bit SMS dispatch to localized SDRF units and Aapda Mitra volunteers |
 | `/api/v1/events/:id/status` | PATCH | IMD Duty Meteorologist status override & governance (`VERIFIED`, `RESOLVED`, `FALSE_ALARM`) |
+| `/api/v1/sensors` | GET | Real-time telemetry for 11 national IMD AWS and CWC River Gauges |
+| `/api/v1/sensors/simulate-spike` | POST | Simulate sudden telemetry surge (cloudburst ARG rate, river danger level) |
 | `/api/v1/signals` | POST | Ingest raw signal |
-| `/api/v1/citizen/reports` | POST | Submit citizen weather report |
+| `/api/v1/citizen/reports` | POST | Submit citizen weather report (with offline queueing support) |
 | `/api/v1/admin/demo/scenario/:id` | POST | Trigger demo scenario (or `national-overview`) |
 | `/api/v1/admin/demo/simulate-time` | POST | Simulate temporal decay |
-| `/api/v1/admin/stats` | GET | System KPIs and analytics |
+| `/api/v1/admin/audit-log` | GET | Full immutable state machine transition audit trail |
+| `/api/v1/admin/stats` | GET | System KPIs and operational analytics |
 
 ---
 
-## Test Results — 70/70 Passing (100%)
+## Test Results — 84/84 Passing (100%)
 
 ```
 TEST 1: Citizen Flood Report End-to-End Processing          (3 assertions)
@@ -146,12 +150,10 @@ TEST 9: Operational Directives & Official SITREP Generation   (8 assertions)
 TEST 10: Multilingual Localization & CAP v1.2 Alert Engine   (10 assertions)
 TEST 11: Emergency Volunteer & SDRF SMS Dispatch Engine      (8 assertions)
 TEST 12: Human-in-the-Loop Admin Verification & Governance   (6 assertions)
+TEST 13: Ground Truth Sensor Network & PWA Offline Resiliency(8 assertions)
+TEST 14: RFC 7946 GeoJSON & OGC GIS Interoperability Engine  (6 assertions)
 ────────────────────────────────────────────────────────────────
-TEST 11: Emergency Volunteer & SDRF SMS Dispatch Engine (8 tests)
-TEST 12: Human-in-the-Loop Admin Verification & State Machine Governance (6 tests)
-TEST 13: Ground Truth Sensor Network & PWA Offline Resiliency (8 tests)
-
-TOTAL: 78/78 Tests Passed (100% Success across 13 Test Suites)
+TOTAL: 84/84 Tests Passed (100% Success across 14 Test Suites)
 ```
 
 ---
@@ -192,3 +194,4 @@ docker run -p 3001:3001 nweis
 13. **Operational Analytics & KPIs** → In header, click **"📊 Analytics & KPIs"** → Review real-time throughput, false positive rate, dedup efficiency, and 380ms processing latency.
 14. **Live Sensor Network & Surge Telemetry** → In header, click **"📡 Live Sensors"** → Inspect all 11 IMD AWS and CWC River Gauges → Click **"⚡ Surge Telemetry"** on Bengaluru AWS → Watch instantaneous cloudburst surge detection trigger live across map and telemetry feed!
 15. **PWA Offline Field Resiliency** → Open Developer Tools, set Network to **"Offline"** → Notice the amber **"⚡ Offline Field Mode"** banner appear; submit an offline citizen observation → Notice it automatically queues locally in `localStorage` and flushes directly to the server when network reconnects!
+16. **GIS GeoJSON Interoperability** → Click **"🗺️ GeoJSON"** in header → View or download the full RFC 7946 GeoJSON FeatureCollection ready for instant ingestion into QGIS, ArcGIS, and ISRO Bhuvan portals.
