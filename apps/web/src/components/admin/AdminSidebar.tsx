@@ -19,46 +19,43 @@ import {
 } from 'lucide-react';
 
 const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/signals', label: 'Signals', icon: Radio },
-  { href: '/admin/incidents', label: 'Incidents', icon: AlertTriangle },
-  { href: '/admin/traces', label: 'AI Traces', icon: Brain },
-  { href: '/admin/evaluations', label: 'AI Evaluations', icon: Sparkles },
-  { href: '/admin/users', label: 'Users', icon: Users },
-  { href: '/admin/verifications', label: 'Verifications', icon: CheckCircle2 },
-  { href: '/admin/lifecycle', label: 'Lifecycle', icon: History },
-  { href: '/admin/notifications', label: 'Notifications', icon: Bell },
-  { href: '/admin/tiktok', label: 'TikTok Posts', icon: Video },
+  { href: '/admin', label: 'Overview', icon: LayoutDashboard },
+  { href: '/admin/signals', label: 'Signal Ingestion', icon: Radio },
+  { href: '/admin/incidents', label: 'Weather Incidents', icon: AlertTriangle },
+  { href: '/admin/traces', label: 'AI Reasoning Traces', icon: Brain },
+  { href: '/admin/evaluations', label: 'Model Benchmarks', icon: Sparkles },
+  { href: '/admin/verifications', label: 'Verification Logs', icon: CheckCircle2 },
+  { href: '/admin/lifecycle', label: 'Temporal Decay', icon: History },
+  { href: '/admin/notifications', label: 'Broadcast Alerts', icon: Bell },
+  { href: '/admin/users', label: 'Observers & Nodes', icon: Users },
   { href: '/admin/health', label: 'System Health', icon: Activity },
 ];
 
-// Complete file content replacement needed to handle state properly? 
-// No, I can replace the component body.
 export default function AdminSidebar() {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <aside className={`${isCollapsed ? 'w-20' : 'w-64'} bg-slate-900 text-white min-h-screen flex flex-col transition-all duration-300 relative`}>
+    <aside className={`${isCollapsed ? 'w-20' : 'w-64'} bg-[#12141A] text-[#F7F4EC] min-h-screen flex flex-col transition-all duration-300 relative border-r border-white/10`}>
       {/* Collapse Toggle */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-6 bg-slate-800 text-slate-400 p-1 rounded-full border border-slate-700 hover:text-white transition-colors"
+        className="absolute -right-3 top-6 bg-[#1E2430] text-[#B7BAC2] p-1 rounded-full border border-white/20 hover:text-white transition-colors z-20"
       >
         <ChevronLeft size={14} className={`transform transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Header */}
-      <div className="p-4 border-b border-slate-800">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="min-w-[32px] min-h-[32px] w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-sm">DP</span>
+      <div className="p-4 border-b border-white/10">
+        <Link href="/" className="flex items-center gap-3 overflow-hidden group">
+          <div className="min-w-[32px] min-h-[32px] w-8 h-8 rounded-xl bg-gradient-to-br from-[#FF5A1F] to-[#FF9166] flex items-center justify-center shrink-0 shadow-md">
+            <span className="text-white font-bold text-xs tracking-wider">AA</span>
           </div>
           <div className={`transition-opacity duration-200 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-            <h1 className="font-semibold text-sm whitespace-nowrap">Disaster Pulse</h1>
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider whitespace-nowrap">Admin Dashboard</p>
+            <h1 className="font-display font-semibold text-sm whitespace-nowrap text-[#F7F4EC]">AtmosAI</h1>
+            <p className="text-[10px] text-[#8b8e97] uppercase tracking-wider whitespace-nowrap font-mono">Operations Console</p>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Navigation */}
@@ -73,10 +70,10 @@ export default function AdminSidebar() {
               key={item.href}
               href={item.href}
               title={isCollapsed ? item.label : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+                  ? 'bg-[#FF5A1F] text-white font-semibold shadow-md shadow-[#FF5A1F]/20'
+                  : 'text-[#B7BAC2] hover:bg-white/10 hover:text-[#F7F4EC]'
                 } ${isCollapsed ? 'justify-center px-2' : ''}`}
             >
               <Icon size={18} className="shrink-0" />
@@ -91,7 +88,7 @@ export default function AdminSidebar() {
       {/* Footer - Back to App */}
       <div className="p-3 border-t border-slate-800">
         <Link
-          href="/"
+          href="/dashboard"
           title={isCollapsed ? "Back to App" : undefined}
           className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/50 hover:text-white transition-colors ${isCollapsed ? 'justify-center px-2' : ''}`}
         >
