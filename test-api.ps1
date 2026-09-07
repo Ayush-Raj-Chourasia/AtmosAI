@@ -59,8 +59,19 @@ Write-Host "`n8. Querying RFC 7946 GeoJSON FeatureCollection..." -ForegroundColo
 $geojson = Invoke-RestMethod -Uri "$ApiUrl/api/v1/events/geojson"
 Write-Host "   GeoJSON Type: $($geojson.type) | CRS: $($geojson.crs.properties.name) | Features: $($geojson.features.Count)" -ForegroundColor Green
 
-# 9. Ground Truth Sensor Spike
-Write-Host "`n9. Testing Ground Truth Sensor Spike Telemetry Surge..." -ForegroundColor Yellow
+# 9. OGC KML 2.2 Google Earth Interoperability
+Write-Host "`n9. Querying OGC KML 2.2 Threat Layer for Google Earth..." -ForegroundColor Yellow
+$kml = Invoke-WebRequest -Uri "$ApiUrl/api/v1/events/kml" -UseBasicParsing
+Write-Host "   KML Content-Type: $($kml.Headers['Content-Type']) | Length: $($kml.Content.Length) bytes" -ForegroundColor Green
+
+# 10. Tabular CSV Disaster Log Export
+Write-Host "`n10. Querying Tabular CSV Export for Excel & DDMA..." -ForegroundColor Yellow
+$csv = Invoke-WebRequest -Uri "$ApiUrl/api/v1/events/csv" -UseBasicParsing
+$csvLines = $csv.Content -split "`r`n"
+Write-Host "   CSV Columns: $(($csvLines[0] -split ',').Count) | Total Records: $($csvLines.Count - 1)" -ForegroundColor Green
+
+# 11. Ground Truth Sensor Spike
+Write-Host "`n11. Testing Ground Truth Sensor Spike Telemetry Surge..." -ForegroundColor Yellow
 $spikePayload = @{
     station_id = "IMD-AWS-BLR-01"
     value = 85.0
@@ -68,8 +79,8 @@ $spikePayload = @{
 $spike = Invoke-RestMethod -Method POST -Uri "$ApiUrl/api/v1/sensors/simulate-spike" -Body $spikePayload -ContentType "application/json"
 Write-Host "   Sensor: $($spike.sensor.name) | Status: $($spike.sensor.status) | Reading: $($spike.sensor.display_value)" -ForegroundColor Green
 
-# 10. Duty Meteorologist Verification Override
-Write-Host "`n10. Testing Human-in-the-Loop Duty Forecaster Verification..." -ForegroundColor Yellow
+# 12. Duty Meteorologist Verification Override
+Write-Host "`n12. Testing Human-in-the-Loop Duty Forecaster Verification..." -ForegroundColor Yellow
 $reviewEv = ($events.data | Where-Object { $_.status -eq "UNDER_REVIEW" } | Select-Object -First 1)
 if ($reviewEv) {
     $targetStatus = "VERIFIED"
@@ -86,17 +97,17 @@ $verifyPayload = @{
 $verify = Invoke-RestMethod -Method POST -Uri "$ApiUrl/api/v1/events/$targetId/status" -Body $verifyPayload -ContentType "application/json"
 Write-Host "   Verification: $($verify.message) | Officer: $($verify.transition.actor)" -ForegroundColor Green
 
-# 11. Immutable State Machine Audit Log
-Write-Host "`n11. Inspecting Immutable State Machine Audit Trail..." -ForegroundColor Yellow
+# 13. Immutable State Machine Audit Log
+Write-Host "`n13. Inspecting Immutable State Machine Audit Trail..." -ForegroundColor Yellow
 $audit = Invoke-RestMethod -Uri "$ApiUrl/api/v1/admin/audit-log"
 Write-Host "   Audit Entries: $($audit.count) | Latest Transition: $($audit.data[-1].from_status) -> $($audit.data[-1].to_status)" -ForegroundColor Green
 
-# 12. Operational Analytics & KPIs
-Write-Host "`n12. Querying System Operational Analytics & KPIs..." -ForegroundColor Yellow
+# 14. Operational Analytics & KPIs
+Write-Host "`n14. Querying System Operational Analytics & KPIs..." -ForegroundColor Yellow
 $stats = Invoke-RestMethod -Uri "$ApiUrl/api/v1/admin/stats"
 Write-Host "   Signals Processed: $($stats.totals.signals) | Verification Rate: $($stats.kpis.verificationRate) | Latency: $($stats.kpis.avgProcessingLatency)" -ForegroundColor Green
 
 Write-Host "`n================================================================" -ForegroundColor Cyan
-Write-Host " [SUCCESS] All 12 N-WEIS Early Warning Pipelines VALIDATED!" -ForegroundColor Green
+Write-Host " [SUCCESS] All 14 N-WEIS Early Warning Pipelines VALIDATED!" -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Cyan
 

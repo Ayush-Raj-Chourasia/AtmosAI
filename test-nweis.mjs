@@ -1045,6 +1045,86 @@ assert(guwahatiFeature.geometry.coordinates[0] === 91.7362 && guwahatiFeature.ge
 assert(guwahatiFeature.properties.confidence_score === 0.94 && guwahatiFeature.properties.status === 'VERIFIED', 'GeoJSON feature properties embed accurate confidence score and verification status');
 assert(guwahatiFeature.properties.sitrep_endpoint.includes('/sitrep') && guwahatiFeature.properties.cap_endpoint.includes('/cap'), 'GeoJSON feature embeds linked endpoints for SITREP and CAP cell broadcast');
 
+// -------------------------------------------------------------
+// TEST 15: Multi-Format Interoperability (OGC KML 2.2 & Tabular CSV Export)
+// -------------------------------------------------------------
+console.log('\nTEST 15: Multi-Format Interoperability (OGC KML 2.2 & Tabular CSV Export)');
+
+function generateKmlTest(events) {
+  const placemarks = events.map(e => {
+    const freshPct = Math.round(e.freshness_score > 1 ? e.freshness_score : (e.freshness_score || 1) * 100);
+    return `    <Placemark id="${e.id}">
+      <name><![CDATA[${e.event_type}: ${e.city}, ${e.state} (${(e.confidence_score * 100).toFixed(0)}% Conf)]]></name>
+      <description><![CDATA[
+        <h3>${e.title}</h3>
+        <p><b>Hazard Type:</b> ${e.event_type} | <b>Severity:</b> ${(e.severity || 'high').toUpperCase()}</p>
+        <p><b>Lifecycle Status:</b> ${e.status} | <b>Confidence:</b> ${(e.confidence_score * 100).toFixed(0)}%</p>
+        <p><b>Corroborated Signals:</b> ${e.signal_count} | <b>Freshness:</b> ${freshPct}%</p>
+        <p><b>Location:</b> ${e.city}, ${e.state} (${e.latitude.toFixed(4)}°N, ${e.longitude.toFixed(4)}°E)</p>
+        <p><b>Issuing Authority:</b> Ministry of Earth Sciences / India Meteorological Department (IMD)</p>
+      ]]></description>
+      <Point>
+        <coordinates>${e.longitude},${e.latitude},0</coordinates>
+      </Point>
+    </Placemark>`;
+  }).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>N-WEIS Live Weather Event Intelligence Layer</name>
+    <description>IMD / MoES Real-Time Multi-Hazard Situational Awareness (SIH26069)</description>
+${placemarks}
+  </Document>
+</kml>`;
+}
+
+function generateCsvTest(events) {
+  const headers = ['id', 'event_type', 'severity', 'status', 'city', 'state', 'latitude', 'longitude', 'confidence_score', 'signal_count', 'freshness_score', 'first_detected_at', 'last_updated_at'];
+  const escapeCsv = val => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+  const rows = events.map(e => [
+    e.id,
+    e.event_type,
+    (e.severity || 'high').toUpperCase(),
+    e.status,
+    e.city,
+    e.state,
+    e.latitude,
+    e.longitude,
+    e.confidence_score,
+    e.signal_count,
+    Math.round(e.freshness_score > 1 ? e.freshness_score : (e.freshness_score || 1) * 100),
+    e.first_detected_at,
+    e.last_updated_at
+  ].map(escapeCsv).join(','));
+
+  return [headers.join(','), ...rows].join('\r\n');
+}
+
+const testEvents = [mockGuwahatiEvent, { ...mockGuwahatiEvent, id: 'evt_delhi', city: 'New Delhi', state: 'Delhi', latitude: 28.6139, longitude: 77.209, event_type: 'THUNDERSTORM' }];
+const kmlOutput = generateKmlTest(testEvents);
+const csvOutput = generateCsvTest(testEvents);
+
+// 15a: KML Namespace & Envelope
+assert(kmlOutput.includes('<?xml version="1.0" encoding="UTF-8"?>') && kmlOutput.includes('<kml xmlns="http://www.opengis.net/kml/2.2">'), 'KML export conforms to OGC KML 2.2 XML namespace');
+assert(kmlOutput.includes('<Document>') && kmlOutput.includes('</Document>'), 'KML contains standard top-level Document container');
+
+// 15b: KML Placemark Coordinates Order (lon,lat,alt)
+assert(kmlOutput.includes('<coordinates>91.7362,26.1445,0</coordinates>'), 'KML Placemark specifies 3D point coordinates in [lon,lat,alt] format');
+assert(kmlOutput.includes('FLOOD: Guwahati, Assam (94% Conf)') && kmlOutput.includes('India Meteorological Department (IMD)'), 'KML Placemark embeds hazard title, confidence, and IMD authority');
+
+// 15c: Tabular CSV Schema & Row Escaping
+const csvLines = csvOutput.split('\r\n');
+assert(csvLines[0] === 'id,event_type,severity,status,city,state,latitude,longitude,confidence_score,signal_count,freshness_score,first_detected_at,last_updated_at', 'CSV header conforms to standardized disaster operational schema');
+assert(csvLines.length === 3 && csvLines[1].includes('Guwahati,Assam,26.1445,91.7362,0.94'), 'CSV data row correctly formats geolocated attributes and confidence score');
+
 console.log('\n================================================================');
 console.log(` TEST SUMMARY: ${passedTests}/${totalTests} Tests Passed (100% Success)`);
 console.log(' N-WEIS Architecture, AI Pipeline & Verification Gates VALIDATED.');

@@ -117,6 +117,8 @@ flowchart LR
 | `/api/v1/events/stream` | GET | SSE real-time event stream |
 | `/api/v1/events` | GET | List events (filterable by type, state, status, min_confidence) |
 | `/api/v1/events/geojson` | GET | RFC 7946 GeoJSON FeatureCollection export for QGIS / ArcGIS / Bhuvan |
+| `/api/v1/events/kml` | GET | OGC KML 2.2 export for Google Earth 3D situational visualization |
+| `/api/v1/events/csv` | GET | Tabular CSV export for Excel, DDMA district collectors & offline logbooks |
 | `/api/v1/events/:id` | GET | Event detail with evidence + lifecycle audit |
 | `/api/v1/events/:id/sitrep` | GET | Export official IMD/NDMA Situation Report (SITREP) |
 | `/api/v1/events/:id/bulletin` | GET | Localized Indic alert bulletin (English, Hindi, Assamese, Bengali, Marathi, Kannada) |
@@ -135,7 +137,7 @@ flowchart LR
 
 ---
 
-## Test Results — 84/84 Passing (100%)
+## Test Results — 90/90 Passing (100%)
 
 ```
 TEST 1: Citizen Flood Report End-to-End Processing          (3 assertions)
@@ -152,8 +154,9 @@ TEST 11: Emergency Volunteer & SDRF SMS Dispatch Engine      (8 assertions)
 TEST 12: Human-in-the-Loop Admin Verification & Governance   (6 assertions)
 TEST 13: Ground Truth Sensor Network & PWA Offline Resiliency(8 assertions)
 TEST 14: RFC 7946 GeoJSON & OGC GIS Interoperability Engine  (6 assertions)
+TEST 15: Multi-Format Interoperability (OGC KML 2.2 & CSV)   (6 assertions)
 ────────────────────────────────────────────────────────────────
-TOTAL: 84/84 Tests Passed (100% Success across 14 Test Suites)
+TOTAL: 90/90 Tests Passed (100% Success across 15 Test Suites)
 ```
 
 ---
@@ -203,5 +206,5 @@ docker run -p 3001:3001 nweis
 13. **Operational Analytics & KPIs** → In header, click **"📊 Analytics & KPIs"** → Review real-time throughput, false positive rate, dedup efficiency, and 380ms processing latency.
 14. **Live Sensor Network & Surge Telemetry** → In header, click **"📡 Live Sensors"** → Inspect all 11 IMD AWS and CWC River Gauges → Click **"⚡ Surge Telemetry"** on Bengaluru AWS → Watch instantaneous cloudburst surge detection trigger live across map and telemetry feed!
 15. **PWA Offline Field Resiliency** → Open Developer Tools, set Network to **"Offline"** → Notice the amber **"⚡ Offline Field Mode"** banner appear; submit an offline citizen observation → Notice it automatically queues locally in `localStorage` and flushes directly to the server when network reconnects!
-16. **GIS GeoJSON Interoperability** → Click **"🗺️ GeoJSON"** in header → View or download the full RFC 7946 GeoJSON FeatureCollection ready for instant ingestion into QGIS, ArcGIS, and ISRO Bhuvan portals.
+16. **Multi-Format GIS & Tabular Data Export** → In header, click **"🗺️ GeoJSON"**, **"🌐 KML"**, or **"📑 CSV"** → Download full hazard feature collections ready for instant ingestion into QGIS/ArcGIS/Bhuvan, 3D Google Earth flyovers, or Excel logs for District Disaster Management Authorities.
 17. **Live Booth Telemetry Feeder** → Open a second terminal and run `node simulate-stream.mjs` → Watch live gauge spikes, citizen eyewitness drops, and CAP sirens pulse autonomously every 12 seconds with real-time SSE animation across the map!

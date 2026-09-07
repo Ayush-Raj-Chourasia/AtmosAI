@@ -671,6 +671,70 @@ function generateGeoJson(events) {
 }
 
 // -------------------------------------------------------------
+// OGC KML 2.2 GOOGLE EARTH EXPORT GENERATOR
+// -------------------------------------------------------------
+function generateKml(events) {
+  const placemarks = events.map(e => {
+    const freshPct = Math.round(e.freshness_score > 1 ? e.freshness_score : (e.freshness_score || 1) * 100);
+    return `    <Placemark id="${e.id}">
+      <name><![CDATA[${e.event_type}: ${e.city}, ${e.state} (${(e.confidence_score * 100).toFixed(0)}% Conf)]]></name>
+      <description><![CDATA[
+        <h3>${e.title}</h3>
+        <p><b>Hazard Type:</b> ${e.event_type} | <b>Severity:</b> ${(e.severity || 'high').toUpperCase()}</p>
+        <p><b>Lifecycle Status:</b> ${e.status} | <b>Confidence:</b> ${(e.confidence_score * 100).toFixed(0)}%</p>
+        <p><b>Corroborated Signals:</b> ${e.signal_count} | <b>Freshness:</b> ${freshPct}%</p>
+        <p><b>Location:</b> ${e.city}, ${e.state} (${e.latitude.toFixed(4)}°N, ${e.longitude.toFixed(4)}°E)</p>
+        <p><b>Issuing Authority:</b> Ministry of Earth Sciences / India Meteorological Department (IMD)</p>
+      ]]></description>
+      <Point>
+        <coordinates>${e.longitude},${e.latitude},0</coordinates>
+      </Point>
+    </Placemark>`;
+  }).join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>N-WEIS Live Weather Event Intelligence Layer</name>
+    <description>IMD / MoES Real-Time Multi-Hazard Situational Awareness (SIH26069)</description>
+${placemarks}
+  </Document>
+</kml>`;
+}
+
+// -------------------------------------------------------------
+// TABULAR CSV / EXCEL EXPORT GENERATOR
+// -------------------------------------------------------------
+function generateCsv(events) {
+  const headers = ['id', 'event_type', 'severity', 'status', 'city', 'state', 'latitude', 'longitude', 'confidence_score', 'signal_count', 'freshness_score', 'first_detected_at', 'last_updated_at'];
+  const escapeCsv = val => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+  const rows = events.map(e => [
+    e.id,
+    e.event_type,
+    (e.severity || 'high').toUpperCase(),
+    e.status,
+    e.city,
+    e.state,
+    e.latitude,
+    e.longitude,
+    e.confidence_score,
+    e.signal_count,
+    Math.round(e.freshness_score > 1 ? e.freshness_score : (e.freshness_score || 1) * 100),
+    e.first_detected_at,
+    e.last_updated_at
+  ].map(escapeCsv).join(','));
+
+  return [headers.join(','), ...rows].join('\r\n');
+}
+
+// -------------------------------------------------------------
 // EMERGENCY VOLUNTEER & SDRF SMS DISPATCH ENGINE
 // -------------------------------------------------------------
 const REGIONAL_EMERGENCY_UNITS = {
@@ -1392,6 +1456,50 @@ const server = http.createServer(async (req, res) => {
       'Content-Disposition': 'inline; filename="nweis-hazards.geojson"'
     });
     res.end(JSON.stringify(geojson, null, 2));
+    return;
+  }
+
+  // --- OGC KML 2.2 GOOGLE EARTH EXPORT LAYER ---
+  if ((pathname === '/api/v1/events/kml' || pathname === '/events/kml' || ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/api/v1/events/map') && parsedUrl.searchParams.get('format') === 'kml')) && req.method === 'GET') {
+    let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
+    const cat = parsedUrl.searchParams.get('event_type');
+    const state = parsedUrl.searchParams.get('state');
+    const status = parsedUrl.searchParams.get('status');
+    const minConf = parsedUrl.searchParams.get('min_confidence');
+
+    if (cat && cat !== 'ALL') events = events.filter(e => e.event_type === cat);
+    if (state && state !== 'All India') events = events.filter(e => e.state.toLowerCase() === state.toLowerCase());
+    if (status && status !== 'ALL') events = events.filter(e => e.status === status);
+    if (minConf) events = events.filter(e => e.confidence_score >= parseFloat(minConf));
+
+    const kml = generateKml(events);
+    res.writeHead(200, {
+      'Content-Type': 'application/vnd.google-earth.kml+xml; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="nweis-hazards.kml"'
+    });
+    res.end(kml);
+    return;
+  }
+
+  // --- TABULAR CSV / EXCEL EXPORT LAYER ---
+  if ((pathname === '/api/v1/events/csv' || pathname === '/events/csv' || ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/api/v1/events/map') && parsedUrl.searchParams.get('format') === 'csv')) && req.method === 'GET') {
+    let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
+    const cat = parsedUrl.searchParams.get('event_type');
+    const state = parsedUrl.searchParams.get('state');
+    const status = parsedUrl.searchParams.get('status');
+    const minConf = parsedUrl.searchParams.get('min_confidence');
+
+    if (cat && cat !== 'ALL') events = events.filter(e => e.event_type === cat);
+    if (state && state !== 'All India') events = events.filter(e => e.state.toLowerCase() === state.toLowerCase());
+    if (status && status !== 'ALL') events = events.filter(e => e.status === status);
+    if (minConf) events = events.filter(e => e.confidence_score >= parseFloat(minConf));
+
+    const csv = generateCsv(events);
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="nweis-hazards.csv"'
+    });
+    res.end(csv);
     return;
   }
 

@@ -27,6 +27,8 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 - 📡 **IMD Doppler Weather Radar (DWR) 6-Station Network:** Live rotating 360° radar sweep beams across Delhi Palam, Kolkata, Mumbai, Guwahati, Jaipur, and Bengaluru with real-time dBZ reflectivity scales.
 - 📱 **Progressive Web App (PWA) Offline Resiliency:** Operates in offline field mode with service worker caching and local citizen report queueing that auto-synchronizes upon reconnect.
 - 🗺️ **RFC 7946 GeoJSON & OGC GIS Interoperability:** Generates standard GeoJSON FeatureCollections projected in OGC CRS84 for instant ingestion into QGIS, ArcGIS, and ISRO Bhuvan mapping systems.
+- 🌐 **OGC KML 2.2 Google Earth 3D Visualization:** Real-time KML export with rich Placemark metadata and coordinates for 3D terrain flyovers in Google Earth.
+- 📑 **Tabular CSV Disaster Logs:** Instant CSV export formatted for District Disaster Management Authorities (DDMA) and Excel morning briefing logbooks.
 - 🚨 **Volunteer SDRF & Aapda Mitra SMS Dispatch:** Mobilizes localized response units with GSM 160-character cellular SMS budget compliance and official helplines (1077/112).
 - 🛡️ **IMD Duty Meteorologist Governance:** Human-in-the-loop sign-off with strict state machine invariants and tamper-evident audit logging.
 
@@ -95,6 +97,8 @@ Once started, the system will serve the REST API, SSE telemetry, and the Web Das
 | `/api/v1/events/stream` | `GET` | SSE endpoint for real-time pushing of weather events and signals. |
 | `/api/v1/events` | `GET` | Fetch all active weather incidents. Supports filtering by state, status, etc. |
 | `/api/v1/events/geojson` | `GET` | RFC 7946 GeoJSON FeatureCollection export for QGIS, ArcGIS, and ISRO Bhuvan. |
+| `/api/v1/events/kml` | `GET` | OGC KML 2.2 export for Google Earth 3D situational visualization. |
+| `/api/v1/events/csv` | `GET` | Tabular CSV export for Excel, DDMA district collectors, and offline logbooks. |
 | `/api/v1/events/:id` | `GET` | Fetch comprehensive dossier for a single event (evidence, lifecycle trail). |
 | `/api/v1/events/:id/sitrep` | `GET` | Export official IMD/NDMA Situation Report (SITREP) with operational directives. |
 | `/api/v1/events/:id/bulletin` | `GET` | Fetch localized Indic alert bulletin (English, Hindi, Assamese, Bengali, Marathi, Kannada). |
@@ -173,7 +177,7 @@ The N-WEIS codebase includes a comprehensive, zero-dependency testing suite that
 ```bash
 node test-nweis.mjs
 ```
-**Results:** `84/84 Tests Passed (100% Success across 14 Test Suites)`
+**Results:** `90/90 Tests Passed (100% Success across 15 Test Suites)`
 
 ---
 

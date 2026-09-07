@@ -47,17 +47,23 @@ curl -s "$API_URL/api/v1/events/$FIRST_EVENT_ID/sitrep" | grep -o '"sitrep_id":"
 echo -e "\n9. Querying RFC 7946 GeoJSON FeatureCollection..."
 curl -s "$API_URL/api/v1/events/geojson" | grep -o '"type":"FeatureCollection"'
 
-echo -e "\n10. Testing Ground Truth Sensor Spike Telemetry Surge..."
+echo -e "\n10. Querying OGC KML 2.2 Threat Layer for Google Earth..."
+curl -s "$API_URL/api/v1/events/kml" | grep -o '<kml xmlns="http://www.opengis.net/kml/2.2">'
+
+echo -e "\n11. Querying Tabular CSV Disaster Log Export..."
+curl -s "$API_URL/api/v1/events/csv" | head -n 1 | grep -o 'confidence_score'
+
+echo -e "\n12. Testing Ground Truth Sensor Spike Telemetry Surge..."
 curl -s -X POST "$API_URL/api/v1/sensors/simulate-spike" \
   -H "Content-Type: application/json" \
   -d '{"station_id":"IMD-AWS-BLR-01","value":88.5}' | grep -o '"status":"CRITICAL_EXCEEDED"'
 
-echo -e "\n11. Inspecting Immutable State Machine Audit Trail..."
+echo -e "\n13. Inspecting Immutable State Machine Audit Trail..."
 curl -s "$API_URL/api/v1/admin/audit-log" | grep -o '"count":[0-9]*'
 
-echo -e "\n12. Testing Operational Analytics & KPIs..."
+echo -e "\n14. Testing Operational Analytics & KPIs..."
 curl -s "$API_URL/api/v1/admin/stats" | grep -o '"verificationRate":"[^"]*"'
 
 echo -e "\n\n================================================================"
-echo " [SUCCESS] All 12 N-WEIS Early Warning Pipelines VALIDATED!"
+echo " [SUCCESS] All 14 N-WEIS Early Warning Pipelines VALIDATED!"
 echo "================================================================"
