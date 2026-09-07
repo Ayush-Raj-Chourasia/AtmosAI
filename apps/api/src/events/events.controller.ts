@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
-import { EventMapQueryParams } from '@n-weis/shared';
+import type { EventMapQueryParams } from '@n-weis/shared';
 
 @Controller(['incidents', 'events', 'api/v1/events'])
 export class EventsController {

@@ -1,7 +1,7 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { IngestionService } from '../ingestion.service';
-import { CitizenWeatherReportDto } from '@n-weis/shared';
-import { RawSignalInput } from '../../processing/signal-normalizer.service';
+import type { CitizenWeatherReportDto } from '@n-weis/shared';
+import type { RawSignalInput } from '../../processing/signal-normalizer.service';
 
 @Controller('api/v1')
 export class CitizenController {

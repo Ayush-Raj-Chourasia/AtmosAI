@@ -36,7 +36,7 @@ export class RelevanceScorerService {
     // 4. Source Relevance Score
     const sourceScore = this.evaluateSourceScore(sourceType);
 
-    // Composite Weighted Fusion (Hanny GeoAI formula adapted for N-WEIS)
+    // Composite Weighted Fusion (Hanny GeoAI formula adapted for AtmosAI)
     // 35% Text + 25% Spatial + 20% Temporal + 20% Source
     const compositeScore = Number(
       (

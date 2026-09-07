@@ -14,7 +14,8 @@ export class DemoScenariosService {
   ) {}
 
   /**
-   * Execute Demo Scenario according to Section 38 (The 5-Minute Judge Story)
+   * Execute a named demo scenario, injecting realistic multi-source signals
+   * that flow through the full ingestion, verification and fusion pipeline.
    */
   async executeScenario(scenarioId: string) {
     this.logger.log(`🎬 Running Demo Scenario: ${scenarioId}...`);
@@ -45,10 +46,10 @@ export class DemoScenariosService {
   }
 
   /**
-   * SCENARIO 1: Guwahati Flood (Section 38 Master Narrative)
+   * SCENARIO 1: Guwahati Flood
    */
   private async runGuwahatiFloodScenario() {
-    const results = [];
+    const results: Awaited<ReturnType<typeof this.ingestionService.ingestSignal>>[] = [];
 
     // 1. Official IMD Bulletin
     results.push(

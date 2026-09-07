@@ -1,8 +1,7 @@
 -- ============================================================
--- N-WEIS: National Weather Event Intelligence System
--- SIH 2026 Problem Statement SIH26069
+-- AtmosAI: Autonomous Meteorological & Extreme Weather Intelligence Platform
 -- Unified PostgreSQL + PostGIS Production Schema
--- Target: Ministry of Earth Sciences / India Meteorological Department (IMD)
+-- Target: Indian Meteorological Intelligence & Disaster Early Warning
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

@@ -27,7 +27,7 @@ export class SignalNormalizerService {
   constructor(private readonly geolocationService: GeolocationService) {}
 
   /**
-   * Normalizes any incoming raw signal into the unified N-WEIS Signal format
+   * Normalizes any incoming raw signal into the unified AtmosAI Signal format
    */
   normalize(input: RawSignalInput): SignalInsert {
     // 1. Normalize Timestamp to ISO 8601 UTC

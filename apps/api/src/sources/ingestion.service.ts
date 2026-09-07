@@ -46,7 +46,7 @@ export class IngestionService {
   ) {}
 
   /**
-   * Universal Ingestion Gateway: Processes a raw signal through the complete 12-step N-WEIS pipeline
+   * Universal Ingestion Gateway: Processes a raw signal through the complete 12-step AtmosAI pipeline
    */
   async ingestSignal(raw: RawSignalInput): Promise<IngestionResult> {
     this.logger.log(` Ingesting raw signal from [${raw.source_type}]: "${raw.text.slice(0, 60)}..."`);
@@ -215,7 +215,7 @@ export class IngestionService {
     // Gather all related signals for this geographic cluster
     const clusterSignals = existingSignals.filter(s => {
       if (s.event_candidate !== signal.event_candidate) return false;
-      if (s.latitude === null || s.longitude === null) return false;
+      if (s.latitude == null || s.longitude == null) return false;
       const dist = this.deduplication.calculateHaversineDistanceKm(
         signal.latitude!,
         signal.longitude!,

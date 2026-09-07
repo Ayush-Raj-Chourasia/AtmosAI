@@ -70,10 +70,10 @@ export class DeduplicationService {
       // LAYER 3: SPATIAL-TEMPORAL PROXIMITY
       // ============================================================
       if (
-        candidate.latitude !== null &&
-        candidate.longitude !== null &&
-        existing.latitude !== null &&
-        existing.longitude !== null
+        candidate.latitude != null &&
+        candidate.longitude != null &&
+        existing.latitude != null &&
+        existing.longitude != null
       ) {
         const distanceKm = this.calculateHaversineDistanceKm(
           candidate.latitude,

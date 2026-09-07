@@ -16,9 +16,7 @@
     "baseUrl": "./",
     "paths": {
       "@n-weis/shared": ["../../packages/shared/src"],
-      "@n-weis/shared/*": ["../../packages/shared/src/*"],
-      "@disaster-app/shared": ["../../packages/shared/src"],
-      "@disaster-app/shared/*": ["../../packages/shared/src/*"]
+      "@n-weis/shared/*": ["../../packages/shared/src/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

@@ -46,7 +46,7 @@ export class DatabaseService implements OnModuleInit {
         this.pool = new Pool({ connectionString: dbUrl, connectionTimeoutMillis: 3000 });
         const client = await this.pool.connect();
         this.isPostgresConnected = true;
-        this.logger.log(' Connected to PostgreSQL. Applying N-WEIS schema.sql...');
+        this.logger.log(' Connected to PostgreSQL. Applying AtmosAI schema.sql...');
 
         try {
           const schemaPath = path.join(process.cwd(), 'apps/api/src/database/schema.sql');
