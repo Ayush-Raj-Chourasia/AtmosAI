@@ -387,6 +387,104 @@ function generateCapXml(event) {
 }
 
 // -------------------------------------------------------------
+// EMERGENCY VOLUNTEER & SDRF SMS DISPATCH ENGINE
+// -------------------------------------------------------------
+const REGIONAL_EMERGENCY_UNITS = {
+  'Assam': {
+    sdrf: 'Assam SDRF Battalion 1 (Pandu Water Rescue Wing)',
+    authority: 'Assam State Disaster Management Authority (ASDMA)',
+    community: 'Kamrup Metropolitan Aapda Mitra Volunteer Corps',
+    helpline: '1077 / 112',
+    ndrfUnit: '1st NDRF Battalion (Patgaon Guwahati)',
+    estVolunteers: 348,
+    estAapdaMitra: 120
+  },
+  'Delhi': {
+    sdrf: 'Delhi Fire & Civil Defence Quick Reaction Team',
+    authority: 'Delhi Disaster Management Authority (DDMA)',
+    community: 'Central & New Delhi Aapda Mitra Responders',
+    helpline: '1077 / 112',
+    ndrfUnit: '8th NDRF Battalion (Ghaziabad NCR)',
+    estVolunteers: 412,
+    estAapdaMitra: 160
+  },
+  'Maharashtra': {
+    sdrf: 'Maharashtra SDRF 1st Battalion (Nagpur/Pune detachment)',
+    authority: 'Brihanmumbai Disaster Management Cell (BMC)',
+    community: 'Brihanmumbai Aapda Mitra Coastal Response Volunteers',
+    helpline: '1916 / 1077 / 112',
+    ndrfUnit: '5th NDRF Battalion (Pune Unit)',
+    estVolunteers: 520,
+    estAapdaMitra: 210
+  },
+  'Rajasthan': {
+    sdrf: 'Rajasthan SDRF Battalion (Jaipur Company)',
+    authority: 'Rajasthan Disaster Management & Relief Department',
+    community: 'Jaipur & Thar Aapda Mitra Volunteers',
+    helpline: '1070 / 112',
+    ndrfUnit: '6th NDRF Battalion (Ajmer detachment)',
+    estVolunteers: 290,
+    estAapdaMitra: 95
+  },
+  'West Bengal': {
+    sdrf: 'West Bengal Disaster Management Brigade & Civil Defence',
+    authority: 'West Bengal Disaster Management Authority (WBDMA)',
+    community: 'Kolkata & South 24 Parganas Aapda Mitra Responders',
+    helpline: '1070 / 112',
+    ndrfUnit: '2nd NDRF Battalion (Haringhata Nadia)',
+    estVolunteers: 460,
+    estAapdaMitra: 185
+  },
+  'Karnataka': {
+    sdrf: 'Karnataka SDRF 1st Company (Bengaluru Base)',
+    authority: 'Karnataka State Natural Disaster Monitoring Centre (KSNDMC)',
+    community: 'BBMP Disaster Volunteer Taskforce',
+    helpline: '1077 / 112',
+    ndrfUnit: '10th NDRF Battalion (Bengaluru detachment)',
+    estVolunteers: 380,
+    estAapdaMitra: 140
+  }
+};
+
+function generateVolunteerDispatch(event) {
+  const stateConfig = REGIONAL_EMERGENCY_UNITS[event.state] || {
+    sdrf: 'State Disaster Response Force (SDRF) Quick Response Team',
+    authority: 'State Disaster Management Authority (SDMA)',
+    community: 'National Disaster Management Authority (NDMA) Aapda Mitra Volunteers',
+    helpline: '1077 / 112',
+    ndrfUnit: 'Regional NDRF Battalion',
+    estVolunteers: 250,
+    estAapdaMitra: 80
+  };
+
+  const confPercent = `${(event.confidence_score * 100).toFixed(0)}%`;
+  const smsEnglish = `[ALERT] IMD: ${event.event_type} in ${event.city} (${confPercent} conf). SDRF/NDRF activated. Dial ${stateConfig.helpline} for rescue. -${event.state} DMA`;
+
+  return {
+    dispatch_id: `SMS-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
+    event_id: event.id,
+    event_type: event.event_type,
+    city: event.city,
+    state: event.state,
+    confidence_score: event.confidence_score,
+    target_battalions: [
+      stateConfig.sdrf,
+      stateConfig.ndrfUnit,
+      stateConfig.community
+    ],
+    issuing_authority: stateConfig.authority,
+    volunteers_alerted: stateConfig.estVolunteers,
+    aapda_mitra_responders: stateConfig.estAapdaMitra,
+    total_responders_mobilized: stateConfig.estVolunteers + stateConfig.estAapdaMitra,
+    tollfree_helpline: stateConfig.helpline,
+    sms_payload: smsEnglish,
+    sms_char_count: smsEnglish.length,
+    sms_within_limit: smsEnglish.length <= 160,
+    dispatched_at: new Date().toISOString()
+  };
+}
+
+// -------------------------------------------------------------
 // CORE INGESTION & FUSION PIPELINE
 // -------------------------------------------------------------
 async function ingestSignal(raw) {
@@ -1173,6 +1271,19 @@ const server = http.createServer(async (req, res) => {
 
     broadcastSSE({ type: 'cell_broadcast_alert', event, dispatchReceipt });
     return sendJson(200, dispatchReceipt);
+  }
+
+  // --- VOLUNTEER & SDRF SMS DISPATCH SIMULATOR ---
+  const dispatchVolunteersMatch = pathname.match(/^\/(?:api\/v1\/events|events)\/([^\/]+)\/dispatch-volunteers$/);
+  if (dispatchVolunteersMatch && req.method === 'POST') {
+    const id = dispatchVolunteersMatch[1];
+    const event = memEvents.get(id);
+    if (!event) return sendJson(404, { success: false, message: 'Event not found' });
+    applyConfidenceDecay(event);
+
+    const dispatchReceipt = generateVolunteerDispatch(event);
+    broadcastSSE({ type: 'volunteer_dispatch_alert', event, dispatchReceipt });
+    return sendJson(200, { success: true, dispatch: dispatchReceipt });
   }
 
   // --- CITIZEN & SIGNAL INGESTION ---

@@ -94,6 +94,7 @@ Once started, the system will serve the REST API, SSE telemetry, and the Web Das
 | `/api/v1/events/:id/bulletin` | `GET` | Fetch localized Indic alert bulletin (English, Hindi, Assamese, Bengali, Marathi, Kannada). |
 | `/api/v1/events/:id/cap` | `GET` | Export ITU-T X.1303 / OASIS CAP v1.2 standard XML or JSON early warning alert. |
 | `/api/v1/events/:id/broadcast-cap` | `POST` | Simulate Cell Broadcast Service (CBS) emergency alert transmission to local towers. |
+| `/api/v1/events/:id/dispatch-volunteers` | `POST` | Simulate GSM 7-bit SMS dispatch to localized SDRF units and Aapda Mitra volunteers. |
 | `/api/v1/signals` | `POST` | Ingest raw signal payload (System-to-System). |
 | `/api/v1/citizen/reports` | `POST` | Ingest a new Citizen Ground Report. |
 | `/api/v1/admin/demo/scenario/:id` | `POST` | Trigger demo scenario (or `national-overview` for all 7 regions). |
@@ -162,7 +163,7 @@ The N-WEIS codebase includes a comprehensive, zero-dependency testing suite that
 ```bash
 node test-nweis.mjs
 ```
-**Results:** `56/56 Tests Passed (100% Success)`
+**Results:** `64/64 Tests Passed (100% Success across 11 Test Suites)`
 
 ---
 
@@ -170,8 +171,9 @@ node test-nweis.mjs
 
 - **Backend:** Node.js (Zero-Dependency, built-in `node:http`, `node:url`, `node:fs`, `node:path`)
 - **Frontend:** HTML5, Tailwind CSS (via CDN), Google Fonts
-- **GIS / Mapping:** Leaflet.js
+- **GIS / Mapping:** Leaflet.js with Doppler Weather Radar (DWR) Canvas Sweep Layer
 - **Real-Time:** Server-Sent Events (SSE)
+- **Audio / Alerts:** Browser Web Speech API & OASIS CAP v1.2 Cell Broadcast
 - **Architecture:** In-Memory PostGIS/Haversine emulator & Event Sourcing
 
 ---
@@ -180,8 +182,8 @@ node test-nweis.mjs
 
 ```text
 n-weis/
-├── server-nweis.mjs          # Standalone Backend Server & API (1200+ lines)
-├── test-nweis.mjs            # 56/56 Passing Verification Test Suite
+├── server-nweis.mjs          # Standalone Backend Server & API (1400+ lines)
+├── test-nweis.mjs            # 64/64 Passing Verification Test Suite (11 Suites)
 ├── Dockerfile                # Alpine Node.js Container (zero-dependency)
 ├── docker-compose.yml        # Multi-service orchestration
 ├── public/
