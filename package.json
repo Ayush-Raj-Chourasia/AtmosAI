@@ -1,22 +1,13 @@
 {
-  "name": "n-weis",
+  "name": "atmosai",
   "private": true,
-  "bin": {
-    "nweis": "./nweis-cli.mjs"
-  },
   "scripts": {
-    "start": "node server-nweis.mjs",
-    "serve": "node server-nweis.mjs",
-    "test": "node test-nweis.mjs",
-    "test:nweis": "node test-nweis.mjs",
-    "simulate": "node simulate-stream.mjs",
-    "simulate:once": "node simulate-stream.mjs --once",
-    "cli": "node nweis-cli.mjs",
-    "package": "powershell.exe -ExecutionPolicy Bypass -File .\\package-release.ps1",
+    "postinstall": "npm run build -w packages/shared",
     "build": "turbo build",
-    "dev": "concurrently -n \"WEB,API\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
+    "dev": "npm run build -w packages/shared && concurrently -n \"WEB,API\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
+    "test": "npm run test -w apps/api",
     "lint": "turbo lint",
     "clean": "turbo clean"
   },

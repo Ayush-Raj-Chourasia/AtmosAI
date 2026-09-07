@@ -1,105 +1,42 @@
 version: '3'
 
 services:
-  nweis:
+  api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: apps/api/Dockerfile
     ports:
       - "3001:3001"
+    environment:
+      - PORT=3001
+      # Optional: connect to a real Postgres/PostGIS instance.
+      # Leave unset to run in zero-config in-memory mode.
+      - DATABASE_URL=${DATABASE_URL:-}
     restart: unless-stopped
     networks:
-      - disaster_network
+      - nweis_network
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3021}
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY}
-        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
-        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
-        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
-        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
-        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID}
-        NEXT_PUBLIC_FIREBASE_VAPID_KEY: ${NEXT_PUBLIC_FIREBASE_VAPID_KEY}
-        NEXT_PUBLIC_FEATURE_USER_REPORTS: ${NEXT_PUBLIC_FEATURE_USER_REPORTS:-true}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
     ports:
-      - "3020:3020"
+      - "3000:3000"
     environment:
-      - PORT=3020
-      # API Config
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3021}
-      
-      # Supabase
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      
-      # Firebase
-      - NEXT_PUBLIC_FIREBASE_API_KEY=${NEXT_PUBLIC_FIREBASE_API_KEY}
-      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
-      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
-      - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
-      - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
-      - NEXT_PUBLIC_FIREBASE_APP_ID=${NEXT_PUBLIC_FIREBASE_APP_ID}
-      - NEXT_PUBLIC_FIREBASE_VAPID_KEY=${NEXT_PUBLIC_FIREBASE_VAPID_KEY}
-      
-      # Features
-      - NEXT_PUBLIC_FEATURE_USER_REPORTS=${NEXT_PUBLIC_FEATURE_USER_REPORTS:-true}
-      
-      # Admin
-      - ADMIN_EMAIL_WHITELIST=${ADMIN_EMAIL_WHITELIST}
+      - PORT=3000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      # Optional: enables Google sign-in on the citizen mobile app.
+      # Leave unset to run without authentication.
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL:-}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
     depends_on:
       - api
+    restart: unless-stopped
     networks:
-      - disaster_network
-
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    ports:
-      - "3021:3021"
-    environment:
-      - PORT=3021
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      
-      # Database
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - DATABASE_URL=${DATABASE_URL}
-      
-      # AI
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_BASE_URL=${GEMINI_BASE_URL}
-      - GEMINI_FLASH_MODEL=${GEMINI_FLASH_MODEL:-maia/gemini-2.5-flash}
-      - GEMINI_PRO_MODEL=${GEMINI_PRO_MODEL:-maia/gemini-3-pro-preview}
-      
-      # Google Maps
-      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
-      
-      # Cloudflare R2
-      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
-      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
-      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
-      
-      # Firebase
-      - FIREBASE_SERVICE_ACCOUNT_BASE64=${FIREBASE_SERVICE_ACCOUNT_BASE64}
-      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-    networks:
-      - disaster_network
+      - nweis_network
 
 networks:
-  disaster_network:
+  nweis_network:
     driver: bridge

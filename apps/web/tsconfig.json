@@ -21,9 +21,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@n-weis/shared": ["../../packages/shared/src"],
-      "@n-weis/shared/*": ["../../packages/shared/src/*"],
-      "@disaster-app/shared": ["../../packages/shared/src"],
-      "@disaster-app/shared/*": ["../../packages/shared/src/*"]
+      "@n-weis/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": [
