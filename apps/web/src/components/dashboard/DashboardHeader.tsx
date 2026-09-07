@@ -29,16 +29,10 @@ export default function DashboardHeader() {
         <header className="pt-6 pb-2 px-6 bg-white/95 backdrop-blur-md border-b border-slate-100 transition-colors duration-300">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full overflow-hidden shadow-sm">
-                        <Image
-                            src="/icons/icon-192x192.png"
-                            alt="Disaster Pulse"
-                            width={32}
-                            height={32}
-                            unoptimized
-                        />
+                    <div className="h-8 w-8 rounded-full bg-[#12141A] flex items-center justify-center text-white shadow-sm">
+                        <span className="h-2 w-2 rounded-full bg-[#FF5A1F]" />
                     </div>
-                    <h1 className="font-semibold tracking-tight text-lg text-slate-900">Disaster Pulse</h1>
+                    <h1 className="font-semibold tracking-tight text-lg text-slate-900 font-display">AtmosAI</h1>
                 </div>
                 
                 {/* Status Indicator */}

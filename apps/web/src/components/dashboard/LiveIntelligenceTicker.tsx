@@ -35,10 +35,11 @@ type AgentActivity = {
 const formatSourceName = (source: string): string => {
     const sourceMap: Record<string, string> = {
         news: 'News',
-        bmkg: 'BMKG',
+        imd: 'IMD',
+        bmkg: 'IMD',
         social_media: 'Social Media',
-        tiktok: 'TikTok',
-        user_report: 'User Report',
+        satellite: 'INSAT-3DR',
+        user_report: 'Citizen Report',
     };
     return sourceMap[source.toLowerCase()] || source.charAt(0).toUpperCase() + source.slice(1).toLowerCase();
 };
@@ -48,7 +49,7 @@ const generateAgentActivity = (signals: Signal[]): AgentActivity[] => {
     const activities: AgentActivity[] = [];
 
     signals.slice(0, 20).forEach((signal, i) => {
-        const loc = signal.city_hint || 'Indonesia';
+        const loc = signal.city_hint || 'India';
         const eventType = signal.event_type?.replace('_', ' ') || 'event';
         const analysis = signal.raw_payload?.ai_analysis;
 
@@ -144,9 +145,9 @@ export default function LiveIntelligenceTicker() {
         dismissed: signals24h.filter(s => s.event_type === 'noise').length,
         sources: {
             news: signals24h.filter(s => s.source === 'news').length,
-            social: signals24h.filter(s => s.source === 'social_media' || s.source === 'tiktok').length,
-            bmkg: signals24h.filter(s => s.source === 'bmkg').length,
-            reports: signals24h.filter(s => s.source === 'user_report').length,
+            social: signals24h.filter(s => s.source === 'social_media' || s.source === 'social').length,
+            imd: signals24h.filter(s => s.source === 'imd' || s.source === 'bmkg' || s.source === 'satellite').length,
+            reports: signals24h.filter(s => s.source === 'user_report' || s.source === 'citizen').length,
         }
     };
 
@@ -289,10 +290,10 @@ export default function LiveIntelligenceTicker() {
                                 </div>
                                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                                     <div className="flex items-center gap-1 mb-1">
-                                        <GoogleIcon name="earthquake" size={14} className="text-emerald-500" />
-                                        <span className="text-[9px] font-medium text-slate-500 uppercase">BMKG</span>
+                                        <GoogleIcon name="radar" size={14} className="text-emerald-500" />
+                                        <span className="text-[9px] font-medium text-slate-500 uppercase">IMD / Radar</span>
                                     </div>
-                                    <div className="text-lg font-bold text-slate-900">{stats.sources.bmkg}</div>
+                                    <div className="text-lg font-bold text-slate-900">{stats.sources.imd}</div>
                                 </div>
                                 <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                                     <div className="flex items-center gap-1 mb-1">
