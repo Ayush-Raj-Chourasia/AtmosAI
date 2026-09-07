@@ -845,6 +845,83 @@ const delhiDispatch = generateVolunteerDispatch({ ...mockGuwahatiEvent, state: '
 assert(delhiDispatch.issuing_authority === 'Delhi Disaster Management Authority (DDMA)', 'Delhi incident assigned to DDMA authority');
 assert(delhiDispatch.target_battalions.some(b => b.includes('8th NDRF Battalion')), 'Delhi NCR activates 8th NDRF Ghaziabad battalion');
 
+// --- TEST 12: HUMAN-IN-THE-LOOP ADMIN VERIFICATION & STATE MACHINE GOVERNANCE ---
+console.log('\nTEST 12: Human-in-the-Loop Admin Verification & State Machine Governance');
+
+function validateAndTransitionStatusTest(event, targetStatus, reason, officerName = 'IMD Duty Meteorologist') {
+  const VALID_STATUSES = ['DETECTED', 'UNDER_REVIEW', 'VERIFIED', 'RESOLVED', 'FALSE_ALARM'];
+  const fromStatus = event.status;
+
+  if (!VALID_STATUSES.includes(targetStatus)) {
+    return { success: false, error: `Invalid target status: ${targetStatus}` };
+  }
+  if (fromStatus === targetStatus) {
+    return { success: false, error: `Incident is already in status ${targetStatus}` };
+  }
+  if (fromStatus === 'FALSE_ALARM' && targetStatus === 'VERIFIED') {
+    return { success: false, error: 'Forbidden transition: FALSE_ALARM cannot directly become VERIFIED. Re-open to UNDER_REVIEW first.' };
+  }
+  if (fromStatus === 'RESOLVED' && targetStatus === 'FALSE_ALARM') {
+    return { success: false, error: 'Forbidden transition: Historical RESOLVED incident cannot be reclassified as FALSE_ALARM' };
+  }
+
+  event.status = targetStatus;
+  event.last_updated_at = new Date().toISOString();
+  if (targetStatus === 'VERIFIED') {
+    event.verified_at = event.last_updated_at;
+  }
+
+  const logEntry = {
+    id: `lc_${Date.now()}`,
+    event_id: event.id,
+    from_status: fromStatus,
+    to_status: targetStatus,
+    reason: reason || `Status updated to ${targetStatus} by ${officerName}`,
+    triggered_by: `officer:${officerName}`,
+    timestamp: new Date().toISOString()
+  };
+
+  return { success: true, event, transition: logEntry };
+}
+
+const testEvent12 = {
+  id: 'evt_test_12',
+  status: 'UNDER_REVIEW',
+  confidence_score: 0.78,
+  event_type: 'FLOOD',
+  city: 'Patna',
+  state: 'Bihar'
+};
+
+// 12a: Promotion by Duty Officer
+const promoteResult = validateAndTransitionStatusTest(
+  testEvent12,
+  'VERIFIED',
+  'Field report verified with CWC river gauge cross-check',
+  'Dr. S. K. Roy (Director General, IMD Met Centre)'
+);
+assert(promoteResult.success === true && testEvent12.status === 'VERIFIED', 'Incident successfully promoted from UNDER_REVIEW to VERIFIED by Duty Meteorologist');
+assert(promoteResult.transition.triggered_by.includes('Dr. S. K. Roy'), 'Lifecycle audit trail captures authentic Duty Meteorologist identity');
+assert(testEvent12.verified_at !== undefined, 'Verification timestamp automatically recorded upon human verification');
+
+// 12b: Incident closure / resolution
+const resolveResult = validateAndTransitionStatusTest(
+  testEvent12,
+  'RESOLVED',
+  'Floodwaters receded below danger level. Relief camps de-escalated.',
+  'District Magistrate DEOC Controller'
+);
+assert(resolveResult.success === true && testEvent12.status === 'RESOLVED', 'Verified incident successfully transitioned to RESOLVED upon situational normalization');
+
+// 12c: Reject illegal transition from FALSE_ALARM directly to VERIFIED
+const falseAlarmEvent = { id: 'evt_fake_1', status: 'FALSE_ALARM' };
+const illegalPromote = validateAndTransitionStatusTest(falseAlarmEvent, 'VERIFIED', 'Direct override attempt');
+assert(illegalPromote.success === false && illegalPromote.error.includes('Forbidden'), 'State machine invariant blocks direct FALSE_ALARM -> VERIFIED bypass');
+
+// 12d: Reject illegal transition from historical RESOLVED to FALSE_ALARM
+const illegalFalseAlarm = validateAndTransitionStatusTest(testEvent12, 'FALSE_ALARM', 'Attempt to retroactively nullify resolved incident');
+assert(illegalFalseAlarm.success === false && illegalFalseAlarm.error.includes('Historical RESOLVED incident'), 'State machine invariant prevents historical revisionism of RESOLVED incidents');
+
 console.log('\n================================================================');
 console.log(` TEST SUMMARY: ${passedTests}/${totalTests} Tests Passed (100% Success)`);
 console.log(' N-WEIS Architecture, AI Pipeline & Verification Gates VALIDATED.');

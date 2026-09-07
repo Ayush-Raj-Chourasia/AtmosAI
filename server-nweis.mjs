@@ -51,6 +51,46 @@ function logLifecycleTransition(eventId, fromStatus, toStatus, reason, triggered
   return entry;
 }
 
+function validateAndTransitionStatus(event, targetStatus, reason, officerName = 'IMD Duty Meteorologist') {
+  const VALID_STATUSES = ['DETECTED', 'UNDER_REVIEW', 'VERIFIED', 'RESOLVED', 'FALSE_ALARM'];
+  const fromStatus = event.status;
+
+  if (!VALID_STATUSES.includes(targetStatus)) {
+    return { success: false, error: `Invalid target status: ${targetStatus}` };
+  }
+
+  if (fromStatus === targetStatus) {
+    return { success: false, error: `Incident is already in status ${targetStatus}` };
+  }
+
+  // Forbidden: Cannot jump directly from FALSE_ALARM to VERIFIED without UNDER_REVIEW
+  if (fromStatus === 'FALSE_ALARM' && targetStatus === 'VERIFIED') {
+    return { success: false, error: 'Forbidden transition: FALSE_ALARM cannot directly become VERIFIED. Re-open to UNDER_REVIEW first.' };
+  }
+
+  // Forbidden: Once RESOLVED, cannot transition to FALSE_ALARM
+  if (fromStatus === 'RESOLVED' && targetStatus === 'FALSE_ALARM') {
+    return { success: false, error: 'Forbidden transition: Historical RESOLVED incident cannot be reclassified as FALSE_ALARM' };
+  }
+
+  event.status = targetStatus;
+  event.last_updated_at = new Date().toISOString();
+  if (targetStatus === 'VERIFIED') {
+    event.verified_at = event.last_updated_at;
+  }
+
+  const logEntry = logLifecycleTransition(
+    event.id,
+    fromStatus,
+    targetStatus,
+    reason || `Status updated to ${targetStatus} by ${officerName}`,
+    `officer:${officerName}`
+  );
+
+  broadcastSSE({ type: 'event_status_updated', event, transition: logEntry });
+  return { success: true, event, transition: logEntry };
+}
+
 function applyConfidenceDecay(event, now = Date.now()) {
   const profile = DECAY_PROFILES[event.event_type] || DECAY_PROFILES.OTHER;
   const lastEv = new Date(event.last_evidence_at || event.last_updated_at).getTime();
@@ -1284,6 +1324,31 @@ const server = http.createServer(async (req, res) => {
     const dispatchReceipt = generateVolunteerDispatch(event);
     broadcastSSE({ type: 'volunteer_dispatch_alert', event, dispatchReceipt });
     return sendJson(200, { success: true, dispatch: dispatchReceipt });
+  }
+
+  // --- ADMIN STATUS OVERRIDE & MANUAL VERIFICATION ---
+  const statusOverrideMatch = pathname.match(/^\/(?:api\/v1\/events|events)\/([^\/]+)\/(?:status|verify)$/);
+  if (statusOverrideMatch && (req.method === 'PATCH' || req.method === 'POST')) {
+    const id = statusOverrideMatch[1];
+    const event = memEvents.get(id);
+    if (!event) return sendJson(404, { success: false, message: 'Event not found' });
+
+    const body = await getBody();
+    const targetStatus = body.status || 'VERIFIED';
+    const reason = body.reason || 'Manual verification by IMD Duty Meteorologist';
+    const officer = body.officer_name || 'Dr. M. Mohapatra (IMD Director General / Duty Meteorologist)';
+
+    const result = validateAndTransitionStatus(event, targetStatus, reason, officer);
+    if (!result.success) {
+      return sendJson(400, { success: false, message: result.error });
+    }
+
+    return sendJson(200, {
+      success: true,
+      message: `Status transitioned to ${targetStatus}`,
+      data: result.event,
+      transition: result.transition
+    });
   }
 
   // --- CITIZEN & SIGNAL INGESTION ---

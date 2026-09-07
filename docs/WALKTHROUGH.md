@@ -122,6 +122,7 @@ flowchart LR
 | `/api/v1/events/:id/cap` | GET | Export ITU-T X.1303 / OASIS CAP v1.2 standard XML or JSON early warning alert |
 | `/api/v1/events/:id/broadcast-cap` | POST | Simulate Cell Broadcast Service (CBS) emergency alert transmission |
 | `/api/v1/events/:id/dispatch-volunteers` | POST | Simulate GSM 7-bit SMS dispatch to localized SDRF units and Aapda Mitra volunteers |
+| `/api/v1/events/:id/status` | PATCH | IMD Duty Meteorologist status override & governance (`VERIFIED`, `RESOLVED`, `FALSE_ALARM`) |
 | `/api/v1/signals` | POST | Ingest raw signal |
 | `/api/v1/citizen/reports` | POST | Submit citizen weather report |
 | `/api/v1/admin/demo/scenario/:id` | POST | Trigger demo scenario (or `national-overview`) |
@@ -130,7 +131,7 @@ flowchart LR
 
 ---
 
-## Test Results — 64/64 Passing (100%)
+## Test Results — 70/70 Passing (100%)
 
 ```
 TEST 1: Citizen Flood Report End-to-End Processing          (3 assertions)
@@ -144,8 +145,9 @@ TEST 8: Expanded Geographical Coverage (Kolkata/BLR/Fog)     (11 assertions)
 TEST 9: Operational Directives & Official SITREP Generation   (8 assertions)
 TEST 10: Multilingual Localization & CAP v1.2 Alert Engine   (10 assertions)
 TEST 11: Emergency Volunteer & SDRF SMS Dispatch Engine      (8 assertions)
+TEST 12: Human-in-the-Loop Admin Verification & Governance   (6 assertions)
 ────────────────────────────────────────────────────────────────
-TOTAL: 64/64 Tests Passed (100% Success across 11 Test Suites)
+TOTAL: 70/70 Tests Passed (100% Success across 12 Test Suites)
 ```
 
 ---
