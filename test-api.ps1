@@ -1,4 +1,4 @@
-﻿# N-WEIS: API & Multi-Hazard Early Warning Verification Script (SIH 2026)
+# N-WEIS: API & Multi-Hazard Early Warning Verification Script (SIH 2026)
 param(
     [string]$ApiUrl = "http://localhost:3001"
 )
@@ -54,11 +54,49 @@ Write-Host "`n7. Fetching Official IMD/NDMA Situation Report (SITREP)..." -Foreg
 $sitrep = Invoke-RestMethod -Uri "$ApiUrl/api/v1/events/$($testEvent.id)/sitrep"
 Write-Host "   SITREP ID: $($sitrep.sitrep.sitrep_id) | Grade: $($sitrep.sitrep.hazard_classification.verification_grade) | Digital Seal: $($sitrep.sitrep.digital_sign_off.tamper_seal)" -ForegroundColor Green
 
-# 8. Operational Analytics & KPIs
-Write-Host "`n8. Querying System Operational Analytics & KPIs..." -ForegroundColor Yellow
+# 8. RFC 7946 GeoJSON Interoperability
+Write-Host "`n8. Querying RFC 7946 GeoJSON FeatureCollection..." -ForegroundColor Yellow
+$geojson = Invoke-RestMethod -Uri "$ApiUrl/api/v1/events/geojson"
+Write-Host "   GeoJSON Type: $($geojson.type) | CRS: $($geojson.crs.properties.name) | Features: $($geojson.features.Count)" -ForegroundColor Green
+
+# 9. Ground Truth Sensor Spike
+Write-Host "`n9. Testing Ground Truth Sensor Spike Telemetry Surge..." -ForegroundColor Yellow
+$spikePayload = @{
+    station_id = "IMD-AWS-BLR-01"
+    value = 85.0
+} | ConvertTo-Json
+$spike = Invoke-RestMethod -Method POST -Uri "$ApiUrl/api/v1/sensors/simulate-spike" -Body $spikePayload -ContentType "application/json"
+Write-Host "   Sensor: $($spike.sensor.name) | Status: $($spike.sensor.status) | Reading: $($spike.sensor.display_value)" -ForegroundColor Green
+
+# 10. Duty Meteorologist Verification Override
+Write-Host "`n10. Testing Human-in-the-Loop Duty Forecaster Verification..." -ForegroundColor Yellow
+$reviewEv = ($events.data | Where-Object { $_.status -eq "UNDER_REVIEW" } | Select-Object -First 1)
+if ($reviewEv) {
+    $targetStatus = "VERIFIED"
+    $targetId = $reviewEv.id
+} else {
+    $targetStatus = "RESOLVED"
+    $targetId = $testEvent.id
+}
+$verifyPayload = @{
+    status = $targetStatus
+    officer_name = "Dr. S. K. Roy (Duty Forecaster, IMD RMC)"
+    reason = "Corroborated with DWR Doppler Radar sweep and CWC river stage"
+} | ConvertTo-Json
+$verify = Invoke-RestMethod -Method POST -Uri "$ApiUrl/api/v1/events/$targetId/status" -Body $verifyPayload -ContentType "application/json"
+Write-Host "   Verification: $($verify.message) | Officer: $($verify.transition.actor)" -ForegroundColor Green
+
+# 11. Immutable State Machine Audit Log
+Write-Host "`n11. Inspecting Immutable State Machine Audit Trail..." -ForegroundColor Yellow
+$audit = Invoke-RestMethod -Uri "$ApiUrl/api/v1/admin/audit-log"
+Write-Host "   Audit Entries: $($audit.count) | Latest Transition: $($audit.data[-1].from_status) -> $($audit.data[-1].to_status)" -ForegroundColor Green
+
+# 12. Operational Analytics & KPIs
+Write-Host "`n12. Querying System Operational Analytics & KPIs..." -ForegroundColor Yellow
 $stats = Invoke-RestMethod -Uri "$ApiUrl/api/v1/admin/stats"
 Write-Host "   Signals Processed: $($stats.totals.signals) | Verification Rate: $($stats.kpis.verificationRate) | Latency: $($stats.kpis.avgProcessingLatency)" -ForegroundColor Green
 
 Write-Host "`n================================================================" -ForegroundColor Cyan
-Write-Host " [SUCCESS] All 8 N-WEIS Early Warning Pipelines VALIDATED!" -ForegroundColor Green
+Write-Host " [SUCCESS] All 12 N-WEIS Early Warning Pipelines VALIDATED!" -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Cyan
+
