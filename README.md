@@ -31,6 +31,7 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 - 📑 **Tabular CSV Disaster Logs:** Instant CSV export formatted for District Disaster Management Authorities (DDMA) and Excel morning briefing logbooks.
 - 🚨 **Volunteer SDRF & Aapda Mitra SMS Dispatch:** Mobilizes localized response units with GSM 160-character cellular SMS budget compliance and official helplines (1077/112).
 - 🛡️ **IMD Duty Meteorologist Governance:** Human-in-the-loop sign-off with strict state machine invariants and tamper-evident audit logging.
+- 🖥️ **Headless Operations CLI (`nweis-cli.mjs`):** Complete terminal command-line utility for duty forecasters, EOC operators, and low-bandwidth VSAT satellite terminals (`nweis status`, `nweis list`, `nweis inspect`, `nweis broadcast`, `nweis dispatch`).
 
 ---
 
@@ -196,20 +197,29 @@ node test-nweis.mjs
 
 ```text
 n-weis/
-├── server-nweis.mjs          # Standalone Backend Server & API (1450+ lines)
-├── test-nweis.mjs            # 70/70 Passing Verification Test Suite (12 Suites)
-├── Dockerfile                # Alpine Node.js Container (zero-dependency)
-├── docker-compose.yml        # Multi-service orchestration
+├── server-nweis.mjs          # Standalone Backend Server & API (~1,980 lines)
+├── nweis-cli.mjs             # Operations Headless Terminal CLI (10 commands)
+├── simulate-stream.mjs       # Real-Time Telemetry & Event Stream Feeder Simulator
+├── test-nweis.mjs            # 90/90 Passing Verification Test Suite (15 Suites)
+├── test-api.ps1              # 14-Pipeline Windows PowerShell Verification Script
+├── test-push.sh              # 14-Pipeline Linux / macOS Bash Verification Script
+├── package-release.ps1       # Automated Release Zip Packager for SIH Portal
+├── Dockerfile                # Alpine Node.js Container (<50 MB, zero-dependency)
+├── docker-compose.yml        # Multi-service container orchestration
 ├── public/
-│   └── index.html            # GIS Operations Command Dashboard
+│   ├── index.html            # GIS Operations Dashboard with Radar Sweeps (~2,200 lines)
+│   ├── manifest.json         # PWA Web App Manifest
+│   └── sw.js                 # PWA Service Worker for Offline Field Resiliency
 ├── docs/
+│   ├── PRESENTATION_SLIDES.md# 10-Slide Pitch Deck for SIH 2026 Evaluation
+│   ├── JUDGE_QA.md           # Comprehensive Technical Defense Guide & FAQ
 │   └── WALKTHROUGH.md        # 5-Minute SIH Judge Demo Playbook
 ├── specs/
 │   ├── AGENTS.md             # Core System Philosophy & Rules
 │   ├── CONFIDENCE_DECAY.md   # Mathematical Decay Model Specs
 │   ├── INCIDENT_STATE_MACHINE.md # Status Transition Invariants
 │   └── INCIDENT_THRESHOLDS.md    # 8-Category Taxonomy Rules
-└── README.md                 # Project Documentation (You are here)
+└── README.md                 # Master Documentation (You are here)
 ```
 
 ---

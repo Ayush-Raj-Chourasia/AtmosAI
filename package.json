@@ -1,6 +1,9 @@
 {
   "name": "n-weis",
   "private": true,
+  "bin": {
+    "nweis": "./nweis-cli.mjs"
+  },
   "scripts": {
     "start": "node server-nweis.mjs",
     "serve": "node server-nweis.mjs",
@@ -8,6 +11,7 @@
     "test:nweis": "node test-nweis.mjs",
     "simulate": "node simulate-stream.mjs",
     "simulate:once": "node simulate-stream.mjs --once",
+    "cli": "node nweis-cli.mjs",
     "package": "powershell.exe -ExecutionPolicy Bypass -File .\\package-release.ps1",
     "build": "turbo build",
     "dev": "concurrently -n \"WEB,API\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",

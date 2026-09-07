@@ -25,6 +25,7 @@ $filesToCopy = @(
     "server-nweis.mjs",
     "test-nweis.mjs",
     "simulate-stream.mjs",
+    "nweis-cli.mjs",
     "package.json",
     ".env.example",
     "README.md",
