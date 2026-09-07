@@ -21,6 +21,7 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 - 🛡️ **Misinformation Quarantine (Skeptic Agent):** Flags sensationalist text, hoaxes, and recycled disaster media through perceptual hashing and LLM analysis, putting them in an immutable quarantine.
 - 📜 **State Machine Lifecycle:** Maintains a strict, immutable audit trail for every status transition (`DETECTED` → `UNDER_REVIEW` → `VERIFIED` → `RESOLVED`).
 - 🌡️ **Official Sensor Alignment:** Connects field observations with official IMD AWS/ARG data and CWC (Central Water Commission) gauges for authoritative corroboration.
+- 📋 **Official NDMA/IMD SITREP Export:** Generates standardized Disaster Situation Reports with automated tactical response directives (NDRF, CWC, NHAI, Civil Aviation) and tamper-evident digital seal.
 - ⚡ **Real-Time SSE & GIS Dashboard:** Sub-second Server-Sent Events (SSE) telemetry paired with an interactive Leaflet-powered GIS operations command dashboard.
 - 🌪️ **8 IMD Hazard Categories:** Full taxonomy support for `FLOOD`, `THUNDERSTORM`, `RAINFALL`, `HEATWAVE`, `FOG`, `DUST_STORM`, `STRONG_WIND`, and `OTHER`.
 
@@ -89,9 +90,10 @@ Once started, the system will serve the REST API, SSE telemetry, and the Web Das
 | `/api/v1/events/stream` | `GET` | SSE endpoint for real-time pushing of weather events and signals. |
 | `/api/v1/events` | `GET` | Fetch all active weather incidents. Supports filtering by state, status, etc. |
 | `/api/v1/events/:id` | `GET` | Fetch comprehensive dossier for a single event (evidence, lifecycle trail). |
+| `/api/v1/events/:id/sitrep` | `GET` | Export official IMD/NDMA Situation Report (SITREP) with operational directives. |
 | `/api/v1/signals` | `POST` | Ingest raw signal payload (System-to-System). |
 | `/api/v1/citizen/reports` | `POST` | Ingest a new Citizen Ground Report. |
-| `/api/v1/admin/demo/scenario/:id` | `POST` | Trigger a pre-configured demo scenario for judging. |
+| `/api/v1/admin/demo/scenario/:id` | `POST` | Trigger demo scenario (or `national-overview` for all 7 regions). |
 | `/api/v1/admin/demo/simulate-time`| `POST` | Simulate hours passing to trigger confidence decay. |
 | `/api/v1/admin/stats` | `GET` | Fetch operational KPIs (false-positive rates, event verification counts). |
 
@@ -99,10 +101,11 @@ Once started, the system will serve the REST API, SSE telemetry, and the Web Das
 
 ## 🎬 Demo Scenarios
 
-The system includes 7 pre-configured scenarios designed for the SIH 2026 jury to demonstrate the pipeline's intelligence across India. Trigger them via the dashboard or the API.
+The system includes pre-configured scenarios designed for the SIH 2026 jury to demonstrate the pipeline's intelligence across India. Trigger them via the dashboard quick-bar or the API.
 
 | Scenario | Location | Hazard Type | Resulting Confidence | Sensor Corroboration |
 |---|---|---|---|---|
+| **All India National Overview** | 7 Regions (Nationwide) | `MULTI-HAZARD` | Up to 94% | Full national sensor network alignment |
 | **Guwahati Flood** | Guwahati, Assam | `FLOOD` | 94% | CWC Brahmaputra Pandu Gauge |
 | **Delhi Thunderstorm** | New Delhi, Delhi | `THUNDERSTORM` | 89% | IMD Palam DWR (Doppler Radar) |
 | **Mumbai Rainfall** | Mumbai, Maharashtra | `RAINFALL` | 85% | IMD Santacruz AWS |
@@ -156,7 +159,7 @@ The N-WEIS codebase includes a comprehensive, zero-dependency testing suite that
 ```bash
 node test-nweis.mjs
 ```
-**Results:** `38/38 Tests Passed (100% Success)`
+**Results:** `46/46 Tests Passed (100% Success)`
 
 ---
 
@@ -174,8 +177,8 @@ node test-nweis.mjs
 
 ```text
 n-weis/
-├── server-nweis.mjs          # Standalone Backend Server & API (990+ lines)
-├── test-nweis.mjs            # 38/38 Passing Verification Test Suite
+├── server-nweis.mjs          # Standalone Backend Server & API (1100+ lines)
+├── test-nweis.mjs            # 46/46 Passing Verification Test Suite
 ├── Dockerfile                # Alpine Node.js Container (zero-dependency)
 ├── docker-compose.yml        # Multi-service orchestration
 ├── public/

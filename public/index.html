@@ -142,6 +142,10 @@
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         <span>Judge Demo Scenarios:</span>
       </span>
+      <button onclick="runScenario('national-overview')" id="btn-all-india" class="px-2.5 py-1 rounded bg-gradient-to-r from-cyan-900 to-blue-900 hover:from-cyan-800 hover:to-blue-800 border border-cyan-500/60 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-cyan-900/40">
+        <span>🇮🇳 All India (7 Regions)</span>
+        <span class="text-[10px] bg-cyan-500/30 px-1 py-0.2 rounded font-mono text-cyan-200">Full Map</span>
+      </button>
       <button onclick="runScenario('flood-guwahati')" id="btn-guwahati" class="px-2.5 py-1 rounded bg-blue-950/80 hover:bg-blue-900 border border-blue-700/60 text-blue-200 font-medium transition flex items-center gap-1.5">
         <span>🌊 Guwahati Flood (94% Confirmed)</span>
         <span class="text-[10px] bg-blue-600/50 px-1 py-0.2 rounded font-mono text-cyan-200">Scene 1-7</span>
@@ -399,6 +403,28 @@
         <div id="drawer-evidence-list" class="space-y-2"></div>
       </div>
 
+      <!-- Automated Operational Directives (NDRF / SDMA) -->
+      <div id="drawer-directives-box" class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between text-xs font-bold text-slate-300 uppercase tracking-wider">
+          <span class="flex items-center gap-1.5">
+            <span>🛡️</span>
+            <span>Automated Operational Directives</span>
+          </span>
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-950 text-blue-300 border border-blue-800">NDRF / SDMA Action</span>
+        </div>
+        <div id="drawer-directives-list" class="space-y-1.5 text-[11px]">
+          <div class="text-[11px] text-slate-500 font-mono">Loading directives...</div>
+        </div>
+      </div>
+
+      <!-- SITREP Export Trigger -->
+      <div class="pt-1">
+        <button onclick="exportSitrep(selectedEventId)" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-950 to-blue-950 hover:from-cyan-900 hover:to-blue-900 border border-cyan-700/60 text-cyan-200 text-xs font-semibold flex items-center justify-center gap-2 transition shadow-lg shadow-cyan-950/40">
+          <span>📋</span>
+          <span>Generate & Export IMD/NDMA SITREP (Situation Report)</span>
+        </button>
+      </div>
+
       <!-- State Machine Lifecycle Audit Trail (INCIDENT_STATE_MACHINE.md) -->
       <div class="space-y-2 pt-2 border-t border-slate-800">
         <div class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
@@ -410,6 +436,31 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- OFFICIAL SITREP MODAL -->
+  <div id="sitrep-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1100] flex items-center justify-center hidden p-4">
+    <div class="bg-slate-900 border border-cyan-800/80 rounded-2xl w-[720px] max-w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+      <div class="h-14 px-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">🏛️</span>
+          <div>
+            <h3 class="font-bold text-white text-xs md:text-sm">IMD / MoES Official Weather Disaster Situation Report</h3>
+            <div id="sitrep-modal-ref" class="text-[10px] text-slate-400 font-mono">SITREP-2026-NWEIS</div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="downloadSitrepJson()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-mono font-medium border border-slate-700 flex items-center gap-1">
+            <span>💾</span>
+            <span>Download JSON</span>
+          </button>
+          <button onclick="closeSitrepModal()" class="text-slate-400 hover:text-white text-sm px-2">✕</button>
+        </div>
+      </div>
+      <div id="sitrep-modal-body" class="p-6 overflow-y-auto space-y-4 text-xs font-sans text-slate-300">
+        <!-- Rendered Sitrep Content -->
+      </div>
     </div>
   </div>
 
@@ -628,6 +679,10 @@
         const isVerified = ev.status === 'VERIFIED';
         const isSelected = ev.id === selectedEventId;
 
+        const sensors = ev.sensors || [];
+        const freshness = ev.freshness_score !== undefined ? ev.freshness_score : 100;
+        const halfLife = ev.half_life_minutes ? `${(ev.half_life_minutes / 60).toFixed(1)}h` : '3h';
+
         return `
           <div onclick="inspectEvent('${ev.id}')" 
                class="p-3.5 rounded-xl border transition cursor-pointer ${
@@ -650,8 +705,24 @@
             </div>
             <div class="text-xs font-semibold text-slate-200 mb-1">${ev.title}</div>
             <p class="text-[11px] text-slate-400 line-clamp-2 mb-2">${ev.description}</p>
-            <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-2 border-t border-slate-800/80">
-              <span class="text-cyan-400">${ev.signal_count} Corroborated Signals</span>
+            
+            ${sensors.length > 0 ? `
+              <div class="flex flex-wrap gap-1 mb-2">
+                ${sensors.slice(0, 2).map(s => `
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-mono ${
+                    s.status.includes('CRITICAL')
+                      ? 'bg-rose-950/80 text-rose-300 border border-rose-800/60'
+                      : 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60'
+                  }">
+                    📡 ${s.type}: <strong>${s.value}</strong>
+                  </span>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1.5 border-t border-slate-800/80">
+              <span class="text-cyan-400">${ev.signal_count} Signals</span>
+              <span class="${freshness >= 70 ? 'text-emerald-400' : freshness >= 40 ? 'text-amber-400' : 'text-rose-400'}">Fresh: ${freshness}% (${halfLife})</span>
               <span>${ev.city}, ${ev.state}</span>
             </div>
           </div>
@@ -729,6 +800,20 @@
 
       // AI Reasoning
       document.getElementById('drawer-ai-reasoning').innerText = ev.ai_reasoning || 'Multi-source spatial-temporal fusion verified.';
+
+      // Operational Directives
+      const directives = ev.recommended_actions || [];
+      const dirList = document.getElementById('drawer-directives-list');
+      if (directives.length === 0) {
+        dirList.innerHTML = `<div class="text-[11px] text-slate-500 font-mono">Standard DEOC monitoring protocols active.</div>`;
+      } else {
+        dirList.innerHTML = directives.map((d, idx) => `
+          <div class="p-2 rounded bg-slate-900 border border-slate-800 flex items-start gap-2 text-[11px]">
+            <span class="text-cyan-400 font-mono font-bold mt-0.5">${idx + 1}.</span>
+            <span class="text-slate-200 leading-snug">${d}</span>
+          </div>
+        `).join('');
+      }
 
       // Fetch Full Evidence & Lifecycle
       try {
@@ -865,6 +950,122 @@
       }
     }
 
+    // SITREP Official Disaster Situation Report
+    let currentSitrepData = null;
+
+    async function exportSitrep(eventId) {
+      if (!eventId) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/events/${eventId}/sitrep`);
+        const json = await res.json();
+        if (!json.success || !json.sitrep) {
+          alert('Failed to generate SITREP');
+          return;
+        }
+        currentSitrepData = json.sitrep;
+        const s = json.sitrep;
+        document.getElementById('sitrep-modal-ref').innerText = `${s.sitrep_id} • Ref: ${s.reference}`;
+
+        const bodyEl = document.getElementById('sitrep-modal-body');
+        bodyEl.innerHTML = `
+          <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3.5">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+              <div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                  s.hazard_classification.severity === 'CRITICAL' 
+                    ? 'bg-rose-950 text-rose-300 border border-rose-800' 
+                    : 'bg-amber-950 text-amber-300 border border-amber-800'
+                }">
+                  ALERT LEVEL: ${s.hazard_classification.severity}
+                </span>
+                <span class="ml-2 px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  ${s.hazard_classification.verification_grade}
+                </span>
+              </div>
+              <div class="text-[11px] font-mono text-slate-400">Timestamp: ${new Date(s.generated_at).toLocaleString()}</div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] font-mono">
+              <div class="p-2 rounded bg-slate-900 border border-slate-800">
+                <span class="text-slate-500 block text-[9px]">INCIDENT TYPE</span>
+                <strong class="text-cyan-400">${s.hazard_classification.event_type}</strong>
+              </div>
+              <div class="p-2 rounded bg-slate-900 border border-slate-800">
+                <span class="text-slate-500 block text-[9px]">LOCATION</span>
+                <strong class="text-white">${s.geospatial_scope.city}, ${s.geospatial_scope.state}</strong>
+              </div>
+              <div class="p-2 rounded bg-slate-900 border border-slate-800">
+                <span class="text-slate-500 block text-[9px]">CONFIDENCE SCORE</span>
+                <strong class="text-emerald-400">${s.hazard_classification.confidence_percentage}</strong>
+              </div>
+              <div class="p-2 rounded bg-slate-900 border border-slate-800">
+                <span class="text-slate-500 block text-[9px]">CORROBORATED SIGNALS</span>
+                <strong class="text-white">${s.evidence_matrix.corroborated_signals} Independent</strong>
+              </div>
+            </div>
+
+            ${s.sensor_telemetry.length > 0 ? `
+              <div>
+                <h4 class="text-xs font-bold uppercase text-slate-300 mb-1.5 flex items-center gap-1">
+                  <span>📡 Ground Sensor Corroboration</span>
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                  ${s.sensor_telemetry.map(st => `
+                    <div class="p-2 rounded bg-slate-900 border border-slate-800 flex items-center justify-between text-[11px]">
+                      <div>
+                        <div class="font-bold text-slate-200">${st.station}</div>
+                        <div class="text-[10px] text-slate-400">${st.type} | Threshold: ${st.threshold}</div>
+                      </div>
+                      <div class="text-right font-mono font-bold text-cyan-400">${st.value}</div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            <div>
+              <h4 class="text-xs font-bold uppercase text-slate-300 mb-1.5 flex items-center gap-1">
+                <span>🛡️ Mandated Disaster Response Actions (NDRF / SDMA)</span>
+              </h4>
+              <div class="space-y-1">
+                ${s.operational_directives.map((dir, idx) => `
+                  <div class="p-2 rounded bg-slate-900 border border-slate-800 flex items-start gap-2 text-[11px]">
+                    <span class="font-mono font-bold text-cyan-400">${idx + 1}.</span>
+                    <span class="text-slate-200 leading-snug">${dir}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono text-slate-500">
+              <div>Issuing System: ${s.system}</div>
+              <div>Digital Tamper Seal: <span class="text-cyan-400">${s.digital_sign_off.tamper_seal}</span></div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('sitrep-modal').classList.remove('hidden');
+      } catch (err) {
+        console.error('SITREP Error', err);
+        alert('Error generating situation report');
+      }
+    }
+
+    function closeSitrepModal() {
+      document.getElementById('sitrep-modal').classList.add('hidden');
+    }
+
+    function downloadSitrepJson() {
+      if (!currentSitrepData) return;
+      const blob = new Blob([JSON.stringify(currentSitrepData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${currentSitrepData.sitrep_id}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
     // Demo Scenarios Execution
     async function runScenario(scenarioId) {
       const btn = event?.currentTarget;
@@ -877,7 +1078,12 @@
         const data = await res.json();
         await fetchInitialData();
 
-        if (data.verifiedEvent) {
+        if (scenarioId === 'national-overview' || scenarioId === 'all') {
+          map.setView([22.5, 82.0], 5, { duration: 1.5 });
+          if (allEvents.length > 0) {
+            inspectEvent(allEvents[0].id);
+          }
+        } else if (data.verifiedEvent) {
           inspectEvent(data.verifiedEvent.id);
         }
       } catch (err) {

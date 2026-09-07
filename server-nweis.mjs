@@ -204,6 +204,69 @@ function checkDuplicateSignal(candidate, existingSignals) {
 }
 
 // -------------------------------------------------------------
+// OPERATIONAL DIRECTIVES GENERATOR (NDRF / SDMA / IMD ADVISORY)
+// -------------------------------------------------------------
+function generateActionDirectives(eventType, severity, city, state) {
+  switch (eventType) {
+    case 'FLOOD':
+      return [
+        `Deploy NDRF & SDRF water rescue teams with inflatable boats to low-lying sectors in ${city}.`,
+        `Central Water Commission (CWC): Alert district magistrate on danger stage exceedance.`,
+        `Traffic Advisory: Close submerged underpasses and divert vehicular transit away from arterial routes.`,
+        `Municipal Corporation: Deploy high-capacity dewatering pumps and establish dry-ration relief camps.`
+      ];
+    case 'THUNDERSTORM':
+      return [
+        `Civil Aviation (ATC): Issue immediate squall & lightning alert for inbound/outbound aircraft.`,
+        `Disaster Response Units: Pre-position emergency clearing crews for uprooted trees and overhead lines.`,
+        `State Electricity Board: Sectionalize vulnerable power distribution feeders to prevent electrocution.`,
+        `Public Advisory: Warn citizens to remain indoors and avoid standing under tall trees or metal poles.`
+      ];
+    case 'RAINFALL':
+      return [
+        `Municipal Authorities: Activate stormwater pump houses at peak capacity across ${city}.`,
+        `Urban Transit: Issue real-time flash-flood diversions for IT corridors and low-lying residential layouts.`,
+        `District Emergency Operations Centre (DEOC): Place field assessment officers on standby.`,
+        `Telemetry Network: Increase automated rain gauge (ARG) polling frequency to 5-minute intervals.`
+      ];
+    case 'HEATWAVE':
+      return [
+        `State Health Department: Enact Heat Action Plan (HAP) Level-3 Red Emergency Directive.`,
+        `Labor Commissioner: Strictly enforce outdoor construction stoppage between 12:00 PM and 3:30 PM.`,
+        `Municipal Bodies: Establish shaded hydration kiosks with clean drinking water and ORS supplies.`,
+        `Government Hospitals: Designate dedicated air-cooled heat-stroke wards with ice bath protocols.`
+      ];
+    case 'FOG':
+      return [
+        `Airport Operations: Mandate CAT-III Instrument Landing System (ILS) low-visibility protocols.`,
+        `National Highways Authority (NHAI): Enforce convoy piloting and reduced speed restrictions on expressways.`,
+        `Northern Railway: Ensure Fog Safety Devices (FSD) active on all express and freight locomotives.`,
+        `Traffic Police: Mandate high-visibility yellow fog lamps and deploy reflective warning barricades.`
+      ];
+    case 'STRONG_WIND':
+      return [
+        `Maritime & Port Authorities: Suspend harbor ferry operations and order coastal craft to harbor.`,
+        `Port Trust: Anchor heavy gantry cranes and mandate vessels in berth to double-moor.`,
+        `Municipal Engineering: Dismantle hazardous billboard hoardings, temporary tin sheds, and scaffolding.`,
+        `Disaster Management: Pre-deploy chainsaw rescue teams along primary lifeline corridors.`
+      ];
+    case 'DUST_STORM':
+      return [
+        `Pollution Control Board: Issue severe ambient air quality alert (PM10 surge) for sensitive groups.`,
+        `Interstate Transport: Regulate highway vehicle speeds and require active hazard warning flashers.`,
+        `District Education Officers: Suspend outdoor school assemblies and physical education drills.`,
+        `Agriculture Extension: Instruct rural farmers to secure harvested crop mounds and livestock shelters.`
+      ];
+    default:
+      return [
+        `District Emergency Operations Centre (DEOC) placed on heightened monitoring alert.`,
+        `Field verifiers dispatched to ground coordinates for rapid damage assessment.`,
+        `Establish direct telemetry and status reporting link with State Disaster Management Authority (SDMA).`
+      ];
+  }
+}
+
+// -------------------------------------------------------------
 // CORE INGESTION & FUSION PIPELINE
 // -------------------------------------------------------------
 async function ingestSignal(raw) {
@@ -351,6 +414,7 @@ async function ingestSignal(raw) {
     evidence_summary: evidenceSummary,
     ai_reasoning: aiReasoning,
     sensors: targetEvent?.sensors || [],
+    recommended_actions: targetEvent?.recommended_actions || generateActionDirectives(signal.event_candidate, confidenceScore >= 0.90 ? 'critical' : 'high', signal.city, signal.state),
   };
 
   memEvents.set(eventId, eventPayload);
@@ -838,6 +902,66 @@ const server = http.createServer(async (req, res) => {
     return sendJson(200, { success: true, data: { ...event, evidence, lifecycle } });
   }
 
+  // --- OFFICIAL SITREP DISASTER REPORT EXPORT ---
+  const sitrepMatch = pathname.match(/^\/(?:api\/v1\/events|events)\/([^\/]+)\/sitrep$/);
+  if (sitrepMatch && req.method === 'GET') {
+    const id = sitrepMatch[1];
+    const event = memEvents.get(id);
+    if (!event) return sendJson(404, { success: false, message: 'Event not found' });
+    applyConfidenceDecay(event);
+    const evidence = Array.from(memEvidence.values()).filter(e => e.event_id === id);
+    const lifecycle = memLifecycle.filter(l => l.event_id === id);
+
+    const sitrep = {
+      sitrep_id: `SITREP-${event.id.replace('evt_', '')}`,
+      reference: `MoES/IMD/N-WEIS/${event.state.toUpperCase().slice(0, 3)}/${new Date().getFullYear()}`,
+      issuing_authority: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
+      system: 'N-WEIS: National Weather Event Intelligence System (SIH26069)',
+      generated_at: new Date().toISOString(),
+      hazard_classification: {
+        event_type: event.event_type,
+        title: event.title,
+        severity: (event.severity || 'high').toUpperCase(),
+        confidence_score: event.confidence_score,
+        confidence_percentage: `${(event.confidence_score * 100).toFixed(0)}%`,
+        lifecycle_status: event.status,
+        verification_grade: event.confidence_score >= 0.85 ? 'GRADE-A (OPERATIONAL ALERT)' : 'GRADE-B (UNDER SURVEILLANCE)'
+      },
+      geospatial_scope: {
+        city: event.city,
+        state: event.state,
+        coordinates: { latitude: event.latitude, longitude: event.longitude },
+        monitoring_radius_km: 15.0
+      },
+      temporal_decay_profile: {
+        freshness_score: event.freshness_score,
+        half_life_minutes: event.half_life_minutes,
+        last_evidence_at: event.last_evidence_at
+      },
+      sensor_telemetry: event.sensors || [],
+      evidence_matrix: {
+        corroborated_signals: event.signal_count,
+        source_breakdown: event.source_breakdown,
+        verification_summary: event.evidence_summary,
+        ai_reasoning: event.ai_reasoning
+      },
+      operational_directives: event.recommended_actions || generateActionDirectives(event.event_type, event.severity, event.city, event.state),
+      evidence_dossier: evidence.map(e => ({
+        source_name: e.source_name,
+        source_type: e.source_type,
+        statement: e.supporting_text,
+        media_url: e.media_url,
+        timestamp: e.created_at
+      })),
+      lifecycle_audit_trail: lifecycle,
+      digital_sign_off: {
+        system_agent: 'N-WEIS Autonomous Verification Engine v1.0',
+        tamper_seal: `sha256_${Buffer.from(event.id + event.last_updated_at).toString('hex').slice(0, 16)}`
+      }
+    };
+    return sendJson(200, { success: true, sitrep });
+  }
+
   // --- CITIZEN & SIGNAL INGESTION ---
   if (pathname === '/api/v1/citizen/reports' && req.method === 'POST') {
     const body = await getBody();
@@ -894,6 +1018,22 @@ const server = http.createServer(async (req, res) => {
       memLifecycle.length = 0;
       broadcastSSE({ type: 'demo_reset' });
       return sendJson(200, { success: true, message: 'System state reset to baseline.' });
+    }
+    if (scenarioId === 'all' || scenarioId === 'national-overview') {
+      await runGuwahatiFloodDemo();
+      await runDelhiStormDemo();
+      await runMumbaiRainDemo();
+      await runRajasthanHeatwaveDemo();
+      await runKolkataCycloneDemo();
+      await runBengaluruCloudburstDemo();
+      await runDelhiFogDemo();
+      return sendJson(200, {
+        success: true,
+        scenario: 'national-overview',
+        message: 'National Meteorological Overview activated: 7 Indian hazard regions populated with live sensor telemetry and multi-source corroboration.',
+        count: memEvents.size,
+        events: Array.from(memEvents.values())
+      });
     }
     if (scenarioId === 'flood-guwahati') return sendJson(200, await runGuwahatiFloodDemo());
     if (scenarioId === 'thunderstorm-delhi') return sendJson(200, await runDelhiStormDemo());

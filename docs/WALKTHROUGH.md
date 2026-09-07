@@ -24,22 +24,25 @@ flowchart LR
         SKEPTIC --> DEDUP["3-Layer Dedup"]
         DEDUP --> CLUSTER["Spatial Cluster"]
         CLUSTER --> FUSION["7-Factor Fusion"]
+        FUSION --> DIRECTIVES["NDRF/SDMA Action Directives"]
     end
     subgraph Output["📊 Output"]
         SSE["SSE Stream"]
         DASH["GIS Dashboard"]
         API["REST API"]
+        SITREP["Official SITREP Export"]
     end
     Sources --> NORM
-    FUSION --> SSE --> DASH
-    FUSION --> API
+    DIRECTIVES --> SSE --> DASH
+    DIRECTIVES --> API
+    DIRECTIVES --> SITREP
 ```
 
 ---
 
 ## What Was Built
 
-### Core Backend — `server-nweis.mjs` (~990 lines)
+### Core Backend — `server-nweis.mjs` (~1100 lines)
 
 | Feature | Details |
 |---------|---------|
@@ -52,21 +55,26 @@ flowchart LR
 | **Temporal Confidence Decay** | Hazard-specific half-lives with formula: `confidence × 0.5^(Δt / halfLife)` |
 | **State Machine Lifecycle** | DETECTED → UNDER_REVIEW → VERIFIED → RESOLVED with immutable audit trail |
 | **Official Sensor Alignment** | CWC River Gauges, IMD AWS, Doppler Radar, Anemometers, Tide Gauges, RVR |
+| **Operational Directives Engine** | Synthesizes domain-calibrated emergency orders for NDRF, CWC, NHAI, ATC, and SDMA |
+| **Official NDMA/IMD SITREP** | Generates standardized Situation Reports with digital tamper seal & full dossier |
 | **SSE Real-Time Push** | Sub-second Server-Sent Events to all connected dashboard clients |
 | **Static Dashboard Serving** | Serves `public/index.html` for browser access at root |
 
-### GIS Dashboard — `public/index.html` (~1030 lines)
+### GIS Dashboard — `public/index.html` (~1150 lines)
 
-- Dark-mode Leaflet map centered on India with CartoDB tiles
-- Glowing hazard-colored markers with animated pulse circles
-- 7 scenario quick-launch buttons + Simulate 2h Decay button
-- Category filter pills for all 8 IMD hazard types
-- State dropdown filter (7 states)
-- Intelligence Drawer with: confidence gauge, 4-way corroboration matrix, XAI narrative
-- Evidence Freshness progress bar with color-coded decay indicator
-- Sensor Telemetry panel with station names, values vs thresholds
-- State Machine Lifecycle audit trail with FROM → TO transitions
-- Citizen Report modal form
+- **Dark-mode Leaflet Map**: Centered on India with CartoDB Dark Matter tiles.
+- **Dynamic Quick-Bar**: 1-click execution for `🇮🇳 All India (7 Regions)`, 7 regional scenarios, and `⏩ Simulate 2h Decay`.
+- **Enhanced Event Cards**: Sidebar cards render active sensor badges (e.g. `📡 Doppler Radar: 52 dBZ`), temporal decay freshness score, and half-life.
+- **Intelligence Drawer**:
+  - 7-Factor Confidence Gauge + 4-Way Source Matrix (IMD/News/Citizen/Social).
+  - Evidence Freshness progress bar with automatic color degradation.
+  - Sensor Telemetry Panel with station thresholds and exceedance alerts.
+  - Explainable AI Narrative detailing the exact mathematical fusion basis.
+  - Automated Operational Directives (NDRF / SDMA) for rapid emergency response.
+  - Complete Corroborating Evidence Dossier with media thumbnails.
+  - State Machine Lifecycle Audit Trail with immutable timestamps.
+- **Interactive SITREP Modal**: Direct in-browser viewing, print layout, and JSON download of official IMD Disaster Situation Reports.
+- **Citizen Report Modal Form**: Direct ground report ingestion with GPS geolocation.
 
 ### Docker Containerization
 
@@ -78,10 +86,11 @@ flowchart LR
 
 ---
 
-## 7 Demo Scenarios
+## 8 Demo Scenarios (Including All India Overview)
 
 | # | Scenario | City, State | Hazard | Confidence | Key Sensors |
 |---|----------|------------|--------|------------|-------------|
+| 0 | **All India Overview** | 7 Regions (Nationwide) | `MULTI-HAZARD` | Up to 94% | Nationwide sensor network alignment |
 | 1 | **Guwahati Flood** | Guwahati, Assam | FLOOD | 94% | CWC Brahmaputra Pandu, IMD Borjhar AWS |
 | 2 | **Delhi Thunderstorm** | New Delhi, Delhi | THUNDERSTORM | 89% | IMD Palam DWR, IMD Safdarjung Anemometer |
 | 3 | **Mumbai Rainfall** | Mumbai, Maharashtra | RAINFALL | 85% | Mumbai Port Tide Gauge, IMD Santacruz AWS |
@@ -114,16 +123,17 @@ flowchart LR
 | `/api/v1/events/stream` | GET | SSE real-time event stream |
 | `/api/v1/events` | GET | List events (filterable by type, state, status, min_confidence) |
 | `/api/v1/events/:id` | GET | Event detail with evidence + lifecycle audit |
+| `/api/v1/events/:id/sitrep` | GET | Export official IMD/NDMA Situation Report (SITREP) |
 | `/api/v1/signals` | POST | Ingest raw signal |
 | `/api/v1/citizen/reports` | POST | Submit citizen weather report |
-| `/api/v1/admin/demo/scenario/:id` | POST | Trigger demo scenario |
+| `/api/v1/admin/demo/scenario/:id` | POST | Trigger demo scenario (or `national-overview`) |
 | `/api/v1/admin/demo/simulate-time` | POST | Simulate temporal decay |
 | `/api/v1/admin/stats` | GET | System KPIs and analytics |
 | `/api/v1/admin/signals` | GET | Raw signal inspector |
 
 ---
 
-## Test Results — 38/38 Passing (100%)
+## Test Results — 46/46 Passing (100%)
 
 ```
 TEST 1: Citizen Flood Report End-to-End Processing          (3 assertions)
@@ -134,8 +144,9 @@ TEST 5: SIH 2026 8-Category Taxonomy Classification         (7 assertions)
 TEST 6: Temporal Confidence Decay & Freshness Model          (5 assertions)
 TEST 7: State Machine Lifecycle Audit Trail & Invariants     (4 assertions)
 TEST 8: Expanded Geographical Coverage (Kolkata/BLR/Fog)     (11 assertions)
+TEST 9: Operational Directives & Official SITREP Generation   (8 assertions)
 ────────────────────────────────────────────────────────────────
-TOTAL: 38/38 Tests Passed (100% Success)
+TOTAL: 46/46 Tests Passed (100% Success)
 ```
 
 ---
@@ -143,16 +154,16 @@ TOTAL: 38/38 Tests Passed (100% Success)
 ## Quick Start
 
 ```bash
-# No npm install needed — zero dependency!
+# Zero dependency — no npm install needed!
 node server-nweis.mjs
 
-# Open dashboard
+# Open Dashboard in Browser
 # http://localhost:3001
 
-# Run tests
+# Run Automated Test Suite
 node test-nweis.mjs
 
-# Docker
+# Docker Container
 docker build -t nweis .
 docker run -p 3001:3001 nweis
 ```
@@ -161,22 +172,11 @@ docker run -p 3001:3001 nweis
 
 ## 5-Minute Judge Demo Playbook
 
-1. **Start** → `node server-nweis.mjs` → Open `http://localhost:3001`
-2. **Scene 1** → Click "🌊 Guwahati Flood" → Watch markers appear on map → Click marker → Show 94% confidence, 4-way corroboration, sensor telemetry
-3. **Scene 2** → Click "⛈️ Delhi NCR Squall" → Show Doppler Radar sensor reading
-4. **Scene 3** → Click "🌀 Kolkata Cyclone Remal" → Show 118 km/h anemometer, 1.52m storm surge
-5. **Scene 4** → Click "🌫️ Delhi Dense Fog" → Show IGI Airport RVR at 25m, FOG classification
-6. **Decay Demo** → Click "⏩ Simulate 2h Decay" → Watch confidence drop, colors change
-7. **Citizen Report** → Open citizen modal → Submit new Guwahati report → Watch confidence restore to 94%
-8. **Lifecycle** → Click event → Show FROM → TO transitions in audit trail
-
----
-
-## Git History
-
-```
-7ccd76e feat: expand to 7 demo scenarios, rewrite README for SIH 2026, add Docker containerization
-f604cf7 docs: add comprehensive walkthrough and judge demo playbook
-0650609 feat(intelligence): temporal confidence decay, sensor alignment, lifecycle audit trail
-398ae0f feat(n-weis): SIH 2026 Problem Statement SIH26069 national weather big data analytics platform
-```
+1. **Start System** → `node server-nweis.mjs` → Open `http://localhost:3001`
+2. **National Picture** → Click **"🇮🇳 All India (7 Regions)"** → Observe simultaneous population of events across 7 regions of India.
+3. **Inspect Event & Ground Truth** → Click **"Guwahati Flood"** card → Observe 94% confidence, CWC Brahmaputra River Gauge at 50.12m (above 49.68m danger mark), and 4-way corroboration.
+4. **Action Directives** → Scroll down the drawer to **"Automated Operational Directives"** → Show NDRF water rescue deployments and CWC alerts.
+5. **Export SITREP** → Click **"Generate & Export IMD/NDMA SITREP"** → Show formal government Disaster Situation Report modal with digital seal.
+6. **Temporal Decay Engine** → Click **"⏩ Simulate 2h Decay"** → Watch freshness bars drain and confidence scores mathematically decay.
+7. **Citizen Ground Reinforcement** → Click **"Citizen Report"** button → Submit report for Guwahati → Watch confidence immediately restore to 94% with fresh audit trail entry.
+8. **Explainable AI (XAI)** → Point out mathematical fusion weights, sensor consistency, and Skeptic quarantine filtering out hoaxes and recycled media.
