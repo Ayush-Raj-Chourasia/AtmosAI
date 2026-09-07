@@ -24,6 +24,11 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 - 📋 **Official NDMA/IMD SITREP Export:** Generates standardized Disaster Situation Reports with automated tactical response directives (NDRF, CWC, NHAI, Civil Aviation) and tamper-evident digital seal.
 - ⚡ **Real-Time SSE & GIS Dashboard:** Sub-second Server-Sent Events (SSE) telemetry paired with an interactive Leaflet-powered GIS operations command dashboard.
 - 🌪️ **8 IMD Hazard Categories:** Full taxonomy support for `FLOOD`, `THUNDERSTORM`, `RAINFALL`, `HEATWAVE`, `FOG`, `DUST_STORM`, `STRONG_WIND`, and `OTHER`.
+- 📡 **IMD Doppler Weather Radar (DWR) 6-Station Network:** Live rotating 360° radar sweep beams across Delhi Palam, Kolkata, Mumbai, Guwahati, Jaipur, and Bengaluru with real-time dBZ reflectivity scales.
+- 📱 **Progressive Web App (PWA) Offline Resiliency:** Operates in offline field mode with service worker caching and local citizen report queueing that auto-synchronizes upon reconnect.
+- 🗺️ **RFC 7946 GeoJSON & OGC GIS Interoperability:** Generates standard GeoJSON FeatureCollections projected in OGC CRS84 for instant ingestion into QGIS, ArcGIS, and ISRO Bhuvan mapping systems.
+- 🚨 **Volunteer SDRF & Aapda Mitra SMS Dispatch:** Mobilizes localized response units with GSM 160-character cellular SMS budget compliance and official helplines (1077/112).
+- 🛡️ **IMD Duty Meteorologist Governance:** Human-in-the-loop sign-off with strict state machine invariants and tamper-evident audit logging.
 
 ---
 
@@ -89,6 +94,7 @@ Once started, the system will serve the REST API, SSE telemetry, and the Web Das
 | `/health` | `GET` | Root healthcheck indicating system status and SIH26069 alignment. |
 | `/api/v1/events/stream` | `GET` | SSE endpoint for real-time pushing of weather events and signals. |
 | `/api/v1/events` | `GET` | Fetch all active weather incidents. Supports filtering by state, status, etc. |
+| `/api/v1/events/geojson` | `GET` | RFC 7946 GeoJSON FeatureCollection export for QGIS, ArcGIS, and ISRO Bhuvan. |
 | `/api/v1/events/:id` | `GET` | Fetch comprehensive dossier for a single event (evidence, lifecycle trail). |
 | `/api/v1/events/:id/sitrep` | `GET` | Export official IMD/NDMA Situation Report (SITREP) with operational directives. |
 | `/api/v1/events/:id/bulletin` | `GET` | Fetch localized Indic alert bulletin (English, Hindi, Assamese, Bengali, Marathi, Kannada). |
@@ -96,10 +102,13 @@ Once started, the system will serve the REST API, SSE telemetry, and the Web Das
 | `/api/v1/events/:id/broadcast-cap` | `POST` | Simulate Cell Broadcast Service (CBS) emergency alert transmission to local towers. |
 | `/api/v1/events/:id/dispatch-volunteers` | `POST` | Simulate GSM 7-bit SMS dispatch to localized SDRF units and Aapda Mitra volunteers. |
 | `/api/v1/events/:id/status` | `PATCH` | IMD Duty Meteorologist Human-in-the-loop status override & governance (`VERIFIED`, `RESOLVED`, `FALSE_ALARM`). |
+| `/api/v1/sensors` | `GET` | Fetch real-time telemetry for 11 national IMD AWS and CWC River Gauges. |
+| `/api/v1/sensors/simulate-spike` | `POST` | Simulate sudden telemetry surge (cloudburst ARG rate, river danger level). |
 | `/api/v1/signals` | `POST` | Ingest raw signal payload (System-to-System). |
-| `/api/v1/citizen/reports` | `POST` | Ingest a new Citizen Ground Report. |
+| `/api/v1/citizen/reports` | `POST` | Ingest a new Citizen Ground Report (with offline queueing support). |
 | `/api/v1/admin/demo/scenario/:id` | `POST` | Trigger demo scenario (or `national-overview` for all 7 regions). |
 | `/api/v1/admin/demo/simulate-time`| `POST` | Simulate hours passing to trigger confidence decay. |
+| `/api/v1/admin/audit-log` | `GET` | Fetch full immutable state machine transition audit trail. |
 | `/api/v1/admin/stats` | `GET` | Fetch operational KPIs (false-positive rates, event verification counts). |
 
 ---
@@ -164,7 +173,7 @@ The N-WEIS codebase includes a comprehensive, zero-dependency testing suite that
 ```bash
 node test-nweis.mjs
 ```
-**Results:** `70/70 Tests Passed (100% Success across 12 Test Suites)`
+**Results:** `84/84 Tests Passed (100% Success across 14 Test Suites)`
 
 ---
 
