@@ -1,5 +1,5 @@
 /**
- * N-WEIS: National Weather Event Intelligence System
+ * AtmosAI: Autonomous Meteorological & Extreme Weather Intelligence Platform
  * India Administrative Geography, Gazetteer & Meteorological Centers
  */
 

@@ -1,7 +1,7 @@
 /**
- * N-WEIS: National Weather Event Intelligence System
- * Official SIH 2026 Weather Taxonomy & Status Definitions
- * Target: Ministry of Earth Sciences / India Meteorological Department (IMD)
+ * AtmosAI: Autonomous Meteorological & Extreme Weather Intelligence Platform
+ * National Weather Taxonomy & Verification Lifecycle Definitions
+ * Alignment: India Meteorological Department (IMD) & National Disaster Management Authority (NDMA)
  */
 
 export const WEATHER_TAXONOMY = [

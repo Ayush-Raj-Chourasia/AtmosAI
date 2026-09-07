@@ -1,6 +1,5 @@
 /**
- * N-WEIS: National Weather Event Intelligence System
- * SIH 2026 Problem Statement SIH26069
+ * AtmosAI: Autonomous Meteorological & Extreme Weather Intelligence Platform
  * Central Unified TypeScript Schemas & Data Contracts
  */
 

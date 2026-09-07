@@ -1,10 +1,15 @@
 export type DisasterType = 
   | 'flood' 
+  | 'cyclone'
+  | 'heatwave'
+  | 'thunderstorm'
+  | 'cloudburst'
+  | 'fog'
+  | 'landslide' 
   | 'fire' 
   | 'earthquake' 
   | 'tsunami' 
   | 'volcano' 
-  | 'landslide' 
   | 'whirlwind' 
   | 'general';
 
@@ -345,13 +350,85 @@ export const GUIDES: Guide[] = [
 - Manual can opener (for food)
 - Local maps
 - Cell phone with chargers and a backup battery`
+  },
+  {
+    id: 'cyclone-safety',
+    title: 'Severe Cyclonic Storm & Coastal Surge Protocol',
+    description: 'Life-saving measures during tropical cyclones, gale winds and storm surges',
+    disaster_type: 'cyclone',
+    content: `## Before the Cyclone
+- Secure roofs, remove dead branches, and board up large glass windows
+- Identify the nearest designated cyclone shelter in your district
+- Keep battery-powered emergency radios, torches, and adequate drinking water
+- Fishermen must adhere strictly to IMD advisories and suspend all marine activities
+
+## During the Cyclone
+- Stay indoors on the leeward side of the strongest structure
+- Beware of the calm "eye of the storm" – severe reverse winds will resume abruptly
+- Switch off gas connections and main electrical power circuit breakers
+- Do not venture outside to photograph fallen electrical lines or uprooted trees
+
+## After the Cyclone
+- Wait for official "all-clear" bulletins from IMD / District Disaster Management Authority
+- Watch out for downed live power cables and leaking water/gas mains
+- Boil all drinking water thoroughly to prevent waterborne epidemics`
+  },
+  {
+    id: 'heatwave-safety',
+    title: 'Extreme Heatwave & Thermal Stress Management',
+    description: 'Prevent heat exhaustion, heat stroke, and dehydration during severe loo winds',
+    disaster_type: 'heatwave',
+    content: `## Preventative Daily Routines
+- Avoid direct sun exposure between 12:00 PM and 4:00 PM
+- Drink plenty of water and oral rehydration solutions (ORS), lemon water, or buttermilk
+- Wear loose, lightweight, light-colored cotton clothing
+- Never leave children or pets inside locked parked vehicles
+
+## Recognizing Heat Emergencies
+- **Heat Exhaustion**: Heavy sweating, cold pale clammy skin, fast weak pulse, dizziness
+- **Heat Stroke (Medical Emergency)**: Body temp > 40°C, hot dry red skin, rapid strong pulse, confusion or loss of consciousness
+- Immediately move the patient to a shaded cooler area, apply cold compresses, and call 112`
+  },
+  {
+    id: 'thunderstorm-safety',
+    title: 'Thunderstorm, Squall & Lightning Protection',
+    description: 'Immediate actions during convective lightning strikes and severe hail squalls',
+    disaster_type: 'thunderstorm',
+    content: `## 30-30 Rule
+- If the time between lightning flash and thunderclap is less than 30 seconds, seek immediate shelter
+- Stay indoors for at least 30 minutes after the last thunderclap is heard
+
+## If Caught Outdoors
+- Never seek shelter under tall, isolated trees or near metal poles/fences
+- Avoid open water, ponds, and elevated ridges
+- If in open terrain with no shelter, crouch low on balls of your feet with hands on knees ("Lightning Crouch")
+
+## Indoor Precautions
+- Unplug computers, televisions, and sensitive electrical equipment
+- Avoid taking baths or using corded landline telephones during active lightning`
+  },
+  {
+    id: 'dense-fog-safety',
+    title: 'Dense Fog & Low Visibility Travel Advisory',
+    description: 'Safe vehicular transit and flight disruption guidelines during radiation fog',
+    disaster_type: 'fog',
+    content: `## Driving in Dense Fog
+- Use low-beam headlights and yellow fog lamps – high beams reflect back and blind oncoming traffic
+- Maintain 3x standard vehicle following distance
+- Follow white painted road edge lines (fog lines) rather than central dividing markers
+- In zero visibility, pull completely off the highway onto the shoulder, switch on hazard lights, and wait`
   }
 ];
 
 export const getIconNameByType = (type: string) => {
   switch (type) {
       case 'flood': return 'flood';
-      case 'earthquake': return 'tsunami'; // closest match usually
+      case 'cyclone': return 'storm';
+      case 'heatwave': return 'wb_sunny';
+      case 'thunderstorm': return 'thunderstorm';
+      case 'cloudburst': return 'water_drop';
+      case 'fog': return 'foggy';
+      case 'earthquake': return 'tsunami';
       case 'fire': return 'local_fire_department';
       case 'landslide': return 'landslide';
       case 'tsunami': return 'waves';
@@ -364,28 +441,30 @@ export const getIconNameByType = (type: string) => {
 
 export const getColorByType = (type: string) => {
   switch (type) {
-      case 'flood': return 'bg-blue-50 text-blue-600 border-blue-100';
+      case 'flood': return 'bg-cyan-50 text-cyan-600 border-cyan-100';
+      case 'cyclone': return 'bg-purple-50 text-purple-600 border-purple-100';
+      case 'heatwave': return 'bg-rose-50 text-rose-600 border-rose-100';
+      case 'thunderstorm': return 'bg-amber-50 text-amber-600 border-amber-100';
+      case 'cloudburst': return 'bg-blue-50 text-blue-600 border-blue-100';
+      case 'fog': return 'bg-slate-50 text-slate-600 border-slate-200';
       case 'earthquake': return 'bg-amber-50 text-amber-600 border-amber-100';
       case 'fire': return 'bg-red-50 text-red-600 border-red-100';
       case 'landslide': return 'bg-orange-50 text-orange-600 border-orange-100';
-      case 'tsunami': return 'bg-cyan-50 text-cyan-600 border-cyan-100';
-        case 'volcano': return 'bg-rose-50 text-rose-600 border-rose-100';
-        case 'whirlwind': return 'bg-slate-50 text-slate-600 border-slate-100';
-        case 'general': return 'bg-teal-50 text-teal-600 border-teal-100';
-        default: return 'bg-gray-50 text-gray-600 border-gray-100';
+      default: return 'bg-gray-50 text-gray-600 border-gray-100';
   }
 };
 
 export const getHeaderColorByType = (type: string) => {
     switch (type) {
-        case 'flood': return 'bg-blue-600';
+        case 'flood': return 'bg-cyan-600';
+        case 'cyclone': return 'bg-purple-600';
+        case 'heatwave': return 'bg-rose-600';
+        case 'thunderstorm': return 'bg-amber-600';
+        case 'cloudburst': return 'bg-blue-600';
+        case 'fog': return 'bg-slate-600';
         case 'earthquake': return 'bg-amber-600';
         case 'fire': return 'bg-red-600';
         case 'landslide': return 'bg-orange-600';
-        case 'tsunami': return 'bg-cyan-600';
-        case 'volcano': return 'bg-rose-600';
-        case 'whirlwind': return 'bg-slate-600';
-        case 'general': return 'bg-slate-600';
-        default: return 'bg-slate-600';
+        default: return 'bg-[#12141A]';
     }
 };
