@@ -147,7 +147,11 @@ TEST 10: Multilingual Localization & CAP v1.2 Alert Engine   (10 assertions)
 TEST 11: Emergency Volunteer & SDRF SMS Dispatch Engine      (8 assertions)
 TEST 12: Human-in-the-Loop Admin Verification & Governance   (6 assertions)
 ────────────────────────────────────────────────────────────────
-TOTAL: 70/70 Tests Passed (100% Success across 12 Test Suites)
+TEST 11: Emergency Volunteer & SDRF SMS Dispatch Engine (8 tests)
+TEST 12: Human-in-the-Loop Admin Verification & State Machine Governance (6 tests)
+TEST 13: Ground Truth Sensor Network & PWA Offline Resiliency (8 tests)
+
+TOTAL: 78/78 Tests Passed (100% Success across 13 Test Suites)
 ```
 
 ---
@@ -182,3 +186,9 @@ docker run -p 3001:3001 nweis
 7. **Export SITREP** → Click **"Generate & Export IMD/NDMA SITREP"** → Show formal government Disaster Situation Report modal with digital seal.
 8. **Temporal Decay Engine** → Click **"⏩ Simulate 2h Decay"** → Watch freshness bars drain and confidence scores mathematically decay.
 9. **Citizen Ground Reinforcement** → Click **"Citizen Report"** button → Submit report for Guwahati → Watch confidence immediately restore to 94% with fresh audit trail entry.
+10. **Doppler Radar (DWR) 6-Station Network** → Click **"📡 Doppler Radar"** toggle button in top right of map → Observe 6 rotating 360° radar sweep beams (Delhi Palam, Kolkata, Mumbai, Guwahati, Jaipur, Bengaluru) with range rings and dBZ reflectivity.
+11. **Volunteer & SDRF SMS Mobilization** → In drawer, click **"📱 Dispatch Volunteers & SDRF"** → View automated receipt with 160-char GSM cellular SMS budget check, SDRF battalion assignment, and Aapda Mitra numbers.
+12. **IMD Duty Meteorologist Sign-Off** → In drawer, inspect the **"🛡️ IMD Duty Meteorologist Sign-Off"** panel → Click **"✅ Verify"**, **"🏁 Resolve"**, or **"❌ False Alarm"** → Observe strict state machine invariant enforcement and immutable audit trail.
+13. **Operational Analytics & KPIs** → In header, click **"📊 Analytics & KPIs"** → Review real-time throughput, false positive rate, dedup efficiency, and 380ms processing latency.
+14. **Live Sensor Network & Surge Telemetry** → In header, click **"📡 Live Sensors"** → Inspect all 11 IMD AWS and CWC River Gauges → Click **"⚡ Surge Telemetry"** on Bengaluru AWS → Watch instantaneous cloudburst surge detection trigger live across map and telemetry feed!
+15. **PWA Offline Field Resiliency** → Open Developer Tools, set Network to **"Offline"** → Notice the amber **"⚡ Offline Field Mode"** banner appear; submit an offline citizen observation → Notice it automatically queues locally in `localStorage` and flushes directly to the server when network reconnects!

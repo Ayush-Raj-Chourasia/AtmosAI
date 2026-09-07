@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>N-WEIS — National Weather Event Intelligence System | SIH 2026</title>
   
+  <!-- PWA & Mobile Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b1120">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icon-192.svg">
+  <link rel="icon" type="image/svg+xml" href="/icon-192.svg">
+  
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -137,6 +145,10 @@
 
     <!-- Right: Actions -->
     <div class="flex items-center space-x-3">
+      <button onclick="openSensorsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm" title="IMD Automatic Weather Stations & CWC Gauges">
+        <span>📡</span>
+        <span>Live Sensors</span>
+      </button>
       <button onclick="openAnalyticsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm">
         <span>📊</span>
         <span>Analytics & KPIs</span>
@@ -150,6 +162,19 @@
       </button>
     </div>
   </header>
+
+  <!-- OFFLINE FIELD RESILIENCY BANNER (PWA) -->
+  <div id="offline-banner" class="hidden bg-amber-950/90 text-amber-200 px-6 py-1.5 text-xs font-medium flex items-center justify-between z-30 border-b border-amber-600/70 shadow-lg">
+    <div class="flex items-center space-x-2">
+      <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+      <span class="font-bold uppercase tracking-wide text-amber-300">Offline Field Mode Active:</span>
+      <span class="text-amber-200/90">Displaying cached situational intelligence. Offline citizen observations will queue locally and auto-synchronize upon reconnect.</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <span id="offline-queue-badge" class="px-2 py-0.5 rounded bg-amber-900/80 border border-amber-700 text-[11px] font-mono text-amber-300">0 queued</span>
+      <button onclick="flushOfflineReports()" class="px-2 py-0.5 rounded bg-amber-800 hover:bg-amber-700 text-white text-[11px] font-semibold transition">Sync Now</button>
+    </div>
+  </div>
 
   <!-- 1-CLICK DEMO SCENARIO QUICK-BAR (SECTION 38 JUDGE STORY) -->
   <div class="h-11 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between px-6 shrink-0 z-20 overflow-x-auto text-xs">
@@ -629,6 +654,36 @@
       </div>
       <div id="analytics-modal-body" class="p-6 overflow-y-auto space-y-4 text-xs">
         <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- NATIONAL SENSOR NETWORK & TELEMETRY MODAL -->
+  <div id="sensors-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1300] flex items-center justify-center hidden p-4">
+    <div class="bg-slate-900 border border-amber-800/80 rounded-2xl w-[920px] max-w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+      <div class="h-14 px-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">📡</span>
+          <div>
+            <h3 class="font-bold text-white text-sm">National Sensor Network Telemetry (IMD AWS & CWC Gauges)</h3>
+            <div class="text-[10px] text-slate-400 font-mono">Central Water Commission • IMD Automatic Weather Stations • Doppler Weather Radars</div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="fetchAndRenderSensors()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-mono border border-slate-700 flex items-center gap-1">
+            <span>🔄</span> Refresh
+          </button>
+          <button onclick="closeSensorsModal()" class="text-slate-400 hover:text-white text-sm px-2">✕</button>
+        </div>
+      </div>
+      <div id="sensors-modal-body" class="p-6 overflow-y-auto space-y-4 text-xs">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono shrink-0">
+        <span class="text-slate-400">SIH26069 Ground Truth Corroboration Engine: Real-time sensor threshold crossing verification</span>
+        <button onclick="closeSensorsModal()" class="px-3.5 py-1.5 rounded-lg bg-amber-900/60 hover:bg-amber-800 text-amber-200 font-semibold border border-amber-700">
+          Close Sensor Matrix
+        </button>
       </div>
     </div>
   </div>
@@ -1231,6 +1286,56 @@
       document.getElementById('citizen-modal').classList.add('hidden');
     }
 
+    // Offline Citizen Report Queue Management (PWA Resilience)
+    function queueOfflineReport(payload) {
+      const queue = JSON.parse(localStorage.getItem('nweis_offline_reports') || '[]');
+      queue.push({ ...payload, queued_at: new Date().toISOString() });
+      localStorage.setItem('nweis_offline_reports', JSON.stringify(queue));
+      updateOfflineBadge();
+    }
+
+    function updateOfflineBadge() {
+      const queue = JSON.parse(localStorage.getItem('nweis_offline_reports') || '[]');
+      const badge = document.getElementById('offline-queue-badge');
+      if (badge) badge.innerText = `${queue.length} queued`;
+    }
+
+    async function flushOfflineReports() {
+      let queue = JSON.parse(localStorage.getItem('nweis_offline_reports') || '[]');
+      if (queue.length === 0) return;
+      let sentCount = 0;
+      const remaining = [];
+      for (const item of queue) {
+        try {
+          await fetch(`${API_BASE}/api/v1/citizen/reports`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item)
+          });
+          sentCount++;
+        } catch (e) {
+          remaining.push(item);
+        }
+      }
+      localStorage.setItem('nweis_offline_reports', JSON.stringify(remaining));
+      updateOfflineBadge();
+      if (sentCount > 0) {
+        await fetchInitialData();
+        console.log(`[N-WEIS Offline Sync] Successfully synced ${sentCount} cached citizen observations.`);
+      }
+    }
+
+    function updateOnlineStatus() {
+      const banner = document.getElementById('offline-banner');
+      if (!navigator.onLine) {
+        if (banner) banner.classList.remove('hidden');
+        updateOfflineBadge();
+      } else {
+        if (banner) banner.classList.add('hidden');
+        flushOfflineReports();
+      }
+    }
+
     async function submitCitizenReport(e) {
       e.preventDefault();
       const btn = document.getElementById('cit-submit-btn');
@@ -1247,6 +1352,15 @@
         photos: document.getElementById('cit-photo').value ? [document.getElementById('cit-photo').value] : [],
       };
 
+      if (!navigator.onLine) {
+        queueOfflineReport(payload);
+        closeCitizenModal();
+        alert('⚡ Offline Mode: Network unavailable in disaster zone. Citizen report saved locally in offline queue and will auto-sync when connection restores.');
+        btn.disabled = false;
+        btn.innerText = 'Ingest & Verify';
+        return;
+      }
+
       try {
         const res = await fetch(`${API_BASE}/api/v1/citizen/reports`, {
           method: 'POST',
@@ -1260,7 +1374,9 @@
           inspectEvent(json.data.associatedEvent.id);
         }
       } catch (err) {
-        alert('Failed to submit report');
+        queueOfflineReport(payload);
+        closeCitizenModal();
+        alert('Network unreachable. Ground report saved to offline queue and will auto-sync upon reconnection.');
       } finally {
         btn.disabled = false;
         btn.innerText = 'Ingest & Verify';
@@ -1751,6 +1867,133 @@
       document.getElementById('analytics-modal').classList.add('hidden');
     }
 
+    // National Sensors Matrix (IMD AWS & CWC Gauges)
+    let allSensors = [];
+
+    async function openSensorsModal() {
+      document.getElementById('sensors-modal').classList.remove('hidden');
+      await fetchAndRenderSensors();
+    }
+
+    function closeSensorsModal() {
+      document.getElementById('sensors-modal').classList.add('hidden');
+    }
+
+    async function fetchAndRenderSensors() {
+      const bodyEl = document.getElementById('sensors-modal-body');
+      bodyEl.innerHTML = `
+        <div class="flex items-center justify-center py-8 text-slate-400 font-mono">
+          <span class="animate-spin mr-2">🔄</span> Polling telemetry from IMD AWS, CWC River Gauges & DWR Radars...
+        </div>
+      `;
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/sensors`);
+        const json = await res.json();
+        allSensors = json.data || [];
+        renderSensorsTable(allSensors);
+      } catch (err) {
+        bodyEl.innerHTML = `<div class="text-rose-400 font-mono">Failed to fetch sensor network data: ${err.message}</div>`;
+      }
+    }
+
+    function renderSensorsTable(sensors) {
+      const bodyEl = document.getElementById('sensors-modal-body');
+      const criticalCount = sensors.filter(s => s.status === 'CRITICAL_EXCEEDED').length;
+      const alertCount = sensors.filter(s => s.status === 'ALERT').length;
+
+      bodyEl.innerHTML = `
+        <div class="space-y-4">
+          <!-- Quick Status Cards -->
+          <div class="grid grid-cols-3 gap-3">
+            <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-mono text-slate-400 uppercase">MONITORED STATIONS</div>
+                <div class="text-xl font-bold text-white mt-0.5">${sensors.length} Active</div>
+              </div>
+              <span class="text-2xl">📡</span>
+            </div>
+            <div class="p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-mono text-rose-300 uppercase">CRITICAL / DANGER MARK</div>
+                <div class="text-xl font-bold text-rose-400 mt-0.5">${criticalCount} Exceeded</div>
+              </div>
+              <span class="text-2xl">🚨</span>
+            </div>
+            <div class="p-3 rounded-xl bg-amber-950/40 border border-amber-800/60 flex items-center justify-between">
+              <div>
+                <div class="text-[10px] font-mono text-amber-300 uppercase">SURVEILLANCE ALERTS</div>
+                <div class="text-xl font-bold text-amber-400 mt-0.5">${alertCount} Active</div>
+              </div>
+              <span class="text-2xl">⚠️</span>
+            </div>
+          </div>
+
+          <!-- Sensors Table -->
+          <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-slate-900 border-b border-slate-800 text-[10px] font-mono text-slate-400 uppercase">
+                  <th class="p-3">Station & Code</th>
+                  <th class="p-3">Network Authority</th>
+                  <th class="p-3">Location</th>
+                  <th class="p-3">Parameter & Reading</th>
+                  <th class="p-3">Danger Threshold</th>
+                  <th class="p-3">Status</th>
+                  <th class="p-3 text-right">Simulation Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60">
+                ${sensors.map(s => {
+                  const isCrit = s.status === 'CRITICAL_EXCEEDED';
+                  const statusBadge = isCrit
+                    ? '<span class="px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 font-mono text-[10px] font-bold">CRITICAL EXCEEDED</span>'
+                    : '<span class="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-mono text-[10px] font-bold">ALERT</span>';
+                  return `
+                    <tr class="hover:bg-slate-900/50 transition">
+                      <td class="p-3">
+                        <div class="font-bold text-white">${escapeHtml(s.name)}</div>
+                        <div class="text-[10px] font-mono text-slate-400">${s.station_id}</div>
+                      </td>
+                      <td class="p-3 font-mono text-slate-300 text-[11px]">${escapeHtml(s.network)}</td>
+                      <td class="p-3">
+                        <div class="text-slate-200">${escapeHtml(s.city)}, ${escapeHtml(s.state)}</div>
+                        <div class="text-[10px] font-mono text-cyan-400">${s.latitude.toFixed(2)}°N, ${s.longitude.toFixed(2)}°E</div>
+                      </td>
+                      <td class="p-3 font-mono">
+                        <div class="font-bold text-sm ${isCrit ? 'text-rose-400' : 'text-amber-300'}">${escapeHtml(s.display_value || String(s.value))}</div>
+                        <div class="text-[10px] text-slate-400">${escapeHtml(s.parameter)}</div>
+                      </td>
+                      <td class="p-3 font-mono text-slate-400 text-[11px]">${escapeHtml(s.threshold_label || String(s.danger_threshold))}</td>
+                      <td class="p-3">${statusBadge}</td>
+                      <td class="p-3 text-right">
+                        <button onclick="triggerSensorSpike('${s.station_id}')" class="px-2.5 py-1 rounded bg-amber-900/60 hover:bg-amber-800 text-amber-200 border border-amber-700 font-mono text-[10px] font-semibold flex items-center gap-1 ml-auto shadow-sm transition">
+                          <span>⚡</span> Surge Telemetry
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    async function triggerSensorSpike(stationId) {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/sensors/simulate-spike`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ station_id: stationId })
+        });
+        await fetchAndRenderSensors();
+        await fetchInitialData();
+      } catch (err) {
+        console.error('Sensor surge simulation failed', err);
+      }
+    }
+
     function downloadCapXml() {
       if (!currentCapData?.cap_xml) return;
       const blob = new Blob([currentCapData.cap_xml], { type: 'application/xml' });
@@ -1834,6 +2077,12 @@
         allQuarantined.unshift(msg.signal);
         renderQuarantineSignal(msg.signal);
         updateCounters();
+      } else if (msg.type === 'sensor_telemetry_update') {
+        fetchInitialData();
+        const sensorsModal = document.getElementById('sensors-modal');
+        if (sensorsModal && !sensorsModal.classList.contains('hidden')) {
+          fetchAndRenderSensors();
+        }
       } else if (msg.type === 'demo_reset') {
         fetchInitialData();
       }
@@ -1925,6 +2174,15 @@
       initMap();
       fetchInitialData();
       initSSE();
+
+      // PWA Service Worker Registration & Resilience
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.warn('[N-WEIS SW]', err));
+      }
+      window.addEventListener('online', updateOnlineStatus);
+      window.addEventListener('offline', updateOnlineStatus);
+      updateOnlineStatus();
+      updateOfflineBadge();
     });
   </script>
 </body>

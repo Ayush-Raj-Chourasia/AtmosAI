@@ -36,6 +36,199 @@ const DECAY_PROFILES = {
   OTHER: { halfLifeMin: 90, stalenessCutoffHours: 3, decaySpeed: 'medium' },
 };
 
+// -------------------------------------------------------------
+// NATIONAL GROUND TRUTH SENSOR NETWORK (IMD AWS & CWC GAUGES)
+// -------------------------------------------------------------
+const SENSOR_NETWORK = [
+  {
+    station_id: 'CWC-BRAHMA-01',
+    name: 'CWC Brahmaputra Pandu Gauge',
+    network: 'CWC River Gauge Network',
+    parameter: 'River Water Level',
+    unit: 'meters (MSL)',
+    city: 'Guwahati',
+    state: 'Assam',
+    latitude: 26.175,
+    longitude: 91.685,
+    value: 50.12,
+    display_value: '50.12 m',
+    danger_threshold: 49.68,
+    threshold_label: '49.68 m (Danger Mark)',
+    status: 'CRITICAL_EXCEEDED',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'IMD-AWS-GHY-01',
+    name: 'IMD Borjhar Met AWS',
+    network: 'IMD Automatic Weather Station',
+    parameter: '24h Cumulative Rainfall',
+    unit: 'mm',
+    city: 'Guwahati',
+    state: 'Assam',
+    latitude: 26.106,
+    longitude: 91.585,
+    value: 118.5,
+    display_value: '118.5 mm / 24h',
+    danger_threshold: 64.5,
+    threshold_label: '64.5 mm (Heavy Rain)',
+    status: 'ALERT',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'IMD-DWR-DEL-01',
+    name: 'IMD Palam Doppler Weather Radar',
+    network: 'IMD DWR Radar Network',
+    parameter: 'Radar Reflectivity (Z)',
+    unit: 'dBZ',
+    city: 'New Delhi',
+    state: 'Delhi',
+    latitude: 28.584,
+    longitude: 77.088,
+    value: 52.0,
+    display_value: '52 dBZ Reflectivity',
+    danger_threshold: 45.0,
+    threshold_label: '45 dBZ (Severe Convection)',
+    status: 'ALERT',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'IMD-MAST-DEL-02',
+    name: 'IMD Safdarjung Anemometer Mast',
+    network: 'IMD Surface Observatory',
+    parameter: 'Wind Gust Velocity',
+    unit: 'km/h',
+    city: 'New Delhi',
+    state: 'Delhi',
+    latitude: 28.585,
+    longitude: 77.208,
+    value: 68.0,
+    display_value: '68 km/h Gust',
+    danger_threshold: 55.0,
+    threshold_label: '55 km/h (Squall Threshold)',
+    status: 'ALERT',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'IMD-AWS-MUM-01',
+    name: 'IMD Colaba Coastal AWS',
+    network: 'IMD Automatic Weather Station',
+    parameter: '1-Hour Rainfall Rate',
+    unit: 'mm/h',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    latitude: 18.906,
+    longitude: 72.814,
+    value: 84.2,
+    display_value: '84.2 mm/hr',
+    danger_threshold: 64.5,
+    threshold_label: '64.5 mm/hr (Heavy Rain Rate)',
+    status: 'ALERT',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'MCGM-MITHI-01',
+    name: 'MCGM Mithi River Gauge (Kurla)',
+    network: 'MCGM Urban Flood Network',
+    parameter: 'River Stage Level',
+    unit: 'meters',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    latitude: 19.068,
+    longitude: 72.878,
+    value: 3.45,
+    display_value: '3.45 m',
+    danger_threshold: 3.20,
+    threshold_label: '3.20 m (Flash Flood Mark)',
+    status: 'CRITICAL_EXCEEDED',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'IMD-AWS-BLR-01',
+    name: 'IMD Bengaluru City AWS',
+    network: 'IMD Automatic Weather Station',
+    parameter: 'Intense Rain Rate (ARG)',
+    unit: 'mm/h',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    latitude: 12.971,
+    longitude: 77.594,
+    value: 92.4,
+    display_value: '92.4 mm/hr',
+    danger_threshold: 64.5,
+    threshold_label: '64.5 mm/hr (Cloudburst Warning)',
+    status: 'CRITICAL_EXCEEDED',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'BBMP-SLUICE-01',
+    name: 'BBMP Bellandur Inflow Sluice',
+    network: 'BBMP Lake Management Network',
+    parameter: 'Inflow Sluice Level',
+    unit: 'meters',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    latitude: 12.935,
+    longitude: 77.674,
+    value: 1.85,
+    display_value: '1.85 m',
+    danger_threshold: 1.50,
+    threshold_label: '1.50 m (Overflow Threshold)',
+    status: 'ALERT',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'IMD-RVR-DEL-01',
+    name: 'IMD IGI Airport Runway RVR',
+    network: 'IMD Aviation Transmissometer',
+    parameter: 'Runway Visual Range (RVR)',
+    unit: 'meters',
+    city: 'New Delhi',
+    state: 'Delhi',
+    latitude: 28.556,
+    longitude: 77.100,
+    value: 35.0,
+    display_value: '35 m Visibility',
+    danger_threshold: 50.0,
+    threshold_label: '< 50 m (CAT III-B ILS Threshold)',
+    status: 'CRITICAL_EXCEEDED',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'IMD-SYN-CHURU-01',
+    name: 'IMD Churu Synoptic Observatory',
+    network: 'IMD Synoptic Surface Network',
+    parameter: 'Maximum Ambient Temperature',
+    unit: '°C',
+    city: 'Jaipur',
+    state: 'Rajasthan',
+    latitude: 28.291,
+    longitude: 74.966,
+    value: 47.4,
+    display_value: '47.4 °C',
+    danger_threshold: 45.0,
+    threshold_label: '45.0 °C (Severe Heatwave)',
+    status: 'CRITICAL_EXCEEDED',
+    last_reading_at: new Date().toISOString()
+  },
+  {
+    station_id: 'IMD-OBS-ALIPORE-01',
+    name: 'IMD Alipore Wind Observatory',
+    network: 'IMD Coastal Anemometer Network',
+    parameter: 'Sustained Gale Wind Speed',
+    unit: 'km/h',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    latitude: 22.533,
+    longitude: 88.324,
+    value: 118.0,
+    display_value: '118 km/h Sustained',
+    danger_threshold: 89.0,
+    threshold_label: '89 km/h (Very Severe Cyclonic Storm)',
+    status: 'CRITICAL_EXCEEDED',
+    last_reading_at: new Date().toISOString()
+  }
+];
+
 function logLifecycleTransition(eventId, fromStatus, toStatus, reason, triggeredBy) {
   const entry = {
     id: `lc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
@@ -1351,6 +1544,71 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  // --- LIVE SENSOR TELEMETRY & SIMULATION ENGINE ---
+  if (pathname === '/api/v1/sensors' && req.method === 'GET') {
+    return sendJson(200, {
+      success: true,
+      count: SENSOR_NETWORK.length,
+      network_status: 'OPERATIONAL',
+      authorities: ['IMD (India Meteorological Department)', 'CWC (Central Water Commission)', 'BBMP Lake Division'],
+      data: SENSOR_NETWORK
+    });
+  }
+
+  if (pathname === '/api/v1/sensors/simulate-spike' && req.method === 'POST') {
+    const body = await getBody();
+    const stationId = body.station_id || 'IMD-AWS-BLR-01';
+    const sensor = SENSOR_NETWORK.find(s => s.station_id === stationId);
+    if (!sensor) {
+      return sendJson(404, { success: false, message: `Sensor station ${stationId} not found.` });
+    }
+
+    sensor.value = body.value !== undefined ? body.value : Number((sensor.value * 1.45).toFixed(1));
+    sensor.display_value = body.display_value || `${sensor.value} ${sensor.unit}`;
+    sensor.status = 'CRITICAL_EXCEEDED';
+    sensor.last_reading_at = new Date().toISOString();
+
+    // Correlate with any active event in the sensor's city or state
+    const matchedEvent = Array.from(memEvents.values()).find(e =>
+      e.city.toLowerCase().includes(sensor.city.toLowerCase()) ||
+      e.state.toLowerCase().includes(sensor.state.toLowerCase())
+    );
+
+    if (matchedEvent) {
+      if (!matchedEvent.sensors) matchedEvent.sensors = [];
+      const existingIdx = matchedEvent.sensors.findIndex(s => s.station && s.station.toLowerCase().includes(sensor.city.toLowerCase()));
+      const telemetryObj = {
+        type: sensor.parameter,
+        station: sensor.name,
+        value: sensor.display_value,
+        threshold: sensor.threshold_label,
+        status: sensor.status
+      };
+      if (existingIdx >= 0) {
+        matchedEvent.sensors[existingIdx] = telemetryObj;
+      } else {
+        matchedEvent.sensors.push(telemetryObj);
+      }
+      matchedEvent.last_evidence_at = new Date().toISOString();
+      matchedEvent.freshness_score = 1.0;
+      matchedEvent.confidence_score = Math.min(0.99, Number((matchedEvent.confidence_score + 0.05).toFixed(2)));
+    }
+
+    broadcastSSE({
+      type: 'sensor_telemetry_update',
+      sensor,
+      matched_event_id: matchedEvent?.id || null,
+      message: `Sensor surge alert: ${sensor.name} telemetry spiked to ${sensor.display_value} (Threshold exceeded)`
+    });
+
+    return sendJson(200, {
+      success: true,
+      message: `Sensor telemetry spiked for ${sensor.name}`,
+      sensor,
+      correlated_event: matchedEvent ? { id: matchedEvent.id, title: matchedEvent.title, confidence: matchedEvent.confidence_score } : null
+    });
+  }
+
   // --- CITIZEN & SIGNAL INGESTION ---
   if (pathname === '/api/v1/citizen/reports' && req.method === 'POST') {
     const body = await getBody();
@@ -1477,19 +1735,48 @@ const server = http.createServer(async (req, res) => {
     return sendJson(200, { success: true, count: events.length, data: events });
   }
 
-  // Web Dashboard & Root healthcheck
-  if (pathname === '/' || pathname === '/dashboard' || pathname === '/index.html') {
-    if (pathname === '/dashboard' || pathname === '/index.html' || (req.headers.accept && req.headers.accept.includes('text/html'))) {
-      if (fs.existsSync(HTML_DASHBOARD_PATH)) {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(fs.readFileSync(HTML_DASHBOARD_PATH, 'utf-8'));
-        return;
-      }
-    }
+  // Web Healthcheck
+  if (pathname === '/health') {
+    return sendJson(200, {
+      name: 'N-WEIS API',
+      status: 'ONLINE',
+      target: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
+      problemStatement: 'SIH26069',
+      version: '1.0.0',
+      activeEvents: memEvents.size,
+      activeSignals: memSignals.size,
+    });
   }
 
-  // Root healthcheck
-  if (pathname === '/' || pathname === '/health') {
+  // Static Assets (Dashboard, PWA Manifest, Service Worker, SVG Icons)
+  const publicDir = path.join(__dirname, 'public');
+  let relPath = (pathname === '/' || pathname === '/dashboard') ? 'index.html' : pathname.replace(/^\/+/, '');
+  const localFilePath = path.normalize(path.join(publicDir, relPath));
+
+  if (localFilePath.startsWith(publicDir) && fs.existsSync(localFilePath) && fs.statSync(localFilePath).isFile()) {
+    const ext = path.extname(localFilePath).toLowerCase();
+    const mimeTypes = {
+      '.html': 'text/html; charset=utf-8',
+      '.js': 'application/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
+      '.webmanifest': 'application/manifest+json; charset=utf-8',
+      '.svg': 'image/svg+xml',
+      '.png': 'image/png',
+      '.css': 'text/css; charset=utf-8',
+      '.ico': 'image/x-icon',
+    };
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    const headers = { 'Content-Type': contentType };
+    if (ext === '.js' && relPath.endsWith('sw.js')) {
+      headers['Service-Worker-Allowed'] = '/';
+      headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+    }
+    res.writeHead(200, headers);
+    res.end(fs.readFileSync(localFilePath));
+    return;
+  }
+
+  if (pathname === '/') {
     return sendJson(200, {
       name: 'N-WEIS API',
       status: 'ONLINE',

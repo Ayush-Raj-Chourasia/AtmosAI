@@ -1,0 +1,25 @@
+{
+  "name": "N-WEIS: National Weather Event Intelligence System",
+  "short_name": "N-WEIS",
+  "description": "Real-time AI Weather Event Corroboration & Early Warning Platform (Ministry of Earth Sciences / IMD - SIH26069)",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1120",
+  "theme_color": "#0b1120",
+  "categories": ["government", "weather", "emergency", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
