@@ -2,110 +2,89 @@
 
 import React, { useState } from 'react';
 import GoogleIcon from '@/components/ui/GoogleIcon';
-import { API_BASE_URL } from '@/lib/config';
+import { triggerScenario as triggerLocalScenario, resetLocalEvents } from '@/lib/mockApiStore';
 
 interface DemoScenarioBarProps {
   onScenarioTriggered?: () => void;
 }
 
+const SCENARIOS = [
+  { id: 'scen-assam', label: 'Guwahati Flood (94%)', icon: 'flood', color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' },
+  { id: 'scen-dwarka', label: 'Dwarka Gale (91%)', icon: 'storm', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  { id: 'scen-delhi', label: 'Delhi Heatwave (96%)', icon: 'wb_sunny', color: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+  { id: 'scen-dehradun', label: 'Dehradun Cloudburst', icon: 'water_drop', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+];
+
 export default function DemoScenarioBar({ onScenarioTriggered }: DemoScenarioBarProps) {
   const [isRunning, setIsRunning] = useState(false);
-  const [activeScenario, setActiveScenario] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const triggerScenario = async (scenarioId: string) => {
+  const handleScenario = (scenarioId: string) => {
     setIsRunning(true);
-    setActiveScenario(scenarioId);
-    setToastMessage(null);
+    setToastMessage('Synthesizing multi-source signals into AtmosAI pipeline...');
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/admin/demo/scenario/${scenarioId}`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (data.success) {
-        setToastMessage(data.message || `Scenario ${scenarioId} executed successfully!`);
-        if (onScenarioTriggered) onScenarioTriggered();
+    setTimeout(() => {
+      if (scenarioId === 'reset') {
+        resetLocalEvents();
+        setToastMessage('Operational state reset to baseline national telemetry.');
       } else {
-        setToastMessage(`Error: ${data.message || 'Execution failed'}`);
+        triggerLocalScenario(scenarioId);
+        const name = SCENARIOS.find((s) => s.id === scenarioId)?.label || scenarioId;
+        setToastMessage(`✓ ${name} injected! Doppler radar reflectivity & citizen signals fused.`);
       }
-    } catch (err: any) {
-      setToastMessage(`Network error triggering demo scenario: ${err.message}`);
-    } finally {
       setIsRunning(false);
-      setTimeout(() => setToastMessage(null), 6000);
-    }
+      if (onScenarioTriggered) onScenarioTriggered();
+
+      setTimeout(() => setToastMessage(null), 5000);
+    }, 400);
   };
 
   return (
-    <div className="bg-slate-900/90 backdrop-blur-md border border-amber-500/30 rounded-2xl p-4 shadow-xl text-white">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+    <div className="bg-[#12141A] text-[#F7F4EC] border border-white/10 rounded-2xl p-4 shadow-xl">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#FF5A1F]/15 border border-[#FF5A1F]/30 text-[#FF5A1F] flex items-center justify-center shrink-0">
             <GoogleIcon name="play_arrow" size={20} />
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-              SIH 2026 Judge Demo Simulator
-              <span className="bg-amber-500/20 text-[10px] px-1.5 py-0.5 rounded text-amber-300">Section 38 Story</span>
+            <div className="text-xs font-bold uppercase tracking-wider text-[#FF5A1F] flex items-center gap-1.5 font-mono">
+              Live Scenario Injector
             </div>
-            <p className="text-xs text-slate-400">Inject multi-source weather observations, duplicate groups, and fake reports</p>
+            <p className="text-xs text-[#B7BAC2]">
+              Simulate extreme weather anomalies, Doppler radar echoes, and multi-source corroboration
+            </p>
           </div>
         </div>
 
         {/* Buttons */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <button
-            disabled={isRunning}
-            onClick={() => triggerScenario('flood-guwahati')}
-            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold transition-all shadow-md shadow-cyan-500/20 flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <GoogleIcon name="flood" size={16} />
-            Guwahati Flood (94%)
-          </button>
+          {SCENARIOS.map((scen) => (
+            <button
+              key={scen.id}
+              disabled={isRunning}
+              onClick={() => handleScenario(scen.id)}
+              className={`px-3 py-1.5 rounded-xl border font-semibold transition-all flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95 disabled:opacity-50 ${scen.color}`}
+            >
+              <GoogleIcon name={scen.icon} size={15} />
+              {scen.label}
+            </button>
+          ))}
 
           <button
             disabled={isRunning}
-            onClick={() => triggerScenario('thunderstorm-delhi')}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-medium transition-all flex items-center gap-1.5 disabled:opacity-50"
+            onClick={() => handleScenario('reset')}
+            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-[#8b8e97] hover:text-white border border-white/10 font-medium transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
-            <GoogleIcon name="thunderstorm" size={16} className="text-amber-400" />
-            Delhi Squall
-          </button>
-
-          <button
-            disabled={isRunning}
-            onClick={() => triggerScenario('mumbai-rainfall')}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-medium transition-all flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <GoogleIcon name="water_drop" size={16} className="text-blue-400" />
-            Mumbai Downpour
-          </button>
-
-          <button
-            disabled={isRunning}
-            onClick={() => triggerScenario('heatwave-rajasthan')}
-            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 font-medium transition-all flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <GoogleIcon name="wb_sunny" size={16} className="text-rose-400" />
-            Rajasthan Heatwave
-          </button>
-
-          <button
-            disabled={isRunning}
-            onClick={() => triggerScenario('reset')}
-            className="px-3 py-1.5 rounded-xl bg-slate-850 hover:bg-red-950/40 text-slate-400 hover:text-red-300 border border-slate-750 font-medium transition-all flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <GoogleIcon name="refresh" size={16} />
-            Reset
+            <GoogleIcon name="refresh" size={15} />
+            Reset State
           </button>
         </div>
       </div>
 
       {toastMessage && (
-        <div className="mt-3 p-2.5 rounded-xl bg-slate-950/80 border border-emerald-500/40 text-xs text-emerald-300 flex items-center gap-2 animate-in fade-in">
-          <GoogleIcon name="check_circle" size={16} className="text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div className="mt-3 p-2.5 rounded-xl bg-white/5 border border-emerald-500/40 text-xs text-emerald-300 flex items-center gap-2 animate-in fade-in">
+          <GoogleIcon name="check_circle" size={16} className="text-emerald-400 shrink-0" />
+          <span className="font-mono">{toastMessage}</span>
         </div>
       )}
     </div>

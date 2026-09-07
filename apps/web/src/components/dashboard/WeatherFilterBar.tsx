@@ -2,7 +2,7 @@
 
 import React from 'react';
 import GoogleIcon from '@/components/ui/GoogleIcon';
-import { WEATHER_TAXONOMY, WeatherEventType } from '@n-weis/shared';
+import { WEATHER_TAXONOMY } from '@n-weis/shared';
 import { getIncidentConfig } from '@/lib/incidents';
 
 interface WeatherFilterBarProps {
@@ -30,6 +30,8 @@ export const INDIAN_STATES_FILTER = [
   'Gujarat',
   'Bihar',
   'Odisha',
+  'Uttarakhand',
+  'Punjab',
 ];
 
 export default function WeatherFilterBar({
@@ -43,32 +45,32 @@ export default function WeatherFilterBar({
   onSelectStatus,
 }: WeatherFilterBarProps) {
   return (
-    <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-2xl p-4 shadow-xl text-white space-y-4">
+    <div className="bg-[#12141A] text-[#F7F4EC] border border-white/10 rounded-2xl p-4 shadow-xl space-y-4">
       {/* Category Pills */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar text-xs">
         <button
           onClick={() => onSelectCategory('ALL')}
-          className={`px-3 py-1.5 rounded-xl font-medium transition-all shrink-0 flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-xl font-semibold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
             selectedCategory === 'ALL'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-              : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
+              ? 'bg-[#FF5A1F] text-white shadow-md shadow-[#FF5A1F]/30'
+              : 'bg-white/5 text-[#B7BAC2] hover:bg-white/10 hover:text-white border border-white/10'
           }`}
         >
           <GoogleIcon name="apps" size={16} />
           All Hazards
         </button>
 
-        {WEATHER_TAXONOMY.map(type => {
+        {WEATHER_TAXONOMY.map((type) => {
           const cfg = getIncidentConfig(type);
           const active = selectedCategory === type;
           return (
             <button
               key={type}
               onClick={() => onSelectCategory(type)}
-              className={`px-3 py-1.5 rounded-xl font-medium transition-all shrink-0 flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl font-medium transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
                 active
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-750'
+                  ? 'bg-[#FF5A1F] text-white font-semibold shadow-md shadow-[#FF5A1F]/30'
+                  : 'bg-white/5 text-[#B7BAC2] hover:bg-white/10 hover:text-white border border-white/10'
               }`}
             >
               <GoogleIcon name={cfg.icon} size={16} />
@@ -78,18 +80,18 @@ export default function WeatherFilterBar({
         })}
       </div>
 
-      {/* State, Confidence & Status Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800 text-xs">
+      {/* State, Status & Confidence Threshold */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-white/10 text-xs">
         {/* State Selector */}
-        <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-750">
-          <GoogleIcon name="location_on" size={16} className="text-blue-400" />
+        <div className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/10">
+          <GoogleIcon name="location_on" size={16} className="text-[#FF5A1F]" />
           <select
             value={selectedState}
-            onChange={e => onSelectState(e.target.value)}
-            className="bg-transparent text-slate-200 outline-none w-full cursor-pointer"
+            onChange={(e) => onSelectState(e.target.value)}
+            className="bg-transparent text-[#F7F4EC] outline-none w-full cursor-pointer font-medium"
           >
-            {INDIAN_STATES_FILTER.map(st => (
-              <option key={st} value={st} className="bg-slate-900 text-slate-200">
+            {INDIAN_STATES_FILTER.map((st) => (
+              <option key={st} value={st} className="bg-[#12141A] text-[#F7F4EC]">
                 {st}
               </option>
             ))}
@@ -97,24 +99,24 @@ export default function WeatherFilterBar({
         </div>
 
         {/* Status Selector */}
-        <div className="flex items-center gap-2 bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-750">
-          <GoogleIcon name="verified_user" size={16} className="text-emerald-400" />
+        <div className="flex items-center gap-2 bg-white/5 px-3 py-2 rounded-xl border border-white/10">
+          <GoogleIcon name="verified_user" size={16} className="text-[#1F8A70]" />
           <select
             value={selectedStatus}
-            onChange={e => onSelectStatus(e.target.value)}
-            className="bg-transparent text-slate-200 outline-none w-full cursor-pointer"
+            onChange={(e) => onSelectStatus(e.target.value)}
+            className="bg-transparent text-[#F7F4EC] outline-none w-full cursor-pointer font-medium"
           >
-            <option value="ALL" className="bg-slate-900 text-slate-200">All Statuses</option>
-            <option value="VERIFIED" className="bg-slate-900 text-slate-200">Verified Only (≥85%)</option>
-            <option value="UNDER_REVIEW" className="bg-slate-900 text-slate-200">Under Review</option>
-            <option value="DETECTED" className="bg-slate-900 text-slate-200">Detected Signals</option>
+            <option value="ALL" className="bg-[#12141A] text-[#F7F4EC]">All Verified Levels</option>
+            <option value="VERIFIED" className="bg-[#12141A] text-[#F7F4EC]">Verified Only (≥80%)</option>
+            <option value="ACTIVE" className="bg-[#12141A] text-[#F7F4EC]">Active Operations</option>
+            <option value="UNDER_REVIEW" className="bg-[#12141A] text-[#F7F4EC]">Under Multimodal Review</option>
           </select>
         </div>
 
         {/* Confidence Threshold Slider */}
-        <div className="flex items-center gap-3 bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-750">
-          <span className="text-slate-400 shrink-0 font-medium">
-            Min Conf: <strong className="text-emerald-400 font-bold">{minConfidence}%</strong>
+        <div className="flex items-center gap-3 bg-white/5 px-3 py-2 rounded-xl border border-white/10">
+          <span className="text-[#8b8e97] shrink-0 font-mono text-[11px]">
+            Min Conf: <strong className="text-[#1FBF9B] font-bold">{minConfidence}%</strong>
           </span>
           <input
             type="range"
@@ -122,8 +124,8 @@ export default function WeatherFilterBar({
             max="100"
             step="5"
             value={minConfidence}
-            onChange={e => onConfidenceChange(Number(e.target.value))}
-            className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+            onChange={(e) => onConfidenceChange(Number(e.target.value))}
+            className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#FF5A1F]"
           />
         </div>
       </div>
