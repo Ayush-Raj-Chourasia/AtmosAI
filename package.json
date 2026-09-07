@@ -2,12 +2,15 @@
   "name": "n-weis",
   "private": true,
   "scripts": {
+    "start": "node server-nweis.mjs",
+    "serve": "node server-nweis.mjs",
+    "test": "node test-nweis.mjs",
+    "test:nweis": "node test-nweis.mjs",
     "build": "turbo build",
     "dev": "concurrently -n \"WEB,API\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev -w apps/web\" \"npm run dev -w apps/api\"",
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
     "lint": "turbo lint",
-    "test": "npm run test -w apps/api",
     "clean": "turbo clean"
   },
   "devDependencies": {
