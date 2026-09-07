@@ -45,9 +45,12 @@ function LifecycleContent() {
         sortOrder,
       });
       if (incidentIdFilter) params.set('incidentId', incidentIdFilter);
-      const res = await fetch(`${API_BASE_URL}/admin/lifecycle?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch lifecycle');
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/lifecycle?${params}`);
+        if (res.ok) return res.json();
+      } catch {}
+      const fallback = await fetch(`/api/admin/lifecycle?${params}`);
+      return fallback.json();
     },
   });
 

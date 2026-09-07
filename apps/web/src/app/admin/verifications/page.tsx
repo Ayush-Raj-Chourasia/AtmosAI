@@ -34,9 +34,12 @@ export default function VerificationsPage() {
         sortBy,
         sortOrder,
       });
-      const res = await fetch(`${API_BASE_URL}/admin/verifications?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch verifications');
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/verifications?${params}`);
+        if (res.ok) return res.json();
+      } catch {}
+      const fallback = await fetch(`/api/admin/verifications?${params}`);
+      return fallback.json();
     },
   });
 

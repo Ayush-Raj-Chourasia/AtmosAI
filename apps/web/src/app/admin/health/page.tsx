@@ -25,19 +25,22 @@ export default function HealthPage() {
   const { data: stats, isLoading, dataUpdatedAt } = useQuery<Stats>({
     queryKey: ['admin-stats'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/admin/stats`);
-      if (!res.ok) throw new Error('Failed to fetch stats');
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/stats`);
+        if (res.ok) return res.json();
+      } catch {}
+      const fallback = await fetch('/api/admin/stats');
+      return fallback.json();
     },
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
 
   const sourceColors: Record<string, string> = {
-    user_report: 'bg-green-500',
+    citizen: 'bg-green-500',
     social_media: 'bg-purple-500',
-    tiktok_ai: 'bg-pink-500',
-    news: 'bg-blue-500',
-    sensor: 'bg-orange-500',
+    doppler_radar: 'bg-cyan-500',
+    imd: 'bg-blue-500',
+    weather_api: 'bg-orange-500',
   };
 
   return (

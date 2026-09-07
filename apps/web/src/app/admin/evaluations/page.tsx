@@ -34,9 +34,12 @@ export default function EvaluationsPage() {
         sortBy,
         sortOrder,
       });
-      const res = await fetch(`${API_BASE_URL}/admin/evaluations?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch evaluations');
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/evaluations?${params}`);
+        if (res.ok) return res.json();
+      } catch {}
+      const fallback = await fetch(`/api/admin/evaluations?${params}`);
+      return fallback.json();
     },
   });
 

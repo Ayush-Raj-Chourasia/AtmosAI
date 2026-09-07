@@ -45,9 +45,12 @@ export default function IncidentsPage() {
         search,
         status: statusFilter,
       });
-      const res = await fetch(`${API_BASE_URL}/admin/incidents?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch incidents');
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/incidents?${params}`);
+        if (res.ok) return res.json();
+      } catch {}
+      const fallback = await fetch(`/api/admin/incidents?${params}`);
+      return fallback.json();
     },
   });
 

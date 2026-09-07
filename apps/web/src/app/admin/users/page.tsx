@@ -32,9 +32,12 @@ export default function UsersPage() {
         sortBy,
         sortOrder,
       });
-      const res = await fetch(`${API_BASE_URL}/admin/users?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch users');
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/users?${params}`);
+        if (res.ok) return res.json();
+      } catch {}
+      const fallback = await fetch(`/api/admin/users?${params}`);
+      return fallback.json();
     },
   });
 

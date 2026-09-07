@@ -45,9 +45,12 @@ export default function NotificationsPage() {
         limit: String(limit),
         tab,
       });
-      const res = await fetch(`${API_BASE_URL}/admin/notifications?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch notifications');
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/notifications?${params}`);
+        if (res.ok) return res.json();
+      } catch {}
+      const fallback = await fetch(`/api/admin/notifications?${params}`);
+      return fallback.json();
     },
   });
 

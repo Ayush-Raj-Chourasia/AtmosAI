@@ -45,9 +45,12 @@ export default function SignalsPage() {
         source: sourceFilter,
         status: statusFilter,
       });
-      const res = await fetch(`${API_BASE_URL}/admin/signals?${params}`);
-      if (!res.ok) throw new Error('Failed to fetch signals');
-      return res.json();
+      try {
+        const res = await fetch(`${API_BASE_URL}/admin/signals?${params}`);
+        if (res.ok) return res.json();
+      } catch {}
+      const fallback = await fetch(`/api/admin/signals?${params}`);
+      return fallback.json();
     },
   });
 
