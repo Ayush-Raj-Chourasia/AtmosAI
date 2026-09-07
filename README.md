@@ -1,37 +1,35 @@
-# 🇮🇳 N-WEIS: National Weather Event Intelligence System
-### Real-Time AI-Powered Weather Intelligence & Operations Platform
-![SIH 2026](https://img.shields.io/badge/SIH_2026-Problem_SIH26069-0891b2?style=for-the-badge) ![Node.js](https://img.shields.io/badge/Node.js-Zero_Dependency-339933?style=for-the-badge)
+# ⛈️ AtmosAI: Autonomous Meteorological & Extreme Weather Intelligence Platform
+
+> **A verifiable, real-time intelligence system that ingests fragmented weather signals across India, eliminates rumors and duplicates, and synthesizes one corroborated meteorological incident signal.**
+
+![Version](https://img.shields.io/badge/Version-2.4.0-1F8A70?style=for-the-badge)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge)
+![Next.js](https://img.shields.io/badge/Next.js-16.1.1-black?style=for-the-badge)
+![NestJS](https://img.shields.io/badge/NestJS-10.x-E0234E?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)
 
 ---
 
-## 📋 Executive Summary
+## 📋 Executive Overview
 
-**N-WEIS** is an autonomous, real-time, AI-driven meteorological intelligence platform engineered for **SIH 2026 Problem Statement SIH26069** (Ministry of Earth Sciences / India Meteorological Department). 
+In the wake of severe meteorological events—such as urban flash floods in Guwahati, severe squall lines across Delhi-NCR, intense monsoon waterlogging in Mumbai, or blistering heatwaves across Rajasthan—field information is inherently fragmented and chaotic. Unofficial social posts exaggerate casualties, outdated disaster photographs resurface, and official early warning bulletins from the India Meteorological Department (IMD) often battle with viral misinformation.
 
-It ingests highly fragmented weather signals from official IMD bulletins, news RSS feeds, citizen ground reports, and social media, normalizes them, filters hoaxes, deduplicates redundant data, and fuses corroborating evidence into verified weather events. The platform is designed to provide actionable, high-confidence disaster intelligence while completely avoiding the spread of unverified panic and misinformation.
+**AtmosAI** resolves this challenge. Engineered as an autonomous multi-source intelligence engine, AtmosAI ingests raw data streams across official agencies, Doppler weather radar networks, satellite feeds (INSAT-3DR), vetted news RSS feeds, social media, and geotagged ground observer reports. Every raw signal passes through a 12-stage verification pipeline and a deterministic **7-Factor Confidence Fusion Model** before any alert is promoted to operational command dashboards.
 
 ---
 
-## ✨ Key Features
+## ✨ Key Architectural Capabilities
 
-- 📡 **Multi-Source Ingestion:** Aggregates streams from official IMD/MoES channels, News Media, Social Media (#IMD), and Direct Citizen Reports.
-- 🧠 **7-Factor Confidence Fusion Engine:** Calculates deterministic confidence scoring based on source reliability, AI relevance, media presence, spatial proximity, temporal freshness, corroboration, and IMD synergy.
-- 👯 **3-Layer Deduplication:** Eliminates noise via Exact ID matching, Jaccard Semantic overlap (≥ 0.75), and Spatiotemporal proximity (≤ 3.0 km).
-- ⏳ **Temporal Confidence Decay:** Employs a mathematical half-life model where incident confidence decays over time without new corroborating evidence, specific to each hazard.
-- 🛡️ **Misinformation Quarantine (Skeptic Agent):** Flags sensationalist text, hoaxes, and recycled disaster media through perceptual hashing and LLM analysis, putting them in an immutable quarantine.
-- 📜 **State Machine Lifecycle:** Maintains a strict, immutable audit trail for every status transition (`DETECTED` → `UNDER_REVIEW` → `VERIFIED` → `RESOLVED`).
-- 🌡️ **Official Sensor Alignment:** Connects field observations with official IMD AWS/ARG data and CWC (Central Water Commission) gauges for authoritative corroboration.
-- 📋 **Official NDMA/IMD SITREP Export:** Generates standardized Disaster Situation Reports with automated tactical response directives (NDRF, CWC, NHAI, Civil Aviation) and tamper-evident digital seal.
-- ⚡ **Real-Time SSE & GIS Dashboard:** Sub-second Server-Sent Events (SSE) telemetry paired with an interactive Leaflet-powered GIS operations command dashboard.
-- 🌪️ **8 IMD Hazard Categories:** Full taxonomy support for `FLOOD`, `THUNDERSTORM`, `RAINFALL`, `HEATWAVE`, `FOG`, `DUST_STORM`, `STRONG_WIND`, and `OTHER`.
-- 📡 **IMD Doppler Weather Radar (DWR) 6-Station Network:** Live rotating 360° radar sweep beams across Delhi Palam, Kolkata, Mumbai, Guwahati, Jaipur, and Bengaluru with real-time dBZ reflectivity scales.
-- 📱 **Progressive Web App (PWA) Offline Resiliency:** Operates in offline field mode with service worker caching and local citizen report queueing that auto-synchronizes upon reconnect.
-- 🗺️ **RFC 7946 GeoJSON & OGC GIS Interoperability:** Generates standard GeoJSON FeatureCollections projected in OGC CRS84 for instant ingestion into QGIS, ArcGIS, and ISRO Bhuvan mapping systems.
-- 🌐 **OGC KML 2.2 Google Earth 3D Visualization:** Real-time KML export with rich Placemark metadata and coordinates for 3D terrain flyovers in Google Earth.
-- 📑 **Tabular CSV Disaster Logs:** Instant CSV export formatted for District Disaster Management Authorities (DDMA) and Excel morning briefing logbooks.
-- 🚨 **Volunteer SDRF & Aapda Mitra SMS Dispatch:** Mobilizes localized response units with GSM 160-character cellular SMS budget compliance and official helplines (1077/112).
-- 🛡️ **IMD Duty Meteorologist Governance:** Human-in-the-loop sign-off with strict state machine invariants and tamper-evident audit logging.
-- 🖥️ **Headless Operations CLI (`nweis-cli.mjs`):** Complete terminal command-line utility for duty forecasters, EOC operators, and low-bandwidth VSAT satellite terminals (`nweis status`, `nweis list`, `nweis inspect`, `nweis broadcast`, `nweis dispatch`).
+- 📡 **Multi-Source Signal Ingestion**: Continuous processing of official IMD bulletins, Doppler Weather Radar (DWR) reflectivity telemetry, verified news sources, social media channels, and community ground spotter reports.
+- 🧠 **7-Factor Mathematical Fusion Engine**: Deterministic calculation weighting source credibility ($w_1$), AI situational relevance ($w_2$), multimedia authenticity ($w_3$), spatial coherence ($w_4$), temporal freshness ($w_5$), cross-source corroboration ($w_6$), and official agency synergy ($w_7$).
+- 🛡️ **Skeptic AI & Misinformation Quarantine**: Automated perceptual hashing and linguistic analysis to detect recycled flood images, clickbait disaster headlines, and unverified rumors, shunting them into an immutable quarantine.
+- 👯 **3-Layer Spatiotemporal Deduplication**: Prevents alert fatigue using exact signature matching, Jaccard linguistic n-gram overlap ($\ge 0.75$), and Haversine geographic proximity clustering ($\le 3.0\text{ km}$).
+- ⏳ **Dynamic Temporal Confidence Decay**: Alerts do not persist indefinitely; confidence decays via a half-life model calibrated specifically to each hazard type (e.g., 45 minutes for Thunderstorms, 6 hours for Regional Floods).
+- 🗺️ **High-Performance Interactive GIS**: Dark-mode CARTO canvas basemaps featuring real-time Indian meteorological bounds, Doppler radar sweep rings, and dynamic hazard filters.
+- 📱 **Responsive Editorial Design System**: Premium editorial aesthetics crafted with `#F7F4EC` linen background, `#12141A` obsidian command cards, `#FF5A1F` international orange & `#1F8A70` emerald accents, and serif display typography.
+- 🌐 **Full Indic Bilingual Localization**: Native real-time toggle between **English** and **Hindi (हिन्दी)** across all operational dashboards, incident dossiers, and survival guides.
+- 📋 **Automated SITREP & CAP Bulletins**: Generates standardized National Disaster Management Authority (NDMA) Situation Reports and ITU-T X.1303 Common Alerting Protocol (CAP) messages with one-click export.
+- ⚡ **100% Zero-Friction Local Run**: Features built-in mock engines and Next.js route handlers allowing full local evaluation without requiring external database setups.
 
 ---
 
@@ -39,191 +37,203 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 
 ```mermaid
 flowchart TD
-    subgraph MultiSourceIngestion ["1. Multi-Source Ingestion Ingests Raw Feeds"]
-        IMD["Official IMD Bulletins & Warnings"]
-        NEWS["News Media RSS (NDTV, TOI, etc.)"]
-        CITIZEN["Citizen Weather Reports (GPS + Photos)"]
-        SOCIAL["Social Media (#IMD #Weather)"]
+    subgraph SOURCELAYER ["1. Multi-Source Ingestion Streams"]
+        IMD["Official IMD Bulletins & Radars"]
+        SATELLITE["INSAT-3DR & Earth Observation"]
+        NEWS["National & Regional News RSS Feeds"]
+        CITIZEN["Geotagged Citizen Ground Observations"]
+        SOCIAL["Social Streams (#WeatherUpdate #IMD)"]
     end
 
-    subgraph IntelligenceCore ["2. AI & Verification Pipeline"]
-        NORM["Signal Normalizer (UTC, WGS84, Tags)"]
-        GEO["4-Tier India Geolocation Engine"]
-        CLASS["8-Category Weather Classifier"]
-        SKEPTIC["Skeptic / Misinfo Quarantine (Recycled Media Hash)"]
-        DEDUP["3-Layer Deduplication Engine"]
-        CLUSTER["SEDOM-DD Spatiotemporal Clustering"]
-        FUSION["7-Factor Evidence Fusion (+6% IMD Synergy)"]
+    subgraph PIPELINE ["2. 12-Stage Intelligence & Verification Pipeline"]
+        NORM["Signal Normalizer (UTC, WGS84, GeoJSON)"]
+        GEO["Geocoding Engine (Indian State / District / Tehsil)"]
+        CLASS["8-Category Hazard Classifier"]
+        SKEPTIC{"Skeptic Rumor & Media Check"}
+        DEDUP["3-Layer Spatiotemporal Deduplication"]
+        CLUSTER["SEDOM Spatiotemporal Clustering"]
+        FUSION["7-Factor Evidence Fusion Engine"]
+        DECAY["Hazard-Specific Half-Life Decay"]
     end
 
-    subgraph PresentationOutput ["3. Real-Time Command & Control"]
-        SSE["SSE Real-Time Telemetry Stream (/api/v1/events/stream)"]
-        GIS["Leaflet India GIS Operations Command Dashboard"]
-        DRAWER["Event Intelligence Dossier & Explainability"]
-        ADMIN["5-Minute Judge Demo Scenarios Runner"]
+    subgraph OUTPUTLAYER ["3. Command, Control & Citizen Interfaces"]
+        DASH["Live Incident Command Center (/dashboard)"]
+        MAP["India Meteorological GIS Map (/map)"]
+        DOSSIER["Incident Dossiers & Explainability (/incidents/[id])"]
+        ADMIN["Admin Audit & Evaluation Suite (/admin)"]
+        GUIDES["Indic Weather Guides & AI Search (/guides)"]
+        EXPORTS["NDMA SITREP / GeoJSON / CAP XML"]
     end
 
-    IMD & NEWS & CITIZEN & SOCIAL --> NORM
+    IMD & SATELLITE & NEWS & CITIZEN & SOCIAL --> NORM
     NORM --> GEO --> CLASS --> SKEPTIC
-    SKEPTIC -->|Pass| DEDUP
-    SKEPTIC -->|Fail Hoax / Media Reuse| QUARANTINE["Quarantine Vault (Status: REJECTED)"]
-    DEDUP -->|Merge| CLUSTER
-    CLUSTER --> FUSION
-    FUSION --> SSE
-    SSE --> GIS & DRAWER & ADMIN
+    SKEPTIC -- "Quarantined (Hoax / Recycled Media)" --> QUARANTINE["Quarantine Vault"]
+    SKEPTIC -- "Clean Signal" --> DEDUP
+    DEDUP --> CLUSTER --> FUSION --> DECAY
+    DECAY --> DASH & MAP & DOSSIER & ADMIN & GUIDES & EXPORTS
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🧮 7-Factor Confidence Fusion Model
 
-N-WEIS is built as a **high-performance, zero-dependency** standalone Node.js server. No `npm install` is required.
+Every incident's verification score is calculated deterministically through a normalized 7-factor weighted formulation:
 
-```bash
-# Clone the repository and run the server natively
-node server-nweis.mjs
-```
+$$ \text{Confidence Score} = \sum_{i=1}^{7} w_i \cdot F_i + \text{Synergy Bonus} $$
 
-Once started, the system will serve the REST API, SSE telemetry, and the Web Dashboard on port 3001.
+Where:
+1. **$F_1$ (Source Credibility)**: Weight $w_1 = 0.25$. Official IMD/CWC = 1.0, Verified News = 0.85, Ground Observer = 0.70, Social = 0.40.
+2. **$F_2$ (AI Model Relevance)**: Weight $w_2 = 0.15$. Natural Language inference score confirming disaster severity and immediacy.
+3. **$F_3$ (Multimedia Authenticity)**: Weight $w_3 = 0.15$. Visual verification, reverse hash validation, and metadata integrity.
+4. **$F_4$ (Spatial Proximity)**: Weight $w_4 = 0.15$. Physical co-location of corroborating signals within the hazard perimeter.
+5. **$F_5$ (Temporal Freshness)**: Weight $w_5 = 0.10$. Recency bonus for observations logged within the past 60 minutes.
+6. **$F_6$ (Multi-Source Corroboration)**: Weight $w_6 = 0.10$. Exponential confidence scaling when 2+ disparate source categories report the same event.
+7. **$F_7$ (Official Sensor Synergy)**: Weight $w_7 = 0.10$. +6% to +10% bonus when automatic weather stations (AWS) or river gauges match report signatures.
 
-**Open the Operations Command Dashboard:** [http://localhost:3001](http://localhost:3001)
+### Temporal Half-Life Decay
 
----
+$$\text{Confidence}(t) = \text{Confidence}_0 \times (0.5)^{\frac{\Delta t}{t_{1/2}}}$$
 
-## 📖 API Reference
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/health` | `GET` | Root healthcheck indicating system status and SIH26069 alignment. |
-| `/api/v1/events/stream` | `GET` | SSE endpoint for real-time pushing of weather events and signals. |
-| `/api/v1/events` | `GET` | Fetch all active weather incidents. Supports filtering by state, status, etc. |
-| `/api/v1/events/geojson` | `GET` | RFC 7946 GeoJSON FeatureCollection export for QGIS, ArcGIS, and ISRO Bhuvan. |
-| `/api/v1/events/kml` | `GET` | OGC KML 2.2 export for Google Earth 3D situational visualization. |
-| `/api/v1/events/csv` | `GET` | Tabular CSV export for Excel, DDMA district collectors, and offline logbooks. |
-| `/api/v1/events/:id` | `GET` | Fetch comprehensive dossier for a single event (evidence, lifecycle trail). |
-| `/api/v1/events/:id/sitrep` | `GET` | Export official IMD/NDMA Situation Report (SITREP) with operational directives. |
-| `/api/v1/events/:id/bulletin` | `GET` | Fetch localized Indic alert bulletin (English, Hindi, Assamese, Bengali, Marathi, Kannada). |
-| `/api/v1/events/:id/cap` | `GET` | Export ITU-T X.1303 / OASIS CAP v1.2 standard XML or JSON early warning alert. |
-| `/api/v1/events/:id/broadcast-cap` | `POST` | Simulate Cell Broadcast Service (CBS) emergency alert transmission to local towers. |
-| `/api/v1/events/:id/dispatch-volunteers` | `POST` | Simulate GSM 7-bit SMS dispatch to localized SDRF units and Aapda Mitra volunteers. |
-| `/api/v1/events/:id/status` | `PATCH` | IMD Duty Meteorologist Human-in-the-loop status override & governance (`VERIFIED`, `RESOLVED`, `FALSE_ALARM`). |
-| `/api/v1/sensors` | `GET` | Fetch real-time telemetry for 11 national IMD AWS and CWC River Gauges. |
-| `/api/v1/sensors/simulate-spike` | `POST` | Simulate sudden telemetry surge (cloudburst ARG rate, river danger level). |
-| `/api/v1/signals` | `POST` | Ingest raw signal payload (System-to-System). |
-| `/api/v1/citizen/reports` | `POST` | Ingest a new Citizen Ground Report (with offline queueing support). |
-| `/api/v1/admin/demo/scenario/:id` | `POST` | Trigger demo scenario (or `national-overview` for all 7 regions). |
-| `/api/v1/admin/demo/simulate-time`| `POST` | Simulate hours passing to trigger confidence decay. |
-| `/api/v1/admin/audit-log` | `GET` | Fetch full immutable state machine transition audit trail. |
-| `/api/v1/admin/stats` | `GET` | Fetch operational KPIs (false-positive rates, event verification counts). |
-
----
-
-## 🎬 Demo Scenarios
-
-The system includes pre-configured scenarios designed for the SIH 2026 jury to demonstrate the pipeline's intelligence across India. Trigger them via the dashboard quick-bar or the API.
-
-| Scenario | Location | Hazard Type | Resulting Confidence | Sensor Corroboration |
-|---|---|---|---|---|
-| **All India National Overview** | 7 Regions (Nationwide) | `MULTI-HAZARD` | Up to 94% | Full national sensor network alignment |
-| **Guwahati Flood** | Guwahati, Assam | `FLOOD` | 94% | CWC Brahmaputra Pandu Gauge |
-| **Delhi Thunderstorm** | New Delhi, Delhi | `THUNDERSTORM` | 89% | IMD Palam DWR (Doppler Radar) |
-| **Mumbai Rainfall** | Mumbai, Maharashtra | `RAINFALL` | 85% | IMD Santacruz AWS |
-| **Rajasthan Heatwave** | Jaipur/Churu, Rajasthan | `HEATWAVE` | 92% | IMD Churu Synoptic AWS |
-| **Kolkata Cyclone Remal** | Kolkata, West Bengal | `THUNDERSTORM` | 81% | IMD Alipore Anemometer, Diamond Harbour Tide Gauge |
-| **Bengaluru Cloudburst** | Bengaluru, Karnataka | `RAINFALL` | 81% | IMD Bengaluru DWR, BBMP Bellandur Lake Gauge |
-| **Delhi Dense Fog** | New Delhi, Delhi | `FOG` | 87% | IGI Airport RVR System, IMD Safdarjung Observatory |
-
----
-
-## 📉 Confidence Decay Model
-
-**Confidence is not permanent.** N-WEIS utilizes a monotonic temporal decay engine to ensure stale alerts fade over time unless reinforced with new evidence.
-
-$$ \text{Confidence}(t) = \text{Base Confidence} \times \left(0.5\right)^{\frac{\Delta t}{\text{Half-Life}}} $$
-
-| Hazard Type | Decay Speed | Half-Life | Staleness Cutoff |
+| Hazard Category | Half-Life ($t_{1/2}$) | Staleness Cutoff | Rationale |
 |---|---|---|---|
-| `THUNDERSTORM` | Fast | 45 minutes | 2 hours |
-| `DUST_STORM` | Fast | 45 minutes | 2 hours |
-| `STRONG_WIND` | Fast | 40 minutes | 2 hours |
-| `FOG` | Medium-Fast | 75 minutes | 4 hours |
-| `RAINFALL` | Medium-Fast | 90 minutes | 3 hours |
-| `FLOOD` | Medium | 180 minutes | 6 hours |
-| `HEATWAVE` | Slow | 360 minutes | 12 hours |
+| `THUNDERSTORM` | 45 minutes | 2.5 hours | Convective cells dissipate rapidly |
+| `STRONG_WIND` | 40 minutes | 2.0 hours | Gust fronts move through quickly |
+| `DUST_STORM` | 45 minutes | 2.5 hours | Atmospheric visibility recovers |
+| `FOG` | 75 minutes | 4.0 hours | Solar radiation burns off radiation fog |
+| `RAINFALL` | 90 minutes | 3.5 hours | Rainbands transition into lighter precipitation |
+| `FLOOD` | 180 minutes | 8.0 hours | Drainage and river backflow take hours to recede |
+| `HEATWAVE` | 360 minutes | 14.0 hours | Synoptic high-pressure heat domes persist over days |
 
 ---
 
-## 🔄 State Machine Lifecycle
+## 🚀 Quick Start & Local Run
 
-N-WEIS relies on a strict incident state machine, preserving a fully explainable audit trail.
+The project is built to run effortlessly with zero setup. All mock databases, realistic Indian weather scenarios, and Next.js route handlers work right out of the box.
 
-```mermaid
-stateDiagram-v2
-    [*] --> DETECTED : Initial Signal Ingested
-    DETECTED --> UNDER_REVIEW : AI Fusion Confidence < 85%
-    DETECTED --> VERIFIED : AI Fusion Confidence ≥ 85%
-    UNDER_REVIEW --> VERIFIED : New Corroborating Evidence
-    VERIFIED --> UNDER_REVIEW : Temporal Confidence Decay
-    VERIFIED --> RESOLVED : Staleness Cutoff Reached
-    UNDER_REVIEW --> RESOLVED : Staleness Cutoff Reached
-    DETECTED --> REJECTED : Skeptic / Misinfo Flag
-```
+### Prerequisites
+- **Node.js**: v18.0.0 or higher (v20+ recommended)
+- **npm**: v9.0.0 or higher
 
----
-
-## 🧪 Testing
-
-The N-WEIS codebase includes a comprehensive, zero-dependency testing suite that validates the AI pipeline, deduplication, state machine, and confidence decay invariants.
-
+### 1. Clone and Install
 ```bash
-node test-nweis.mjs
+git clone https://github.com/RKrandom/AtmosAI.git
+cd AtmosAI
+npm install
 ```
-**Results:** `90/90 Tests Passed (100% Success across 15 Test Suites)`
+
+### 2. Run the Web Application
+```bash
+# Starts the Next.js frontend with local API routes and mock store
+npm run dev:web
+```
+Visit **[http://localhost:3000](http://localhost:3000)** in your browser!
+
+### 3. Run the Full Monorepo (Web + API)
+```bash
+# Builds shared packages and launches both web and api concurrently
+npm run dev
+```
 
 ---
 
-## 🛠️ Tech Stack
+## 🧭 Application Walkthrough & Routes
 
-- **Backend:** Node.js (Zero-Dependency, built-in `node:http`, `node:url`, `node:fs`, `node:path`)
-- **Frontend:** HTML5, Tailwind CSS (via CDN), Google Fonts
-- **GIS / Mapping:** Leaflet.js with Doppler Weather Radar (DWR) Canvas Sweep Layer
-- **Real-Time:** Server-Sent Events (SSE)
-- **Audio / Alerts:** Browser Web Speech API & OASIS CAP v1.2 Cell Broadcast
-- **Architecture:** In-Memory PostGIS/Haversine emulator & Event Sourcing
+| Route | View | Description |
+|---|---|---|
+| `/` | **Landing Page** | Editorial presentation of the platform, real-time multi-source ingestion showcase, verification pipeline demonstration, and interactive feature breakdowns. |
+| `/dashboard` | **Live Command Center** | Real-time incident feed, scenario injection toolbar (`Guwahati Flood`, `Dwarka Gale`, `Delhi Heatwave`, etc.), hazard filters, and quick report submission. |
+| `/map` | **India Meteorological Map** | Full-screen GIS interface with dark-mode CARTO tiles, Doppler radar overlays, hazard markers, and interactive event drawers. |
+| `/alerts` | **National Bulletins** | Filterable feed of high-severity meteorological advisories across Indian states with confidence gauges and SITREP links. |
+| `/incidents/[id]` | **Incident Dossier** | Comprehensive event forensic view: 7-factor evidence breakdown, interactive timeline, source distribution, emergency dispatch helplines (112, 1078), and SITREP export. |
+| `/guides` | **Disaster Safety Guides** | Actionable survival protocols for floods, cyclones, heatwaves, thunderstorms, and cloudbursts with an AI search bar. |
+| `/guides/[id]` | **Guide Detail** | Step-by-step preparation, survival checklist, and post-disaster guidelines with Indic language support. |
+| `/admin` | **Admin Command Console** | Operational overview displaying system health, ingestion rates, false positive reduction, and active hazard distribution. |
+| `/admin/signals` | **Raw Signals Stream** | Real-time inspection of ingested signals before deduplication and classification. |
+| `/admin/incidents` | **Incident Oversight** | Administrative verification, review, and status promotion management. |
+| `/admin/traces` | **AI Reasoning Traces** | Step-by-step LLM extraction logs, token evaluations, and decision rationales. |
+| `/admin/evaluations` | **Benchmark Evaluations** | Precision, recall, and F1 scores measured against golden meteorological datasets. |
+| `/admin/lifecycle` | **Lifecycle & Decay** | Interactive visualization of confidence decay across all active events. |
+| `/admin/health` | **System Telemetry** | Microservice latency, memory utilization, and pipeline throughput. |
+| `/settings` | **Preferences** | Toggle between English and Hindi, configure surveillance radius, and adjust telemetry polling. |
+| `/profile` | **Observer Station** | Citizen observer reputation level, verified submissions counter, and data privacy controls. |
 
 ---
 
-## 📂 Project Structure
+## 📡 API Endpoints (Local & Production)
+
+All endpoints return standard JSON responses and are fully functional in local offline development:
+
+### Meteorological Incidents
+- `GET /api/v1/events` — Fetch active weather events with query filters (`hazard`, `state`, `minConfidence`, `status`).
+- `GET /api/v1/events/:id` — Detailed incident dossier with 7-factor evidence breakdown.
+- `POST /api/v1/reports` — Submit a citizen ground observation (with simulated corroboration).
+- `GET /api/incidents/map` — GeoJSON-compatible incident markers for GIS mapping.
+- `GET /api/incidents/nearby` — Fetch incidents within a radius of given coordinates.
+
+### Admin & Operations
+- `GET /api/admin/stats` — Incident counts, confidence averages, and false positive metrics.
+- `GET /api/admin/signals` — Ingested signal log.
+- `GET /api/admin/incidents` — All managed incidents across statuses.
+- `GET /api/admin/traces` — AI reasoning traces.
+- `GET /api/admin/evaluations` — Precision/recall validation benchmarks.
+- `GET /api/admin/lifecycle` — Active confidence decay states.
+- `GET /api/admin/health` — Platform service health status.
+
+---
+
+## 📁 Repository Directory Structure
 
 ```text
-n-weis/
-├── server-nweis.mjs          # Standalone Backend Server & API (~1,980 lines)
-├── nweis-cli.mjs             # Operations Headless Terminal CLI (10 commands)
-├── simulate-stream.mjs       # Real-Time Telemetry & Event Stream Feeder Simulator
-├── test-nweis.mjs            # 90/90 Passing Verification Test Suite (15 Suites)
-├── test-api.ps1              # 14-Pipeline Windows PowerShell Verification Script
-├── test-push.sh              # 14-Pipeline Linux / macOS Bash Verification Script
-├── package-release.ps1       # Automated Release Zip Packager for SIH Portal
-├── Dockerfile                # Alpine Node.js Container (<50 MB, zero-dependency)
-├── docker-compose.yml        # Multi-service container orchestration
-├── public/
-│   ├── index.html            # GIS Operations Dashboard with Radar Sweeps (~2,200 lines)
-│   ├── manifest.json         # PWA Web App Manifest
-│   └── sw.js                 # PWA Service Worker for Offline Field Resiliency
-├── docs/
-│   ├── PRESENTATION_SLIDES.md# 10-Slide Pitch Deck for SIH 2026 Evaluation
-│   ├── JUDGE_QA.md           # Comprehensive Technical Defense Guide & FAQ
-│   └── WALKTHROUGH.md        # 5-Minute SIH Judge Demo Playbook
-├── specs/
-│   ├── AGENTS.md             # Core System Philosophy & Rules
-│   ├── CONFIDENCE_DECAY.md   # Mathematical Decay Model Specs
-│   ├── INCIDENT_STATE_MACHINE.md # Status Transition Invariants
-│   └── INCIDENT_THRESHOLDS.md    # 8-Category Taxonomy Rules
-└── README.md                 # Master Documentation (You are here)
+AtmosAI/
+├── apps/
+│   ├── web/                          # Next.js 16 (React 19, Tailwind CSS v4)
+│   │   ├── src/
+│   │   │   ├── app/
+│   │   │   │   ├── (marketing)/      # Editorial landing page & layout
+│   │   │   │   ├── (mobile)/         # Citizen & command mobile-responsive routes
+│   │   │   │   │   ├── dashboard/    # Operations command center
+│   │   │   │   │   ├── map/          # India GIS weather map
+│   │   │   │   │   ├── alerts/       # Active advisory bulletins
+│   │   │   │   │   ├── incidents/[id]# Event dossier & evidence breakdown
+│   │   │   │   │   ├── guides/       # Safety protocols & Indic AI assistant
+│   │   │   │   │   ├── profile/      # Observer station & privacy
+│   │   │   │   │   └── settings/     # English/Hindi localization & radius
+│   │   │   │   ├── admin/            # Admin console (signals, traces, health)
+│   │   │   │   └── api/              # Complete zero-config Next.js API route handlers
+│   │   │   ├── components/           # Reusable UI components & GIS map widgets
+│   │   │   ├── hooks/                # React state & notification hooks
+│   │   │   └── lib/
+│   │   │       ├── mockData.ts       # Indian weather events & 7-factor matrices
+│   │   │       ├── mockApiStore.ts   # LocalStorage-backed reactive scenario store
+│   │   │       └── translations.ts   # English & Hindi translation dictionary
+│   ├── api/                          # NestJS Enterprise Backend Service
+│   │   └── src/                      # Database, Processing, AI, & Events modules
+├── packages/
+│   └── shared/                       # Shared TypeScript library (@n-weis/shared)
+│       └── src/                      # Taxonomy, schemas, location dictionaries
+├── specs/                            # Mathematical & state machine specifications
+├── server-nweis.mjs                  # Zero-dependency standalone backend engine
+├── test-nweis.mjs                    # 90/90 passing verification test suite
+├── turbo.json                        # Turborepo build orchestration
+└── README.md                         # Master documentation
 ```
 
 ---
 
-## 📜 License
+## 🧪 Verification & Build
 
-MIT License. See `LICENSE` for more information.
+To verify that the entire codebase compiles cleanly without errors:
+
+```bash
+# Build shared library
+npm run build -w packages/shared
+
+# Build Next.js web application (all 41 static & dynamic routes)
+npm run build -w apps/web
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
