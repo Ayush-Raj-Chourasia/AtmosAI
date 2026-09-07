@@ -68,11 +68,18 @@
     }
     .leaflet-container {
       background-color: #0b1120 !important;
+      /* Isolate Leaflet's stacking context — internal panes cannot escape above z-[1500] drawer */
+      z-index: 1 !important;
+      position: relative !important;
     }
     /* Dark tile filter — inverts OSM tiles to a dark-mode look, no API key needed */
     .leaflet-tile-pane {
       filter: invert(100%) hue-rotate(180deg) brightness(0.85) contrast(1.05);
     }
+    /* Ensure Leaflet popup and tooltip panes stay inside the map stacking context */
+    .leaflet-pane { z-index: auto; }
+    .leaflet-top, .leaflet-bottom { z-index: auto !important; }
+
 
     /* Pulse animations */
     @keyframes pulse-ring {
@@ -377,7 +384,7 @@
   </div>
 
   <!-- SLIDE-OVER INTELLIGENCE DRAWER -->
-  <div id="intel-drawer" class="fixed inset-y-0 right-0 w-[500px] max-w-full bg-slate-900/98 backdrop-blur-xl border-l border-slate-700 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+  <div id="intel-drawer" class="fixed inset-y-0 right-0 w-[500px] max-w-full bg-slate-900/98 backdrop-blur-xl border-l border-slate-700 shadow-2xl z-[1500] transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
     <!-- Drawer Header -->
     <div class="h-16 px-6 border-b border-slate-800 flex items-center justify-between bg-slate-950 shrink-0">
       <div class="flex items-center space-x-3">
@@ -594,7 +601,7 @@
   </div>
 
   <!-- EMERGENCY CELL BROADCAST & CAP MODAL -->
-  <div id="cap-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1200] flex items-center justify-center hidden p-4">
+  <div id="cap-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1700] flex items-center justify-center hidden p-4">
     <div class="bg-slate-900 border border-rose-700/80 rounded-2xl w-[700px] max-w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
       <div class="bg-gradient-to-r from-rose-900 via-red-800 to-rose-950 px-6 py-4 border-b border-rose-700 flex items-center justify-between text-white shrink-0">
         <div class="flex items-center gap-3">
@@ -620,7 +627,7 @@
   </div>
 
   <!-- OFFICIAL SITREP MODAL -->
-  <div id="sitrep-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1100] flex items-center justify-center hidden p-4">
+  <div id="sitrep-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1700] flex items-center justify-center hidden p-4">
     <div class="bg-slate-900 border border-cyan-800/80 rounded-2xl w-[720px] max-w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
       <div class="h-14 px-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2.5">
@@ -645,7 +652,7 @@
   </div>
 
   <!-- VOLUNTEER & SDRF SMS DISPATCH MODAL -->
-  <div id="volunteer-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1250] flex items-center justify-center hidden p-4">
+  <div id="volunteer-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1700] flex items-center justify-center hidden p-4">
     <div class="bg-slate-900 border border-emerald-700/80 rounded-2xl w-[680px] max-w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
       <div class="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-950 px-6 py-4 border-b border-emerald-700 flex items-center justify-between text-white shrink-0">
         <div class="flex items-center gap-3">
@@ -670,7 +677,7 @@
   </div>
 
   <!-- OPERATIONAL ANALYTICS MODAL -->
-  <div id="analytics-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1300] flex items-center justify-center hidden p-4">
+  <div id="analytics-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1700] flex items-center justify-center hidden p-4">
     <div class="bg-slate-900 border border-cyan-800/80 rounded-2xl w-[740px] max-w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
       <div class="h-14 px-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2.5">
@@ -689,7 +696,7 @@
   </div>
 
   <!-- NATIONAL SENSOR NETWORK & TELEMETRY MODAL -->
-  <div id="sensors-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1300] flex items-center justify-center hidden p-4">
+  <div id="sensors-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1700] flex items-center justify-center hidden p-4">
     <div class="bg-slate-900 border border-amber-800/80 rounded-2xl w-[920px] max-w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
       <div class="h-14 px-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div class="flex items-center gap-2.5">
@@ -719,7 +726,7 @@
   </div>
 
   <!-- CITIZEN REPORT SUBMISSION MODAL -->
-  <div id="citizen-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+  <div id="citizen-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[1700] flex items-center justify-center hidden p-4">
     <div class="bg-slate-900 border border-slate-700 rounded-2xl w-[480px] max-w-full shadow-2xl overflow-hidden flex flex-col">
       <div class="h-14 px-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
         <h3 class="font-bold text-white text-sm flex items-center gap-2">
