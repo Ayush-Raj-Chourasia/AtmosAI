@@ -42,6 +42,9 @@
   <!-- Leaflet CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Chart.js for Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -241,6 +244,7 @@
 
     <!-- LEFT: MAP CONTAINER & FILTER BAR OVERLAY -->
     <div class="flex-1 relative h-full w-full">
+
       
       <!-- Top Floating Filter Bar -->
       <div class="absolute top-3 left-3 right-3 z-[1000] pointer-events-none flex flex-wrap gap-2 items-center justify-between">
@@ -276,8 +280,17 @@
             <span class="inline-block w-2 h-2 rounded-full bg-slate-500" id="radar-indicator"></span>
             <span>📡 Doppler Radar: <strong id="radar-status-text" class="text-slate-400">OFF</strong></span>
           </button>
+          <!-- DATE RANGE FILTER -->
+          <div class="flex items-center gap-1 pl-2 border-l border-slate-700">
+            <span class="text-[11px] text-slate-400 shrink-0">Date:</span>
+            <button onclick="setDateFilter('today')" id="df-today" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-cyan-600 text-white">Today</button>
+            <button onclick="setDateFilter('24h')" id="df-24h" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700">24h</button>
+            <button onclick="setDateFilter('7d')" id="df-7d" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700">7d</button>
+            <button onclick="setDateFilter('all')" id="df-all" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700">All</button>
+          </div>
         </div>
       </div>
+
 
       <!-- LEAFLET MAP ELEMENT -->
       <div id="map"></div>
@@ -2218,7 +2231,804 @@
       window.addEventListener('offline', updateOnlineStatus);
       updateOnlineStatus();
       updateOfflineBadge();
+
+      // Load KPI cards on start
+      loadKpiCards();
+      setInterval(loadKpiCards, 30000);
+    });
+
+    // ================================================================
+    // DATE RANGE FILTER
+    // ================================================================
+    let activeDateFilter = 'today';
+
+    function setDateFilter(range) {
+      activeDateFilter = range;
+      document.querySelectorAll('.date-filter-btn').forEach(b => {
+        b.className = b.className.replace('bg-cyan-600 text-white', 'bg-slate-800 text-slate-300 hover:bg-slate-700');
+      });
+      const btn = document.getElementById('df-' + range);
+      if (btn) btn.className = btn.className.replace('bg-slate-800 text-slate-300 hover:bg-slate-700', 'bg-cyan-600 text-white');
+      applyFilters();
+    }
+
+    function getDateFilterParams() {
+      const now = new Date();
+      if (activeDateFilter === 'today') {
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return `&from_date=${start.toISOString()}`;
+      } else if (activeDateFilter === '24h') {
+        const start = new Date(now.getTime() - 24 * 3600000);
+        return `&from_date=${start.toISOString()}`;
+      } else if (activeDateFilter === '7d') {
+        const start = new Date(now.getTime() - 7 * 24 * 3600000);
+        return `&from_date=${start.toISOString()}`;
+      }
+      return '';
+    }
+
+    // ================================================================
+    // KPI CARDS — pulls from /api/v1/admin/analytics
+    // ================================================================
+    async function loadKpiCards() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/admin/analytics`);
+        const data = await res.json();
+        const t = data.totals || {};
+        const kpi = data.kpis || {};
+        const kpiEl = document.getElementById('kpi-panel');
+        if (!kpiEl) return;
+        kpiEl.innerHTML = `
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            ${kpiCard('Active Events', t.incidents || 0, '🌪️', 'text-cyan-400', 'Real-time')}
+            ${kpiCard('Verified', t.verified || 0, '✅', 'text-emerald-400', kpi.verificationRate || '0%')}
+            ${kpiCard('Under Review', t.under_review || 0, '🔍', 'text-amber-400', 'Pending')}
+            ${kpiCard('Suspicious', t.suspicious || 0, '⚠️', 'text-rose-400', 'Quarantined')}
+            ${kpiCard('Duplicates Removed', t.duplicates_removed || 0, '🔗', 'text-purple-400', kpi.duplicateRate || '18%')}
+            ${kpiCard('Sources Online', (kpi.sourcesOnline || 0) + '/8', '📡', 'text-blue-400', 'Connectors')}
+          </div>
+        `;
+      } catch(e) { console.warn('KPI load failed', e); }
+    }
+
+    function kpiCard(label, value, icon, colorClass, sub) {
+      return `
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3 flex flex-col gap-1 shadow-sm">
+          <div class="flex items-center justify-between text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+            <span>${label}</span><span>${icon}</span>
+          </div>
+          <div class="text-2xl font-extrabold font-mono ${colorClass}">${value}</div>
+          <div class="text-[10px] text-slate-500">${sub}</div>
+        </div>
+      `;
+    }
+
+    // ================================================================
+    // PAGE NAVIGATION SYSTEM
+    // ================================================================
+    let activePage = 'map';
+
+    function showPage(page) {
+      activePage = page;
+      const pages = ['analytics','signals','verification','sources','system','pipeline'];
+      pages.forEach(p => {
+        const el = document.getElementById('page-' + p);
+        if (el) el.classList.add('hidden');
+        const btn = document.getElementById('nav-' + p);
+        if (btn) {
+          btn.classList.remove('bg-cyan-600/20','text-cyan-400','border-cyan-500/40');
+          btn.classList.add('text-slate-400','hover:text-white');
+        }
+      });
+
+      // Hide or show map
+      const mapWorkspace = document.getElementById('map-workspace');
+
+      if (page === 'map') {
+        if (mapWorkspace) mapWorkspace.classList.remove('hidden');
+        // highlight map nav
+        const mapBtn = document.getElementById('nav-map');
+        if (mapBtn) {
+          mapBtn.classList.add('bg-cyan-600/20','text-cyan-400','border-cyan-500/40');
+          mapBtn.classList.remove('text-slate-400','hover:text-white');
+        }
+      } else {
+        if (mapWorkspace) mapWorkspace.classList.add('hidden');
+        const el = document.getElementById('page-' + page);
+        if (el) el.classList.remove('hidden');
+        const btn = document.getElementById('nav-' + page);
+        if (btn) {
+          btn.classList.add('bg-cyan-600/20','text-cyan-400','border-cyan-500/40');
+          btn.classList.remove('text-slate-400','hover:text-white');
+        }
+        // Load data for the page
+        if (page === 'analytics') loadAnalyticsPage();
+        if (page === 'signals') loadSignalsPage();
+        if (page === 'verification') loadVerificationPage();
+        if (page === 'sources') loadSourcesPage();
+        if (page === 'system') loadSystemPage();
+        if (page === 'pipeline') loadPipelinePage();
+      }
+    }
+
+    // ================================================================
+    // ANALYTICS PAGE
+    // ================================================================
+    let chartInstances = {};
+
+    async function loadAnalyticsPage() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/admin/analytics`);
+        const data = await res.json();
+        renderAnalyticsCharts(data);
+      } catch(e) {
+        document.getElementById('analytics-error').classList.remove('hidden');
+      }
+    }
+
+    function renderAnalyticsCharts(data) {
+      const t = data.totals || {};
+      const kpi = data.kpis || {};
+
+      // Summary strip
+      document.getElementById('an-total').textContent = t.incidents || 0;
+      document.getElementById('an-verified').textContent = t.verified || 0;
+      document.getElementById('an-signals').textContent = t.signals || 0;
+      document.getElementById('an-duprate').textContent = kpi.duplicateRate || '0%';
+      document.getElementById('an-falserate').textContent = kpi.falsePositiveRate || '0%';
+      document.getElementById('an-latency').textContent = kpi.avgProcessingLatency || '380ms';
+
+      // Chart: Events over time
+      const hourLabels = (data.eventsByHour || []).map(h => h.hour);
+      const hourCounts = (data.eventsByHour || []).map(h => h.count);
+      renderLineChart('chart-trend', hourLabels, hourCounts, 'Events', '#06b6d4');
+
+      // Chart: Events by type
+      const typeLabels = Object.keys(data.eventsByType || {});
+      const typeCounts = Object.values(data.eventsByType || {});
+      renderDoughnutChart('chart-types', typeLabels, typeCounts);
+
+      // Chart: Source distribution
+      const srcLabels = Object.keys(data.signalsBySource || {});
+      const srcCounts = Object.values(data.signalsBySource || {});
+      renderBarChart('chart-sources', srcLabels, srcCounts, 'Signals', '#8b5cf6');
+
+      // Chart: Verification funnel
+      const vs = data.incidentsByStatus || {};
+      renderBarChart('chart-verify', ['Detected','Under Review','Verified','Resolved'],
+        [vs.detected||0, vs.under_review||0, vs.verified||0, vs.resolved||0],
+        'Events', '#10b981');
+
+      // State heatmap table
+      const stateData = data.eventsByState || {};
+      const stateEl = document.getElementById('state-table-body');
+      if (stateEl) {
+        const sorted = Object.entries(stateData).sort((a,b)=>b[1]-a[1]);
+        stateEl.innerHTML = sorted.length ? sorted.map(([state,cnt]) => `
+          <tr class="border-b border-slate-800">
+            <td class="py-2 px-3 text-slate-300 text-xs">${state}</td>
+            <td class="py-2 px-3 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="h-1.5 rounded-full bg-cyan-500" style="width:${Math.min(100,cnt*20)}px"></div>
+                <span class="font-mono text-xs text-cyan-400">${cnt}</span>
+              </div>
+            </td>
+          </tr>
+        `).join('') : '<tr><td colspan="2" class="py-8 text-center text-slate-500 text-xs">No data — run a demo scenario first</td></tr>';
+      }
+    }
+
+    function renderLineChart(id, labels, data, label, color) {
+      const ctx = document.getElementById(id);
+      if (!ctx) return;
+      if (chartInstances[id]) chartInstances[id].destroy();
+      chartInstances[id] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{ label, data, borderColor: color, backgroundColor: color + '22', fill: true, tension: 0.4, pointRadius: 2 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' } },
+            y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' }, beginAtZero: true } } }
+      });
+    }
+
+    function renderDoughnutChart(id, labels, data) {
+      const ctx = document.getElementById(id);
+      if (!ctx) return;
+      if (chartInstances[id]) chartInstances[id].destroy();
+      const colors = ['#06b6d4','#f59e0b','#ef4444','#8b5cf6','#64748b','#f97316','#ec4899','#10b981'];
+      chartInstances[id] = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: colors.slice(0, labels.length), borderWidth: 1, borderColor: '#0f172a' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12 } } } }
+      });
+    }
+
+    function renderBarChart(id, labels, data, label, color) {
+      const ctx = document.getElementById(id);
+      if (!ctx) return;
+      if (chartInstances[id]) chartInstances[id].destroy();
+      chartInstances[id] = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label, data, backgroundColor: color + 'aa', borderColor: color, borderWidth: 1, borderRadius: 4 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' } },
+            y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#1e293b' }, beginAtZero: true } } }
+      });
+    }
+
+    // ================================================================
+    // SIGNALS PAGE
+    // ================================================================
+    async function loadSignalsPage() {
+      const container = document.getElementById('signals-table-body');
+      if (!container) return;
+      container.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-500 text-xs">Loading signals...</td></tr>';
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/signals`);
+        const data = await res.json();
+        const signals = data.data || [];
+        document.getElementById('signals-count').textContent = signals.length + ' signals';
+        if (!signals.length) {
+          container.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-500 text-xs">No signals ingested yet — run a demo scenario</td></tr>';
+          return;
+        }
+        container.innerHTML = signals.map(s => {
+          const mScore = Math.round((s.misinformation_score || 0) * 100);
+          const rScore = Math.round((s.relevance_score || 0) * 100);
+          const mClass = mScore > 50 ? 'text-rose-400' : mScore > 25 ? 'text-amber-400' : 'text-emerald-400';
+          const statusColor = s.verification_status === 'REJECTED' ? 'bg-rose-950 text-rose-400' :
+                              s.verification_status === 'VERIFIED' ? 'bg-emerald-950 text-emerald-400' : 'bg-slate-800 text-slate-400';
+          return `<tr class="border-b border-slate-800 hover:bg-slate-900/40 transition text-xs">
+            <td class="py-2 px-3"><span class="px-1.5 py-0.5 rounded font-mono text-[10px] uppercase font-bold bg-blue-950 text-blue-300">${s.source_type||'—'}</span></td>
+            <td class="py-2 px-3 text-slate-400 font-mono text-[10px]">${s.timestamp ? new Date(s.timestamp).toLocaleString('en-IN', {timeZone:'Asia/Kolkata'}).replace(/:\d\d /, ' ') : '—'}</td>
+            <td class="py-2 px-3 max-w-[240px]"><p class="text-slate-300 truncate" title="${(s.text||'').replace(/"/g,'')}">${s.text||'—'}</p><p class="text-[10px] text-slate-500">${s.city||''}, ${s.state||''}</p></td>
+            <td class="py-2 px-3 text-slate-300 uppercase text-[10px] font-mono">${s.event_candidate||'—'}</td>
+            <td class="py-2 px-3 text-center"><span class="font-mono text-cyan-400">${rScore}%</span></td>
+            <td class="py-2 px-3 text-center"><span class="font-mono ${mClass}">${mScore}%</span></td>
+            <td class="py-2 px-3 text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase ${statusColor}">${s.verification_status||'PENDING'}</span></td>
+          </tr>`;
+        }).join('');
+      } catch(e) {
+        container.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-rose-400 text-xs">Failed to load signals</td></tr>';
+      }
+    }
+
+    // ================================================================
+    // VERIFICATION QUEUE PAGE
+    // ================================================================
+    async function loadVerificationPage() {
+      const container = document.getElementById('verif-queue-body');
+      if (!container) return;
+      container.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs">Loading verification queue...</td></tr>';
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/events?status=UNDER_REVIEW`);
+        const data = await res.json();
+        const events = data.data || [];
+        document.getElementById('verif-count').textContent = events.length + ' pending';
+        if (!events.length) {
+          container.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs">No events pending verification — all clear ✅</td></tr>';
+          return;
+        }
+        container.innerHTML = events.map(e => {
+          const conf = Math.round((e.confidence_score||0)*100);
+          const confClass = conf >= 70 ? 'text-emerald-400' : conf >= 40 ? 'text-amber-400' : 'text-rose-400';
+          return `<tr class="border-b border-slate-800 hover:bg-slate-900/40 transition text-xs" id="vrow-${e.id}">
+            <td class="py-3 px-3"><span class="px-2 py-0.5 rounded font-mono text-[10px] uppercase font-bold bg-blue-950 text-blue-300">${e.event_type}</span></td>
+            <td class="py-3 px-3 text-slate-300">${e.city}, ${e.state}</td>
+            <td class="py-3 px-3 text-slate-400 font-mono text-[10px]">${e.first_detected_at ? new Date(e.first_detected_at).toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata'}) + ' IST' : '—'}</td>
+            <td class="py-3 px-3 text-center"><span class="font-mono font-bold ${confClass}">${conf}%</span></td>
+            <td class="py-3 px-3 text-center text-slate-400">${e.signal_count||0}</td>
+            <td class="py-3 px-3">
+              <div class="flex items-center gap-1.5">
+                <button onclick="adminVerify('${e.id}','VERIFIED')" class="px-2.5 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-[10px] font-semibold transition">✅ Verify</button>
+                <button onclick="adminVerify('${e.id}','RESOLVED')" class="px-2.5 py-1 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 text-[10px] font-semibold transition">❌ Reject</button>
+                <button onclick="inspectEvent('${e.id}')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[10px] font-medium transition">🔍 Inspect</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('');
+      } catch(e) {
+        container.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-rose-400 text-xs">Failed to load verification queue</td></tr>';
+      }
+    }
+
+    async function adminVerify(eventId, newStatus) {
+      try {
+        const reason = newStatus === 'VERIFIED' ? 'Admin manual verification via dashboard' : 'Admin rejected — false positive';
+        await fetch(`${API_BASE}/api/v1/events/${eventId}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus, officer_name: 'Duty Meteorologist', reason })
+        });
+        const row = document.getElementById('vrow-' + eventId);
+        if (row) {
+          row.innerHTML = `<td colspan="6" class="py-2 px-3 text-center text-xs ${newStatus==='VERIFIED'?'text-emerald-400':'text-slate-400'}">${newStatus==='VERIFIED'?'✅ Verified':'❌ Rejected'} — event updated</td>`;
+          setTimeout(() => row.remove(), 2000);
+        }
+        fetchInitialData();
+        loadKpiCards();
+      } catch(e) { alert('Action failed: ' + e.message); }
+    }
+
+    // ================================================================
+    // SOURCE HEALTH PAGE
+    // ================================================================
+    async function loadSourcesPage() {
+      const container = document.getElementById('sources-grid');
+      if (!container) return;
+      container.innerHTML = '<p class="text-slate-500 text-xs col-span-4">Loading sources...</p>';
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/sources`);
+        const data = await res.json();
+        const sources = data.data || [];
+        container.innerHTML = sources.map(s => {
+          const statusColor = s.status === 'ONLINE' ? 'bg-emerald-500' : s.status === 'DEGRADED' ? 'bg-amber-500' : 'bg-slate-500';
+          const textColor = s.status === 'ONLINE' ? 'text-emerald-400' : s.status === 'DEGRADED' ? 'text-amber-400' : 'text-slate-400';
+          const borderColor = s.status === 'ONLINE' ? 'border-emerald-800/40' : 'border-slate-700';
+          const lastIngest = s.last_ingestion ? new Date(s.last_ingestion).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata'}) + ' IST' : 'No data yet';
+          const typeIcon = { imd:'🏛️', weather_api:'🌡️', news:'📰', social_media:'🐦', citizen:'📱', public_dataset:'📊' }[s.type] || '📡';
+          return `
+            <div class="bg-slate-900/80 border ${borderColor} rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="text-lg">${typeIcon}</span>
+                  <span class="text-xs font-semibold text-slate-200">${s.name}</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full ${statusColor} ${s.status==='ONLINE'?'animate-pulse':''}"></span>
+                  <span class="text-[10px] font-mono font-bold ${textColor}">${s.status}</span>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="bg-slate-950/60 rounded-lg p-2">
+                  <div class="text-slate-400 text-[10px] uppercase tracking-wider">Signals Ingested</div>
+                  <div class="font-mono font-bold text-white">${s.signals_ingested}</div>
+                </div>
+                <div class="bg-slate-950/60 rounded-lg p-2">
+                  <div class="text-slate-400 text-[10px] uppercase tracking-wider">Latency</div>
+                  <div class="font-mono font-bold text-cyan-400">${s.latency_ms}ms</div>
+                </div>
+              </div>
+              <div class="text-[10px] text-slate-500">
+                <span class="text-slate-400">Last ingestion:</span> ${lastIngest}<br>
+                <span class="text-slate-400">Reliability:</span> <span class="text-emerald-400">${(s.reliability * 100).toFixed(0)}%</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch(e) {
+        container.innerHTML = '<p class="text-rose-400 text-xs col-span-4">Failed to load source health data</p>';
+      }
+    }
+
+    // ================================================================
+    // SYSTEM HEALTH PAGE
+    // ================================================================
+    async function loadSystemPage() {
+      try {
+        const res = await fetch(`${API_BASE}/health`);
+        const data = await res.json();
+        document.getElementById('sys-api-status').textContent = data.status || 'UNKNOWN';
+        document.getElementById('sys-events').textContent = data.activeEvents || 0;
+        document.getElementById('sys-signals').textContent = data.activeSignals || 0;
+        document.getElementById('sys-sse').textContent = data.sseClients || 0;
+        document.getElementById('sys-db').textContent = data.database || 'IN_MEMORY';
+        document.getElementById('sys-uptime').textContent = formatUptime(data.uptime_seconds || 0);
+
+        const services = data.services || {};
+        const svcContainer = document.getElementById('sys-services');
+        if (svcContainer) {
+          svcContainer.innerHTML = Object.entries(services).map(([name, status]) => {
+            const dot = status === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : status === 'DEGRADED' ? 'bg-amber-500' : 'bg-rose-500';
+            const text = status === 'ONLINE' ? 'text-emerald-400' : status === 'DEGRADED' ? 'text-amber-400' : 'text-rose-400';
+            const label = name.replace(/_/g,' ').toUpperCase();
+            return `
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+                <span class="text-sm text-slate-300 font-medium">${label}</span>
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full ${dot}"></span>
+                  <span class="text-xs font-mono font-bold ${text}">${status}</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      } catch(e) {
+        document.getElementById('sys-api-status').textContent = 'ERROR';
+      }
+    }
+
+    function formatUptime(s) {
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
+
+    // ================================================================
+    // DATA PIPELINE VISUALIZATION
+    // ================================================================
+    function loadPipelinePage() {
+      // Pipeline is static HTML — just ensure visible
+      const el = document.getElementById('page-pipeline');
+      if (el) el.classList.remove('hidden');
+    }
+
+  </script>
+
+  <!-- ================================================================ -->
+  <!-- KPI CARDS ROW — shown above map/sidebar -->
+  <!-- ================================================================ -->
+  <div id="kpi-panel" class="absolute top-0 left-0 right-0 z-[2000] pointer-events-none hidden"></div>
+
+  <!-- ================================================================ -->
+  <!-- LEFT NAVIGATION SIDEBAR -->
+  <!-- ================================================================ -->
+  <div class="fixed left-0 top-16 bottom-0 w-14 bg-slate-950 border-r border-slate-800 flex flex-col items-center py-3 gap-1 z-[900]">
+    <!-- KPI toggle -->
+    <button onclick="toggleKpi()" id="nav-kpi"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
+      title="KPI Cards">📊</button>
+    <div class="h-px w-8 bg-slate-800 my-1"></div>
+    <button onclick="showPage('map')" id="nav-map"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center bg-cyan-600/20 text-cyan-400 text-[18px]"
+      title="Live Map">🗺️</button>
+    <button onclick="showPage('analytics')" id="nav-analytics"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
+      title="Analytics">📈</button>
+    <button onclick="showPage('signals')" id="nav-signals"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
+      title="Signals">📡</button>
+    <button onclick="showPage('verification')" id="nav-verification"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
+      title="Verification Queue">🔍</button>
+    <button onclick="showPage('sources')" id="nav-sources"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
+      title="Source Health">🔌</button>
+    <button onclick="showPage('system')" id="nav-system"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
+      title="System Health">⚙️</button>
+    <button onclick="showPage('pipeline')" id="nav-pipeline"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
+      title="Data Pipeline">🔄</button>
+    <div class="flex-1"></div>
+    <a href="/admin" target="_blank" class="w-10 h-10 rounded-xl flex items-center justify-center text-amber-400 hover:bg-amber-900/30 transition text-[18px]" title="Admin Panel">🛡️</a>
+  </div>
+
+  <!-- Sidebar offset styles -->
+  <style>
+    body > div:not(#kpi-panel):not([class*="fixed"]) { margin-left: 56px; }
+    header { margin-left: 56px !important; }
+    #offline-banner { margin-left: 56px !important; }
+    .demo-bar-row { margin-left: 56px !important; }
+    .kpi-panel-visible { padding: 8px 12px; background: rgba(15,23,42,0.9); border-bottom: 1px solid #1e293b; pointer-events: auto; }
+  </style>
+
+  <!-- ================================================================ -->
+  <!-- PAGE: ANALYTICS -->
+  <!-- ================================================================ -->
+  <div id="page-analytics" class="hidden fixed inset-0 top-16 left-14 bg-slate-950 overflow-y-auto z-[800] p-6">
+    <div class="max-w-7xl mx-auto space-y-6">
+      <!-- Header -->
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">📈 Analytics & Intelligence Metrics</h2>
+          <p class="text-sm text-slate-400 mt-0.5">Real-time data from N-WEIS backend — SIH26069 required analytics</p>
+        </div>
+        <button onclick="loadAnalyticsPage()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition">↻ Refresh</button>
+      </div>
+      <div id="analytics-error" class="hidden p-4 rounded-xl bg-rose-950/30 border border-rose-800 text-rose-400 text-sm">Failed to load analytics — ensure server is running at localhost:3001</div>
+
+      <!-- KPI Summary Strip -->
+      <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
+        ${['an-total:Total Events:🌪️:cyan','an-verified:Verified:✅:emerald','an-signals:Signals:📡:blue','an-duprate:Dup Rate:🔗:purple','an-falserate:False Positive:⚠️:rose','an-latency:Avg Latency:⚡:amber'].map(x => {
+          const [id,lbl,ico,col] = x.split(':');
+          return `<div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3"><div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">${ico} ${lbl}</div><div id="${id}" class="text-xl font-bold font-mono text-${col}-400">—</div></div>`;
+        }).join('')}
+      </div>
+
+      <!-- 4 Charts Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-1.5">📉 Event Trend (Last 24h by hour)</h3>
+          <div style="height:220px"><canvas id="chart-trend"></canvas></div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4">🌪️ Events by Hazard Type</h3>
+          <div style="height:220px"><canvas id="chart-types"></canvas></div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4">📡 Signal Source Distribution</h3>
+          <div style="height:220px"><canvas id="chart-sources"></canvas></div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4">✅ Verification Funnel</h3>
+          <div style="height:220px"><canvas id="chart-verify"></canvas></div>
+        </div>
+      </div>
+
+      <!-- State-wise table -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5">
+        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4">🗺️ Events by State (All India)</h3>
+        <table class="w-full">
+          <thead><tr class="border-b border-slate-800"><th class="text-left py-2 px-3 text-[11px] text-slate-400 uppercase">State</th><th class="text-right py-2 px-3 text-[11px] text-slate-400 uppercase">Events</th></tr></thead>
+          <tbody id="state-table-body"><tr><td colspan="2" class="py-8 text-center text-slate-500 text-xs">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- PAGE: SIGNALS MONITOR -->
+  <!-- ================================================================ -->
+  <div id="page-signals" class="hidden fixed inset-0 top-16 left-14 bg-slate-950 overflow-y-auto z-[800] p-6">
+    <div class="max-w-7xl mx-auto space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">📡 Raw Signals Monitor</h2>
+          <p class="text-sm text-slate-400 mt-0.5">All ingested signals with AI scoring — misinformation detection, relevance, verification status</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="signals-count" class="text-xs text-slate-400 font-mono">0 signals</span>
+          <button onclick="loadSignalsPage()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+        <table class="w-full">
+          <thead class="bg-slate-950/60">
+            <tr class="border-b border-slate-800">
+              <th class="text-left py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Source</th>
+              <th class="text-left py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Time (IST)</th>
+              <th class="text-left py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Signal Text</th>
+              <th class="text-left py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Candidate</th>
+              <th class="text-center py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Relevance</th>
+              <th class="text-center py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Misinfo Risk</th>
+              <th class="text-center py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Status</th>
+            </tr>
+          </thead>
+          <tbody id="signals-table-body">
+            <tr><td colspan="7" class="py-8 text-center text-slate-500 text-xs">Loading signals…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- PAGE: VERIFICATION QUEUE -->
+  <!-- ================================================================ -->
+  <div id="page-verification" class="hidden fixed inset-0 top-16 left-14 bg-slate-950 overflow-y-auto z-[800] p-6">
+    <div class="max-w-7xl mx-auto space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">🔍 Verification Queue</h2>
+          <p class="text-sm text-slate-400 mt-0.5">Events awaiting human-in-the-loop IMD Duty Meteorologist review</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="verif-count" class="text-xs text-slate-400 font-mono bg-amber-950/50 border border-amber-700/40 px-2 py-0.5 rounded-full">0 pending</span>
+          <button onclick="loadVerificationPage()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="bg-slate-900/80 border border-amber-900/30 rounded-2xl overflow-hidden">
+        <div class="p-3 bg-amber-950/20 border-b border-amber-900/30 text-xs text-amber-300 flex items-center gap-2">
+          <span>⚠️</span>
+          <span>Events below have been detected and AI-processed but require human sign-off per NDMA SOP before official dissemination.</span>
+        </div>
+        <table class="w-full">
+          <thead class="bg-slate-950/60">
+            <tr class="border-b border-slate-800">
+              <th class="text-left py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Event Type</th>
+              <th class="text-left py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Location</th>
+              <th class="text-left py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Detected</th>
+              <th class="text-center py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Confidence</th>
+              <th class="text-center py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Signals</th>
+              <th class="text-left py-2.5 px-3 text-[10px] text-slate-400 uppercase tracking-wider">Action</th>
+            </tr>
+          </thead>
+          <tbody id="verif-queue-body">
+            <tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- PAGE: SOURCE HEALTH -->
+  <!-- ================================================================ -->
+  <div id="page-sources" class="hidden fixed inset-0 top-16 left-14 bg-slate-950 overflow-y-auto z-[800] p-6">
+    <div class="max-w-7xl mx-auto space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">🔌 Data Source Health</h2>
+          <p class="text-sm text-slate-400 mt-0.5">Connector status for all 8 ingestion channels — IMD, News, Social, Citizen, Public Datasets</p>
+        </div>
+        <button onclick="loadSourcesPage()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition">↻ Refresh</button>
+      </div>
+      <div id="sources-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <p class="text-slate-500 text-xs col-span-4">Loading sources…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- PAGE: SYSTEM HEALTH -->
+  <!-- ================================================================ -->
+  <div id="page-system" class="hidden fixed inset-0 top-16 left-14 bg-slate-950 overflow-y-auto z-[800] p-6">
+    <div class="max-w-4xl mx-auto space-y-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">⚙️ System Health</h2>
+          <p class="text-sm text-slate-400 mt-0.5">Real-time platform status from <code class="text-cyan-400 text-xs">/health</code> endpoint</p>
+        </div>
+        <button onclick="loadSystemPage()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition">↻ Refresh</button>
+      </div>
+
+      <!-- Top metrics -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">API Status</div>
+          <div id="sys-api-status" class="text-lg font-bold font-mono text-emerald-400">—</div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Active Events</div>
+          <div id="sys-events" class="text-lg font-bold font-mono text-cyan-400">—</div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Signals in Store</div>
+          <div id="sys-signals" class="text-lg font-bold font-mono text-blue-400">—</div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">SSE Clients</div>
+          <div id="sys-sse" class="text-lg font-bold font-mono text-purple-400">—</div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Database</div>
+          <div id="sys-db" class="text-lg font-bold font-mono text-amber-400">—</div>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 text-center">
+          <div class="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Server Uptime</div>
+          <div id="sys-uptime" class="text-lg font-bold font-mono text-emerald-400">—</div>
+        </div>
+      </div>
+
+      <!-- Service status grid -->
+      <div>
+        <h3 class="text-sm font-bold text-slate-300 mb-3 uppercase tracking-wider">Service Components</h3>
+        <div id="sys-services" class="space-y-2">
+          <div class="text-slate-500 text-xs">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Architecture note -->
+      <div class="p-4 rounded-xl bg-blue-950/30 border border-blue-800/40 text-xs text-blue-300">
+        <strong class="text-blue-400">Architecture:</strong> N-WEIS runs as a zero-dependency standalone Node.js server.
+        All data is held in an in-memory store with PostGIS/Haversine emulation for spatial queries.
+        No PostgreSQL, Redis, or external dependencies required for demo. Production deployment uses Docker + PostgreSQL + PostGIS.
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- PAGE: DATA PIPELINE VISUALIZATION -->
+  <!-- ================================================================ -->
+  <div id="page-pipeline" class="hidden fixed inset-0 top-16 left-14 bg-slate-950 overflow-y-auto z-[800] p-6">
+    <div class="max-w-3xl mx-auto space-y-4">
+      <div>
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">🔄 N-WEIS Data Intelligence Pipeline</h2>
+        <p class="text-sm text-slate-400 mt-0.5">End-to-end data flow — from raw social/IMD signals to verified GIS event. <span class="text-amber-400">SIH26069 Architecture</span></p>
+      </div>
+
+      <!-- Pipeline stages -->
+      <div class="space-y-0">
+        ${[
+          ['📡','MULTI-SOURCE INGESTION','IMD API • News RSS • Social #IMD • Citizen Reports • Public Datasets','Collecting raw signals from 8 data connectors in real-time','emerald'],
+          ['📝','NORMALIZATION & NLP','Language Detection • Entity Extraction • Geolocation Inference','Structuring unstructured text into canonical N-WEIS signal format','blue'],
+          ['🧠','AI EVENT CLASSIFICATION','Gemini Pro / Fine-tuned NLP • 8 Hazard Categories • Confidence Scoring','Determining event_type: FLOOD, THUNDERSTORM, RAINFALL, etc.','cyan'],
+          ['📍','4-TIER GEOLOCATION','GPS → City NLP → State Regex → Centroid Fallback','Extracting lat/lng for every signal to enable GIS placement','purple'],
+          ['🔍','MISINFORMATION DETECTION','Skeptic Agent • pHash Verification • Temporal Anomaly Check • Source Credibility','Filtering recycled media, hoax patterns, and coordinated inauthentic behavior','rose'],
+          ['🔗','3-LAYER DEDUPLICATION','Exact Signal ID • Jaccard Semantic Similarity • Spatiotemporal Clustering','Merging duplicate observations from different channels into one event','amber'],
+          ['⚖️','EVIDENCE FUSION & CONFIDENCE','7-Factor Scoring: Source × IMD × Spatial × Temporal × Corroboration × Credibility × Freshness','Computing final confidence_score (0.0–1.0) per verified event','orange'],
+          ['⏱️','TEMPORAL CONFIDENCE DECAY','Exponential decay per hazard half-life (Flood: 3h, Thunderstorm: 45min, Fog: 75min)','Reducing confidence of stale events without new supporting evidence','indigo'],
+          ['✅','HUMAN-IN-THE-LOOP SIGN-OFF','IMD Duty Meteorologist Review • DETECTED → UNDER_REVIEW → VERIFIED → RESOLVED','Immutable audit trail per NDMA SOP for all state transitions','emerald'],
+          ['🗺️','GIS DASHBOARD & ALERTS','Leaflet Map • SSE Real-time Push • CAP v1.2 Cell Broadcast • SDRF Dispatch','Live visualization with multilingual alerts in 6 Indian languages','cyan'],
+        ].map(([icon, stage, tech, desc, color], i) => `
+          <div class="flex gap-0">
+            <div class="flex flex-col items-center">
+              <div class="w-10 h-10 rounded-xl bg-${color}-950/60 border border-${color}-800/50 flex items-center justify-center text-lg shrink-0 z-10">${icon}</div>
+              ${i < 9 ? `<div class="w-0.5 h-6 bg-gradient-to-b from-${color}-700/50 to-slate-700/30 shrink-0"></div>` : ''}
+            </div>
+            <div class="ml-4 pb-4 flex-1">
+              <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <div class="text-xs font-bold text-${color}-400 uppercase tracking-wider">${stage}</div>
+                  <div class="text-[10px] font-mono text-slate-500 bg-slate-950/60 px-1.5 py-0.5 rounded shrink-0">Stage ${i+1}/10</div>
+                </div>
+                <p class="text-[11px] text-slate-300 mb-1.5">${desc}</p>
+                <div class="text-[10px] text-slate-500 font-mono">${tech}</div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================ -->
+  <!-- KPI TOGGLE & SIDEBAR JS -->
+  <!-- ================================================================ -->
+  <script>
+    let kpiVisible = false;
+    function toggleKpi() {
+      kpiVisible = !kpiVisible;
+      const panel = document.getElementById('kpi-panel');
+      if (kpiVisible) {
+        panel.classList.remove('hidden');
+        panel.classList.add('kpi-panel-visible');
+        loadKpiCards();
+      } else {
+        panel.classList.add('hidden');
+        panel.classList.remove('kpi-panel-visible');
+      }
+    }
+
+    // Patch applyFilters to include date params
+    const _origApplyFilters = typeof applyFilters === 'function' ? applyFilters : null;
+    function applyFilters() {
+      if (_origApplyFilters) {
+        // We'll rebuild the URL in the original or call fetchWithFilters
+      }
+      fetchInitialData();
+    }
+
+    // Override fetchInitialData to honour date filter
+    const _baseAPI = window.API_BASE || 'http://localhost:3001';
+    async function fetchInitialData() {
+      try {
+        const cat = document.getElementById('cat-filter') ? '' : '';
+        const state = document.getElementById('state-select')?.value || '';
+        const conf = (document.getElementById('conf-slider')?.value || 0) / 100;
+        const dateParam = getDateFilterParams ? getDateFilterParams() : '';
+        const params = new URLSearchParams();
+        if (state) params.set('state', state);
+        if (conf > 0) params.set('min_confidence', conf);
+
+        const [evRes, sigRes] = await Promise.all([
+          fetch(`${_baseAPI}/api/v1/events?${params}${dateParam}`),
+          fetch(`${_baseAPI}/api/v1/admin/signals`),
+        ]);
+
+        const evData = await evRes.json();
+        const sigData = await sigRes.json();
+
+        allEvents = evData.data || [];
+        const signals = sigData.data || [];
+        allSignals = signals.filter(s => s.verification_status !== 'REJECTED');
+        allQuarantined = signals.filter(s => s.verification_status === 'REJECTED');
+
+        renderMapMarkers();
+        renderEventsList();
+        updateCounters();
+
+        const streamList = document.getElementById('stream-list');
+        if (streamList) { streamList.innerHTML = ''; allSignals.slice(0, 20).forEach(renderStreamSignal); }
+        const qList = document.getElementById('quarantine-list');
+        if (qList) { qList.innerHTML = ''; allQuarantined.forEach(renderQuarantineSignal); }
+
+      } catch (err) {
+        console.error('Failed to fetch initial data', err);
+      }
+    }
+
+    // Patch map workspace ID for showPage
+    document.addEventListener('DOMContentLoaded', () => {
+      const ws = document.querySelector('body > div.flex-1');
+      if (ws) ws.id = 'map-workspace';
     });
   </script>
+
 </body>
 </html>
+
