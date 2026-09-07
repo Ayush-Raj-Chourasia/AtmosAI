@@ -16,7 +16,7 @@ export default function BottomNav() {
     };
 
     const navItems = [
-        { label: t('navigation.home'), icon: Home, path: '/' },
+        { label: t('navigation.home'), icon: Home, path: '/dashboard' },
         { label: t('navigation.alerts'), icon: Bell, path: '/alerts' },
         { label: t('navigation.map'), icon: MapIcon, path: '/map' },
         { label: t('navigation.guides'), icon: BookOpen, path: '/guides' },
@@ -24,7 +24,7 @@ export default function BottomNav() {
     ];
 
     return (
-        <nav className="w-full h-20 bg-white border-t border-slate-200 px-6 flex items-center justify-between shrink-0">
+        <nav className="w-full h-16 bg-[#F7F4EC]/95 backdrop-blur-md border-t border-[#12141A]/10 px-6 flex items-center justify-between shrink-0">
             {navItems.map((item) => {
                 const active = isActive(item.path);
                 return (
@@ -34,11 +34,11 @@ export default function BottomNav() {
                         className="flex flex-col items-center gap-1 min-w-[3rem]"
                     >
                         <item.icon
-                            size={24}
-                            className={`transition-colors duration-200 ${active ? 'text-slate-900 stroke-[2.5px]' : 'text-slate-400 stroke-2 group-hover:text-slate-600'
+                            size={20}
+                            className={`transition-colors duration-200 ${active ? 'text-[#FF5A1F] stroke-[2.5px]' : 'text-[#8b8e97] stroke-2 hover:text-[#12141A]'
                                 }`}
                         />
-                        <span className={`text-[10px] font-medium transition-colors duration-200 ${active ? 'text-slate-900' : 'text-slate-400'
+                        <span className={`text-[10px] font-medium transition-colors duration-200 ${active ? 'text-[#12141A] font-bold' : 'text-[#8b8e97]'
                             }`}>
                             {item.label}
                         </span>
