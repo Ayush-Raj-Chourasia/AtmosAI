@@ -27,3 +27,8 @@ pnpm-debug.log*
 .vscode
 .idea
 .turbo
+
+# Release archives
+*.zip
+release_stage/
+
