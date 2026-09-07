@@ -167,8 +167,17 @@ node server-nweis.mjs
 # Open Dashboard in Browser
 # http://localhost:3001
 
-# Run Automated Test Suite
+# Run Automated Test Suite (84/84 passing)
 node test-nweis.mjs
+npm test
+
+# Run Live Telemetry & Event Stream Feeder (Continuous or Single Pass)
+npm run simulate:once
+npm run simulate
+
+# Cross-Platform Pipeline Verification
+powershell.exe -ExecutionPolicy Bypass -File .\test-api.ps1   # Windows PowerShell
+./test-push.sh                                              # Linux / macOS Bash
 
 # Docker Container
 docker build -t nweis .
@@ -195,3 +204,4 @@ docker run -p 3001:3001 nweis
 14. **Live Sensor Network & Surge Telemetry** → In header, click **"📡 Live Sensors"** → Inspect all 11 IMD AWS and CWC River Gauges → Click **"⚡ Surge Telemetry"** on Bengaluru AWS → Watch instantaneous cloudburst surge detection trigger live across map and telemetry feed!
 15. **PWA Offline Field Resiliency** → Open Developer Tools, set Network to **"Offline"** → Notice the amber **"⚡ Offline Field Mode"** banner appear; submit an offline citizen observation → Notice it automatically queues locally in `localStorage` and flushes directly to the server when network reconnects!
 16. **GIS GeoJSON Interoperability** → Click **"🗺️ GeoJSON"** in header → View or download the full RFC 7946 GeoJSON FeatureCollection ready for instant ingestion into QGIS, ArcGIS, and ISRO Bhuvan portals.
+17. **Live Booth Telemetry Feeder** → Open a second terminal and run `node simulate-stream.mjs` → Watch live gauge spikes, citizen eyewitness drops, and CAP sirens pulse autonomously every 12 seconds with real-time SSE animation across the map!
