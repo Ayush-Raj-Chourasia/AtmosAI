@@ -1,7 +1,5 @@
 {
   "name": "n-weis",
-  "version": "1.0.0",
-  "packageManager": "npm@10.8.2",
   "private": true,
   "bin": {
     "nweis": "./nweis-cli.mjs"
