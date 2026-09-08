@@ -16,7 +16,7 @@
 export class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || null;
-    this.model = process.env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash';
+    this.model = process.env.GEMINI_FLASH_MODEL || 'gemini-3.6-flash';
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     this.isConfigured = Boolean(this.apiKey && this.apiKey.trim().length > 0);
   }
@@ -80,8 +80,9 @@ Report Text: "${text.replace(/"/g, '\\"')}"`;
 
       return {
         model: this.model,
-        model_version: 'v2.5',
+        model_version: 'v3.6',
         prediction: parsed.event_category,
+        event_category: parsed.event_category,
         severity: parsed.severity,
         confidence: parsed.confidence,
         location: parsed.extracted_location,
@@ -215,6 +216,7 @@ Return a STRICT JSON object:
       model: 'LOCAL_RULE_ENGINE',
       model_version: 'v1.0 (GEMINI_API_KEY_UNCONFIGURED)',
       prediction: best,
+      event_category: best,
       severity: max >= 4 ? 'severe' : (max >= 3 ? 'moderate' : 'minor'),
       confidence: Math.min(0.90, 0.40 + max * 0.12),
       reasoning: `Classified as ${best} via keyword heuristic (${max.toFixed(1)} match points).`,
