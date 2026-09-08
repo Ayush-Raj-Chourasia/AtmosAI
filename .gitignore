@@ -9,10 +9,15 @@ out
 # NestJS
 dist
 
-# Environment
+# Environment & Secrets
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+*.cert
+*.pfx
 
 # Debug
 npm-debug.log*
@@ -31,4 +36,9 @@ pnpm-debug.log*
 # Release archives
 *.zip
 release_stage/
+
+# Uploads & temporary runtime files
+public/uploads/*
+!public/uploads/.gitkeep
+data/*.tmp.*
 

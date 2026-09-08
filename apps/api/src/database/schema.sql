@@ -261,3 +261,24 @@ CREATE TABLE IF NOT EXISTS admin_actions (
   details JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================================================
+-- 10. MEDIA METADATA (Object Storage Provenance & Checksums)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS media_metadata (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  media_id TEXT NOT NULL UNIQUE,
+  event_id UUID REFERENCES weather_events(id) ON DELETE SET NULL,
+  signal_id UUID REFERENCES signals(id) ON DELETE SET NULL,
+  object_key TEXT NOT NULL,
+  url TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  file_size BIGINT NOT NULL,
+  checksum TEXT NOT NULL,
+  storage_provider TEXT NOT NULL DEFAULT 'DEMO/LOCAL',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS media_metadata_event_idx ON media_metadata (event_id);
+CREATE INDEX IF NOT EXISTS media_metadata_signal_idx ON media_metadata (signal_id);
+CREATE INDEX IF NOT EXISTS media_metadata_checksum_idx ON media_metadata (checksum);

@@ -10,11 +10,14 @@ services:
     environment:
       - PORT=3001
       - DATABASE_URL=postgresql://nweis:nweis_secure_password_2026@postgres:5432/nweis_db
+      - REDIS_URL=redis://redis:6379
       - NODE_ENV=production
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - disaster_network
 

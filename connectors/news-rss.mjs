@@ -1,30 +1,28 @@
 /**
  * N-WEIS Live News RSS Connector (connectors/news-rss.mjs)
  * SIH26069 National Weather Big Data Analytics Platform
- * Connects to live Indian meteorological news RSS feeds and normalizes news bulletins
+ *
+ * Ingests and normalizes live Indian meteorological RSS news feeds.
  */
 
-import crypto from 'crypto';
+import crypto from 'node:crypto';
+import { BaseWeatherConnector } from './base-connector.mjs';
 
-export class NewsRssConnector {
+export class NewsRssConnector extends BaseWeatherConnector {
   constructor() {
-    this.sourceId = 'src_toi_01';
-    this.sourceName = 'Times of India / Indian News Weather RSS';
-    this.sourceType = 'news';
-    this.baseReliability = 0.85;
+    super({
+      id: 'src_toi_01',
+      name: 'Times of India / Indian News Weather RSS',
+      type: 'news',
+      reliability: 0.85,
+    });
 
-    this.telemetry = {
-      status: 'STANDBY',
-      lastFetch: null,
-      lastError: null,
-      recordsFetched: 0,
-      recordsAccepted: 0,
-      latencyMs: 0,
-      mode: 'LIVE'
-    };
+    this.mode = 'LIVE';
+    this.telemetry.status = 'STANDBY';
+    this.telemetry.mode = 'LIVE';
 
     this.rssUrls = [
-      'https://news.google.com/rss/search?q=weather+IMD+India+rain+flood+when:2d&hl=en-IN&gl=IN&ceid=IN:en'
+      'https://news.google.com/rss/search?q=weather+IMD+India+rain+flood+when:2d&hl=en-IN&gl=IN&ceid=IN:en',
     ];
 
     this.cities = [
@@ -38,39 +36,29 @@ export class NewsRssConnector {
       { city: 'Jaipur', state: 'Rajasthan', lat: 26.91, lng: 75.79 },
       { city: 'Bhubaneswar', state: 'Odisha', lat: 20.30, lng: 85.82 },
       { city: 'Patna', state: 'Bihar', lat: 25.60, lng: 85.14 },
-      { city: 'Shimla', state: 'Himachal Pradesh', lat: 31.10, lng: 77.17 }
+      { city: 'Shimla', state: 'Himachal Pradesh', lat: 31.10, lng: 77.17 },
     ];
-  }
-
-  async healthCheck() {
-    return {
-      sourceId: this.sourceId,
-      sourceName: this.sourceName,
-      sourceType: this.sourceType,
-      status: this.telemetry.status,
-      mode: this.telemetry.mode,
-      lastFetch: this.telemetry.lastFetch,
-      latencyMs: this.telemetry.latencyMs,
-      recordsFetched: this.telemetry.recordsFetched,
-      recordsAccepted: this.telemetry.recordsAccepted,
-      reliability: this.baseReliability
-    };
   }
 
   parseXmlItems(xmlText) {
     const items = [];
-    const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
     let match;
 
-    while ((match = itemRegex.exec(xmlText)) !== null && items.length < 15) {
-      const block = match[1];
-      const title = (block.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/<!\[CDATA\[(.*?)\]\]>/gi, '$1').trim();
-      const link = (block.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || '').trim();
-      const pubDate = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1] || '').trim();
-      const description = (block.match(/<description>([\s\S]*?)<\/description>/i)?.[1] || '').replace(/<[^>]*>?/gm, '').trim();
+    while ((match = itemRegex.exec(xmlText)) !== null) {
+      const itemContent = match[1];
+      const titleMatch = /<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/.exec(itemContent);
+      const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(itemContent);
+      const pubDateMatch = /<pubDate>([\s\S]*?)<\/pubDate>/.exec(itemContent);
+      const descMatch = /<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/.exec(itemContent);
 
-      if (title) {
-        items.push({ title, link, pubDate, description });
+      if (titleMatch) {
+        items.push({
+          title: titleMatch[1].replace(/<[^>]+>/g, '').trim(),
+          link: linkMatch ? linkMatch[1].trim() : '',
+          pubDate: pubDateMatch ? pubDateMatch[1].trim() : new Date().toISOString(),
+          description: descMatch ? descMatch[1].replace(/<[^>]+>/g, '').trim() : '',
+        });
       }
     }
     return items;
@@ -78,85 +66,91 @@ export class NewsRssConnector {
 
   classifyArticle(text) {
     const lower = text.toLowerCase();
-    if (/flood|waterlogging|submerged|deluge|inundat/i.test(lower)) return 'FLOOD';
-    if (/thunderstorm|lightning|squall|hail/i.test(lower)) return 'THUNDERSTORM';
-    if (/heavy rain|cloudburst|downpour|rainfall|monsoon/i.test(lower)) return 'RAINFALL';
-    if (/heatwave|extreme heat|scorching|loo|temperatures surge/i.test(lower)) return 'HEATWAVE';
-    if (/fog|low visibility|dense fog/i.test(lower)) return 'FOG';
-    if (/dust storm|andhi/i.test(lower)) return 'DUST_STORM';
-    if (/cyclone|gale wind|gusty wind|squally wind/i.test(lower)) return 'STRONG_WIND';
+    if (/flood|waterlogging|submerged|inundat/i.test(lower)) return 'FLOOD';
+    if (/heavy rain|downpour|monsoon/i.test(lower)) return 'RAINFALL';
+    if (/thunderstorm|lightning|squall/i.test(lower)) return 'THUNDERSTORM';
+    if (/heatwave|extreme temperature/i.test(lower)) return 'HEATWAVE';
+    if (/fog|dense fog|visibility/i.test(lower)) return 'FOG';
+    if (/dust storm|sandstorm/i.test(lower)) return 'DUST_STORM';
+    if (/gale|cyclone|strong winds/i.test(lower)) return 'STRONG_WIND';
     return 'OTHER';
   }
 
-  async fetchSignals() {
+  matchCity(text) {
+    const lower = text.toLowerCase();
+    for (const c of this.cities) {
+      if (lower.includes(c.city.toLowerCase())) return c;
+    }
+    return null;
+  }
+
+  async fetchSignals(limit = 10) {
     const signals = [];
+    const feedUrl = this.rssUrls[0];
     const start = Date.now();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 7000);
+    this.telemetry.last_fetch = new Date().toISOString();
 
-    for (const url of this.rssUrls) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000);
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
+    try {
+      const res = await fetch(feedUrl, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'N-WEIS-News-Monitor/1.0' },
+      });
+      clearTimeout(timeout);
+      this.telemetry.latency_ms = Date.now() - start;
 
-        if (!res.ok) continue;
-
+      if (res.ok) {
         const xml = await res.text();
-        const items = this.parseXmlItems(xml);
-        this.telemetry.recordsFetched += items.length;
+        const items = this.parseXmlItems(xml).slice(0, limit);
+        this.telemetry.records_fetched += items.length;
 
         for (const item of items) {
-          const candidate = this.classifyArticle(`${item.title} ${item.description}`);
-          if (candidate === 'OTHER') continue; // Only process weather-relevant news
+          const fullText = `${item.title}. ${item.description}`;
+          const cityMeta = this.matchCity(fullText);
+          const candidate = this.classifyArticle(fullText);
 
-          // Detect location from text
-          let matchedCity = this.cities[0];
-          for (const c of this.cities) {
-            const regex = new RegExp(`\\b${c.city}\\b`, 'i');
-            if (regex.test(item.title) || regex.test(item.description)) {
-              matchedCity = c;
-              break;
-            }
+          if (candidate !== 'OTHER') {
+            const externalId = `rss_${crypto.createHash('md5').update(item.link || item.title).digest('hex').slice(0, 10)}`;
+            const signal = this.normalize({
+              source_id: this.id,
+              source_type: this.type,
+              source_name: 'Indian News Weather RSS',
+              external_id: externalId,
+              text: `[NEWS BULLETIN] ${item.title}`,
+              timestamp: new Date(item.pubDate).toISOString(),
+              city: cityMeta ? cityMeta.city : null,
+              state: cityMeta ? cityMeta.state : null,
+              country: 'India',
+              latitude: cityMeta ? cityMeta.lat : null,
+              longitude: cityMeta ? cityMeta.lng : null,
+              location_confidence: cityMeta ? 0.90 : 0,
+              location_method: cityMeta ? 'geo_reasoning' : 'unresolved',
+              event_candidate: candidate,
+              media_urls: [],
+              media_types: [],
+              hashtags: ['#NewsAlert', `#${candidate}`],
+              raw_payload: item,
+            });
+
+            signals.push(signal);
+            this.telemetry.records_accepted++;
           }
-
-          const idHash = crypto.createHash('md5').update(item.link || item.title).digest('hex').slice(0, 10);
-          const signal = {
-            source_id: this.sourceId,
-            source_type: this.sourceType,
-            source_name: 'Indian National News Wire',
-            external_id: `news_${idHash}`,
-            text: `[NEWS WIRE] ${item.title}`,
-            city: matchedCity.city,
-            state: matchedCity.state,
-            latitude: matchedCity.lat,
-            longitude: matchedCity.lng,
-            location_confidence: 0.85,
-            location_method: 'metadata',
-            event_candidate: candidate,
-            relevance_score: 0.88,
-            credibility_score: this.baseReliability,
-            misinformation_score: 0.05,
-            verification_status: 'VERIFIED',
-            hashtags: ['#NewsReport', '#IMD', '#Weather'],
-            raw_payload: {
-              url: item.link,
-              pub_date: item.pubDate,
-              summary: item.description
-            }
-          };
-
-          signals.push(signal);
-          this.telemetry.recordsAccepted++;
         }
-      } catch (err) {
-        this.telemetry.lastError = err.message;
-        console.warn(`[NewsRssConnector] RSS fetch error: ${err.message}`);
-      }
-    }
 
-    this.telemetry.status = signals.length > 0 ? 'ONLINE' : 'STANDBY';
-    this.telemetry.lastFetch = new Date().toISOString();
-    this.telemetry.latencyMs = Date.now() - start;
+        this.mode = 'LIVE';
+        this.telemetry.status = 'ONLINE';
+        this.telemetry.mode = 'LIVE';
+        this.telemetry.last_success = new Date().toISOString();
+      }
+    } catch (err) {
+      clearTimeout(timeout);
+      this.mode = 'DEGRADED';
+      this.telemetry.status = 'DEGRADED';
+      this.telemetry.mode = 'DEGRADED';
+      this.telemetry.last_error = err.message;
+      console.warn(`[NewsRssConnector] Error fetching RSS: ${err.message}`);
+    }
 
     return signals;
   }

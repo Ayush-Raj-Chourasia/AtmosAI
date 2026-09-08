@@ -1,13 +1,16 @@
 /**
  * N-WEIS Unified Database Layer (database/db.mjs)
  * SIH26069 National Weather Big Data Analytics Platform
+ *
  * Authoritative Persistence Engine: Dual PostgreSQL+PostGIS & Atomic Disk Store
+ * When DATABASE_URL is set: PostgreSQL + PostGIS is AUTHORITATIVE.
+ * When DATABASE_URL is not set: Atomic disk storage (data/nweis-store.json) is fallback.
  */
 
-import fs from 'fs';
-import path from 'path';
-import crypto from 'crypto';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,20 +18,18 @@ const DATA_DIR = path.join(__dirname, '..', 'data');
 const STORE_PATH = path.join(DATA_DIR, 'nweis-store.json');
 const SCHEMA_PATH = path.join(__dirname, '..', 'apps', 'api', 'src', 'database', 'schema.sql');
 
-// Default Baseline Sources as per schema.sql
 const DEFAULT_SOURCES = [
-  { id: 'src_imd_01', name: 'IMD Official API', source_type: 'imd', base_reliability: 1.00, is_active: true, created_at: new Date().toISOString() },
+  { id: 'src_imd_01', name: 'IMD Official API', source_type: 'imd', base_reliability: 1.0, is_active: true, created_at: new Date().toISOString() },
   { id: 'src_ndma_01', name: 'National Disaster Management Authority (NDMA)', source_type: 'imd', base_reliability: 0.98, is_active: true, created_at: new Date().toISOString() },
   { id: 'src_cwc_01', name: 'Central Water Commission (CWC Flood)', source_type: 'imd', base_reliability: 0.95, is_active: true, created_at: new Date().toISOString() },
-  { id: 'src_meteo_01', name: 'Open-Meteo Weather API', source_type: 'weather_api', base_reliability: 0.90, is_active: true, created_at: new Date().toISOString() },
+  { id: 'src_meteo_01', name: 'Open-Meteo Weather API', source_type: 'weather_api', base_reliability: 0.9, is_active: true, created_at: new Date().toISOString() },
   { id: 'src_owm_01', name: 'OpenWeatherMap API', source_type: 'weather_api', base_reliability: 0.88, is_active: true, created_at: new Date().toISOString() },
   { id: 'src_toi_01', name: 'Times of India Weather RSS', source_type: 'news', base_reliability: 0.85, is_active: true, created_at: new Date().toISOString() },
   { id: 'src_ndtv_01', name: 'NDTV India Weather RSS', source_type: 'news', base_reliability: 0.85, is_active: true, created_at: new Date().toISOString() },
-  { id: 'src_citizen_v_01', name: 'Citizen Verified Reporters', source_type: 'citizen', base_reliability: 0.70, is_active: true, created_at: new Date().toISOString() },
+  { id: 'src_citizen_v_01', name: 'Citizen Verified Reporters', source_type: 'citizen', base_reliability: 0.7, is_active: true, created_at: new Date().toISOString() },
   { id: 'src_citizen_pub_01', name: 'Public Citizen Submissions', source_type: 'citizen', base_reliability: 0.55, is_active: true, created_at: new Date().toISOString() },
   { id: 'src_social_x_01', name: 'Social Media Stream (X/Twitter #IMD)', source_type: 'social_media', base_reliability: 0.35, is_active: true, created_at: new Date().toISOString() },
-  { id: 'src_social_anon_01', name: 'Anonymous Reposts & Viral Streams', source_type: 'social_media', base_reliability: 0.20, is_active: true, created_at: new Date().toISOString() },
-  { id: 'src_dataset_01', name: 'IMD Historical Rainfall Dataset (Public)', source_type: 'public_dataset', base_reliability: 0.85, is_active: true, created_at: new Date().toISOString() }
+  { id: 'src_dataset_01', name: 'IMD Historical Rainfall Dataset (Public)', source_type: 'public_dataset', base_reliability: 0.85, is_active: true, created_at: new Date().toISOString() },
 ];
 
 class DatabaseEngine {
@@ -37,7 +38,6 @@ class DatabaseEngine {
     this.isPgConnected = false;
     this.isInitialized = false;
 
-    // Internal in-memory representation backed by atomic disk store
     this.tables = {
       sources: new Map(),
       signals: new Map(),
@@ -48,7 +48,8 @@ class DatabaseEngine {
       verification_records: [],
       source_reputation: new Map(),
       ai_predictions: [],
-      admin_actions: []
+      admin_actions: [],
+      media_metadata: new Map(),
     };
   }
 
@@ -59,7 +60,6 @@ class DatabaseEngine {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
-    // Attempt PostgreSQL Connection if DATABASE_URL is configured
     const dbUrl = process.env.DATABASE_URL;
     if (dbUrl) {
       try {
@@ -67,56 +67,88 @@ class DatabaseEngine {
         const { Pool } = pg.default || pg;
         this.pgPool = new Pool({
           connectionString: dbUrl,
-          connectionTimeoutMillis: 3000
+          connectionTimeoutMillis: 3500,
         });
         const client = await this.pgPool.connect();
         this.isPgConnected = true;
-        console.log('[DB]  PostgreSQL connection established.');
+        console.log('[DB]  PostgreSQL/PostGIS authoritative connection established.');
 
-        // Apply Schema if available
+        // Apply authoritative schema migrations if file exists
         if (fs.existsSync(SCHEMA_PATH)) {
           const sql = fs.readFileSync(SCHEMA_PATH, 'utf8');
           await client.query(sql);
-          console.log('[DB]  Schema migrations verified in PostgreSQL.');
+          console.log('[DB]  PostgreSQL schema & PostGIS extensions verified.');
         }
         client.release();
+
+        // Hydrate in-memory cache directly from authoritative PostgreSQL tables
+        await this.hydrateFromPostgres();
       } catch (err) {
-        console.warn(`[DB] ⚠️ PostgreSQL connection failed (${err.message}). Using Persistent Disk Engine.`);
+        console.warn(`[DB] ⚠️ PostgreSQL connection failed (${err.message}). Falling back to Atomic Disk Store.`);
         this.isPgConnected = false;
         this.pgPool = null;
+        this.loadFromDisk();
       }
     } else {
-      console.log('[DB] ℹ️ No DATABASE_URL provided. Operating with Atomic Disk-Persisted Storage.');
+      console.log('[DB] ℹ️ DATABASE_URL not set. Operating with Atomic Crash-Resilient Disk Storage.');
+      this.loadFromDisk();
     }
 
-    // Load Disk Store or Initialize Defaults
-    this.loadFromDisk();
     this.isInitialized = true;
+  }
+
+  async hydrateFromPostgres() {
+    if (!this.isPgConnected || !this.pgPool) return;
+    try {
+      const srcRes = await this.pgPool.query('SELECT * FROM sources');
+      for (const r of srcRes.rows) this.tables.sources.set(r.id, r);
+
+      const evRes = await this.pgPool.query('SELECT * FROM weather_events ORDER BY last_updated_at DESC');
+      for (const r of evRes.rows) {
+        this.tables.weather_events.set(r.id, {
+          ...r,
+          confidence: parseFloat(r.confidence_score) || 0.5,
+          latitude: parseFloat(r.latitude),
+          longitude: parseFloat(r.longitude),
+        });
+      }
+
+      const sigRes = await this.pgPool.query('SELECT * FROM signals ORDER BY timestamp DESC LIMIT 500');
+      for (const r of sigRes.rows) this.tables.signals.set(r.id, r);
+
+      const evdRes = await this.pgPool.query('SELECT * FROM event_evidence');
+      for (const r of evdRes.rows) this.tables.event_evidence.set(r.id, r);
+
+      const vrRes = await this.pgPool.query('SELECT * FROM verification_records ORDER BY created_at DESC LIMIT 200');
+      this.tables.verification_records = vrRes.rows;
+
+      const actRes = await this.pgPool.query('SELECT * FROM admin_actions ORDER BY created_at DESC LIMIT 200');
+      this.tables.admin_actions = actRes.rows;
+
+      console.log(`[DB]  Authoritative PostgreSQL hydration complete: ${evRes.rows.length} events, ${sigRes.rows.length} signals.`);
+    } catch (err) {
+      console.warn('[DB] Hydration from PostgreSQL had warning:', err.message);
+    }
   }
 
   loadFromDisk() {
     try {
       if (fs.existsSync(STORE_PATH)) {
         const raw = fs.readFileSync(STORE_PATH, 'utf8');
-        const parsed = JSON.parse(raw);
-
-        // Populate tables
-        for (const [k, v] of Object.entries(parsed.sources || {})) this.tables.sources.set(k, v);
-        for (const [k, v] of Object.entries(parsed.signals || {})) this.tables.signals.set(k, v);
-        for (const [k, v] of Object.entries(parsed.weather_events || {})) this.tables.weather_events.set(k, v);
-        for (const [k, v] of Object.entries(parsed.event_evidence || {})) this.tables.event_evidence.set(k, v);
-        for (const [k, v] of Object.entries(parsed.source_reputation || {})) this.tables.source_reputation.set(k, v);
-        this.tables.verification_records = parsed.verification_records || [];
-        this.tables.ai_predictions = parsed.ai_predictions || [];
-        this.tables.admin_actions = parsed.admin_actions || [];
-
-        console.log(`[DB]  Loaded persistent state from disk: ${this.tables.weather_events.size} events, ${this.tables.signals.size} signals.`);
+        const data = JSON.parse(raw);
+        if (data.sources) this.tables.sources = new Map(Object.entries(data.sources));
+        if (data.signals) this.tables.signals = new Map(Object.entries(data.signals));
+        if (data.weather_events) this.tables.weather_events = new Map(Object.entries(data.weather_events));
+        if (data.event_evidence) this.tables.event_evidence = new Map(Object.entries(data.event_evidence));
+        if (data.verification_records) this.tables.verification_records = data.verification_records;
+        if (data.admin_actions) this.tables.admin_actions = data.admin_actions;
+        if (data.media_metadata) this.tables.media_metadata = new Map(Object.entries(data.media_metadata));
+        console.log(`[DB]  Loaded persistent disk state: ${this.tables.weather_events.size} events, ${this.tables.signals.size} signals.`);
       } else {
         this.seedDefaults();
-        this.saveToDisk();
       }
     } catch (err) {
-      console.error('[DB] ⚠️ Error loading disk store, initializing defaults:', err.message);
+      console.warn('[DB] ⚠️ Could not load disk store, seeding baseline:', err.message);
       this.seedDefaults();
     }
   }
@@ -124,17 +156,6 @@ class DatabaseEngine {
   seedDefaults() {
     for (const src of DEFAULT_SOURCES) {
       this.tables.sources.set(src.id, src);
-      this.tables.source_reputation.set(src.id, {
-        source_id: src.id,
-        source_name: src.name,
-        source_type: src.source_type,
-        baseline_score: src.base_reliability,
-        reputation_score: src.base_reliability,
-        total_signals: 0,
-        verified_signals: 0,
-        misleading_signals: 0,
-        last_evaluated_at: new Date().toISOString()
-      });
     }
   }
 
@@ -146,22 +167,21 @@ class DatabaseEngine {
         signals: Object.fromEntries(this.tables.signals),
         weather_events: Object.fromEntries(this.tables.weather_events),
         event_evidence: Object.fromEntries(this.tables.event_evidence),
-        source_reputation: Object.fromEntries(this.tables.source_reputation),
         verification_records: this.tables.verification_records,
-        ai_predictions: this.tables.ai_predictions,
-        admin_actions: this.tables.admin_actions
+        admin_actions: this.tables.admin_actions,
+        media_metadata: Object.fromEntries(this.tables.media_metadata),
       };
 
       const tmpPath = `${STORE_PATH}.tmp.${Date.now()}`;
       fs.writeFileSync(tmpPath, JSON.stringify(serializable, null, 2), 'utf8');
       fs.renameSync(tmpPath, STORE_PATH);
     } catch (err) {
-      console.error('[DB] ⚠️ Atomic disk save failed:', err.message);
+      console.error('[DB] ⚠️ Atomic disk save error:', err.message);
     }
   }
 
   // ============================================================
-  // SOURCES & REPUTATION
+  // SOURCES
   // ============================================================
   async getSources() {
     if (this.isPgConnected && this.pgPool) {
@@ -169,30 +189,10 @@ class DatabaseEngine {
         const res = await this.pgPool.query('SELECT * FROM sources WHERE is_active = true ORDER BY base_reliability DESC');
         return res.rows;
       } catch (e) {
-        console.warn('[DB-PG] Query failed, fallback to disk:', e.message);
+        console.warn('[DB-PG] Fallback to cache:', e.message);
       }
     }
-    return Array.from(this.tables.sources.values()).filter(s => s.is_active);
-  }
-
-  async insertSource(src) {
-    const id = src.id || `src_${Date.now()}`;
-    const record = { ...src, id, created_at: src.created_at || new Date().toISOString() };
-    this.tables.sources.set(id, record);
-    this.saveToDisk();
-
-    if (this.isPgConnected && this.pgPool) {
-      try {
-        await this.pgPool.query(
-          `INSERT INTO sources (id, name, source_type, base_reliability, is_active)
-           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (name) DO NOTHING`,
-          [id, record.name, record.source_type, record.base_reliability, record.is_active]
-        );
-      } catch (e) {
-        console.warn('[DB-PG] Source sync failed:', e.message);
-      }
-    }
-    return record;
+    return Array.from(this.tables.sources.values()).filter((s) => s.is_active);
   }
 
   // ============================================================
@@ -214,7 +214,7 @@ class DatabaseEngine {
       verification_status: signal.verification_status || 'UNVERIFIED',
       media_urls: signal.media_urls || [],
       media_types: signal.media_types || [],
-      hashtags: signal.hashtags || []
+      hashtags: signal.hashtags || [],
     };
 
     this.tables.signals.set(id, record);
@@ -236,62 +236,54 @@ class DatabaseEngine {
             record.language || 'en', record.timestamp, record.ingested_at, record.city || null, record.state || null, record.country || 'India',
             record.latitude || null, record.longitude || null, record.location_confidence, record.location_method || null,
             record.event_candidate || null, record.relevance_score, record.credibility_score, record.misinformation_score,
-            record.verification_status, JSON.stringify(record.media_urls), JSON.stringify(record.media_types), JSON.stringify(record.hashtags), JSON.stringify(record.raw_payload || {})
+            record.verification_status, JSON.stringify(record.media_urls), JSON.stringify(record.media_types), JSON.stringify(record.hashtags), JSON.stringify(record.raw_payload || {}),
           ]
         );
       } catch (e) {
-        console.warn('[DB-PG] Signal sync failed:', e.message);
+        console.warn('[DB-PG] Signal insert failed:', e.message);
       }
     }
     return record;
   }
 
   async getSignals(filters = {}) {
-    let signals = Array.from(this.tables.signals.values());
+    if (this.isPgConnected && this.pgPool) {
+      try {
+        let q = 'SELECT * FROM signals WHERE 1=1';
+        const params = [];
+        if (filters.source_type && filters.source_type !== 'ALL') {
+          params.push(filters.source_type);
+          q += ` AND source_type = $${params.length}`;
+        }
+        if (filters.verification_status && filters.verification_status !== 'ALL') {
+          params.push(filters.verification_status);
+          q += ` AND verification_status = $${params.length}`;
+        }
+        if (filters.from_date) {
+          params.push(filters.from_date);
+          q += ` AND timestamp >= $${params.length}`;
+        }
+        q += ' ORDER BY timestamp DESC LIMIT 200';
+        const res = await this.pgPool.query(q, params);
+        return res.rows;
+      } catch (e) {
+        console.warn('[DB-PG] Signal query fallback:', e.message);
+      }
+    }
 
+    let signals = Array.from(this.tables.signals.values());
     if (filters.source_type && filters.source_type !== 'ALL') {
-      signals = signals.filter(s => s.source_type === filters.source_type);
+      signals = signals.filter((s) => s.source_type === filters.source_type);
     }
     if (filters.verification_status && filters.verification_status !== 'ALL') {
-      signals = signals.filter(s => s.verification_status === filters.verification_status);
+      signals = signals.filter((s) => s.verification_status === filters.verification_status);
     }
     if (filters.from_date) {
       const from = new Date(filters.from_date).getTime();
-      signals = signals.filter(s => new Date(s.timestamp || s.ingested_at).getTime() >= from);
+      signals = signals.filter((s) => new Date(s.timestamp || s.ingested_at).getTime() >= from);
     }
-    if (filters.to_date) {
-      const to = new Date(filters.to_date).getTime();
-      signals = signals.filter(s => new Date(s.timestamp || s.ingested_at).getTime() <= to);
-    }
-
     signals.sort((a, b) => new Date(b.timestamp || b.ingested_at).getTime() - new Date(a.timestamp || a.ingested_at).getTime());
-
-    const limit = filters.limit ? parseInt(filters.limit, 10) : 100;
-    const offset = filters.offset ? parseInt(filters.offset, 10) : 0;
-    return signals.slice(offset, offset + limit);
-  }
-
-  async getSignalById(id) {
-    return this.tables.signals.get(id) || null;
-  }
-
-  async updateSignal(id, update) {
-    const existing = this.tables.signals.get(id);
-    if (!existing) return null;
-    const updated = { ...existing, ...update };
-    this.tables.signals.set(id, updated);
-    this.saveToDisk();
-
-    if (this.isPgConnected && this.pgPool) {
-      try {
-        if (update.verification_status) {
-          await this.pgPool.query('UPDATE signals SET verification_status = $1 WHERE id = $2', [update.verification_status, id]);
-        }
-      } catch (e) {
-        console.warn('[DB-PG] Signal update failed:', e.message);
-      }
-    }
-    return updated;
+    return signals.slice(0, 200);
   }
 
   // ============================================================
@@ -309,12 +301,12 @@ class DatabaseEngine {
       created_at: event.created_at || now,
       status: event.status || 'DETECTED',
       severity: event.severity || 'medium',
-      confidence_score: event.confidence_score ?? 0.5,
-      base_confidence: event.base_confidence ?? event.confidence_score ?? 0.5,
+      confidence_score: event.confidence_score ?? event.confidence ?? 0.5,
+      confidence: event.confidence ?? event.confidence_score ?? 0.5,
       signal_count: event.signal_count || 1,
       source_breakdown: event.source_breakdown || { imd: 0, weather_api: 0, news: 0, social_media: 0, citizen: 0, public_dataset: 0 },
       evidence_summary: event.evidence_summary || '',
-      ai_reasoning: event.ai_reasoning || ''
+      ai_reasoning: event.ai_reasoning || '',
     };
 
     this.tables.weather_events.set(id, record);
@@ -331,6 +323,7 @@ class DatabaseEngine {
           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
           ON CONFLICT (id) DO UPDATE SET
             confidence_score = EXCLUDED.confidence_score,
+            status = EXCLUDED.status,
             last_updated_at = EXCLUDED.last_updated_at,
             signal_count = EXCLUDED.signal_count,
             source_breakdown = EXCLUDED.source_breakdown`,
@@ -338,61 +331,101 @@ class DatabaseEngine {
             record.id, record.event_type, record.title, record.description || null, record.severity, record.status,
             record.latitude, record.longitude, record.city, record.state, record.country || 'India', record.radius_m || 5000,
             record.confidence_score, record.first_detected_at, record.last_updated_at,
-            record.signal_count, JSON.stringify(record.source_breakdown), record.ai_reasoning, JSON.stringify([record.evidence_summary])
+            record.signal_count, JSON.stringify(record.source_breakdown), record.ai_reasoning, JSON.stringify([record.evidence_summary]),
           ]
         );
       } catch (e) {
-        console.warn('[DB-PG] Event sync failed:', e.message);
+        console.warn('[DB-PG] Event insert failed:', e.message);
       }
     }
     return record;
   }
 
   async getEvents(filters = {}) {
-    let events = Array.from(this.tables.weather_events.values());
+    if (this.isPgConnected && this.pgPool) {
+      try {
+        let q = 'SELECT * FROM weather_events WHERE 1=1';
+        const params = [];
+        if (filters.event_type && filters.event_type !== 'ALL') {
+          params.push(filters.event_type);
+          q += ` AND event_type = $${params.length}`;
+        }
+        if (filters.status && filters.status !== 'ALL') {
+          params.push(filters.status);
+          q += ` AND status = $${params.length}`;
+        }
+        if (filters.state && filters.state !== 'All India') {
+          params.push(filters.state);
+          q += ` AND state ILIKE $${params.length}`;
+        }
+        if (filters.from_date) {
+          params.push(filters.from_date);
+          q += ` AND last_updated_at >= $${params.length}`;
+        }
+        q += ' ORDER BY last_updated_at DESC';
+        const res = await this.pgPool.query(q, params);
+        return res.rows.map((r) => ({
+          ...r,
+          confidence: parseFloat(r.confidence_score) || 0.5,
+          latitude: parseFloat(r.latitude),
+          longitude: parseFloat(r.longitude),
+        }));
+      } catch (e) {
+        console.warn('[DB-PG] Event query fallback:', e.message);
+      }
+    }
 
+    let events = Array.from(this.tables.weather_events.values());
     if (filters.event_type && filters.event_type !== 'ALL') {
-      events = events.filter(e => e.event_type === filters.event_type);
+      events = events.filter((e) => e.event_type === filters.event_type);
     }
     if (filters.state && filters.state !== 'All India') {
-      events = events.filter(e => e.state?.toLowerCase() === filters.state.toLowerCase());
+      events = events.filter((e) => e.state?.toLowerCase() === filters.state.toLowerCase());
     }
     if (filters.status && filters.status !== 'ALL') {
-      events = events.filter(e => e.status === filters.status);
-    }
-    if (filters.min_confidence) {
-      const min = parseFloat(filters.min_confidence);
-      events = events.filter(e => e.confidence_score >= min);
+      events = events.filter((e) => e.status === filters.status);
     }
     if (filters.from_date) {
       const from = new Date(filters.from_date).getTime();
-      events = events.filter(e => new Date(e.first_detected_at).getTime() >= from);
+      events = events.filter((e) => new Date(e.last_updated_at || e.first_detected_at).getTime() >= from);
     }
-    if (filters.to_date) {
-      const to = new Date(filters.to_date).getTime();
-      events = events.filter(e => new Date(e.first_detected_at).getTime() <= to);
-    }
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      events = events.filter(e => (e.title?.toLowerCase().includes(q) || e.city?.toLowerCase().includes(q) || e.state?.toLowerCase().includes(q)));
-    }
-
-    events.sort((a, b) => new Date(b.last_updated_at || b.first_detected_at).getTime() - new Date(a.last_updated_at || a.first_detected_at).getTime());
+    events.sort((a, b) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime());
     return events;
   }
 
   async getEventById(id) {
+    if (this.isPgConnected && this.pgPool) {
+      try {
+        const res = await this.pgPool.query('SELECT * FROM weather_events WHERE id = $1', [id]);
+        if (res.rows.length > 0) {
+          const r = res.rows[0];
+          return {
+            ...r,
+            confidence: parseFloat(r.confidence_score) || 0.5,
+            latitude: parseFloat(r.latitude),
+            longitude: parseFloat(r.longitude),
+          };
+        }
+      } catch (e) {
+        console.warn('[DB-PG] Event getById fallback:', e.message);
+      }
+    }
     return this.tables.weather_events.get(id) || null;
   }
 
-  async updateEvent(id, update) {
-    const existing = this.tables.weather_events.get(id);
+  async updateEvent(id, updates) {
+    const existing = this.tables.weather_events.get(id) || (await this.getEventById(id));
     if (!existing) return null;
+
     const updated = {
       ...existing,
-      ...update,
-      last_updated_at: new Date().toISOString()
+      ...updates,
+      last_updated_at: new Date().toISOString(),
     };
+    if (updates.confidence !== undefined) {
+      updated.confidence_score = updates.confidence;
+    }
+
     this.tables.weather_events.set(id, updated);
     this.saveToDisk();
 
@@ -404,7 +437,7 @@ class DatabaseEngine {
             confidence_score = COALESCE($2, confidence_score),
             last_updated_at = now()
            WHERE id = $3`,
-          [update.status || null, update.confidence_score || null, id]
+          [updates.status || null, updates.confidence ?? null, id]
         );
       } catch (e) {
         console.warn('[DB-PG] Event update failed:', e.message);
@@ -414,197 +447,201 @@ class DatabaseEngine {
   }
 
   // ============================================================
-  // EVIDENCE & AUDIT LOGGING
+  // POSTGIS SPATIAL QUERIES
+  // ============================================================
+  async findEventsNearby(latitude, longitude, radiusMeters = 15000) {
+    if (this.isPgConnected && this.pgPool) {
+      try {
+        const q = `
+          SELECT id, event_type, status, confidence_score, city, state,
+                 ST_Distance(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) AS distance_meters
+          FROM weather_events
+          WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3)
+            AND status IN ('DETECTED', 'UNDER_REVIEW', 'VERIFIED')
+          ORDER BY distance_meters ASC
+        `;
+        const res = await this.pgPool.query(q, [longitude, latitude, radiusMeters]);
+        return res.rows;
+      } catch (e) {
+        console.warn('[DB-PG] PostGIS spatial query fallback:', e.message);
+      }
+    }
+
+    // Haversine fallback for standalone/disk mode
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const φ1 = (lat1 * Math.PI) / 180;
+      const φ2 = (lat2 * Math.PI) / 180;
+      const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+      const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+      const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    return Array.from(this.tables.weather_events.values())
+      .map((ev) => ({
+        ...ev,
+        distance_meters: haversine(latitude, longitude, ev.latitude, ev.longitude),
+      }))
+      .filter((ev) => ev.distance_meters <= radiusMeters && ['DETECTED', 'UNDER_REVIEW', 'VERIFIED'].includes(ev.status));
+  }
+
+  // ============================================================
+  // EVIDENCE & AUDIT LOGS
   // ============================================================
   async insertEvidence(evidence) {
     const id = evidence.id || `ev_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const record = { ...evidence, id, created_at: evidence.created_at || new Date().toISOString() };
     this.tables.event_evidence.set(id, record);
     this.saveToDisk();
+
+    if (this.isPgConnected && this.pgPool) {
+      try {
+        await this.pgPool.query(
+          `INSERT INTO event_evidence (id, event_id, signal_id, source_type, source_name, credibility_weight, supporting_text, media_url)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO NOTHING`,
+          [id, record.event_id, record.signal_id, record.source_type, record.source_name, record.credibility_weight || 0.5, record.supporting_text || '', record.media_url || null]
+        );
+      } catch (e) {
+        console.warn('[DB-PG] Evidence sync failed:', e.message);
+      }
+    }
     return record;
   }
 
-  async getEvidenceByEventId(eventId) {
-    return Array.from(this.tables.event_evidence.values()).filter(e => e.event_id === eventId);
-  }
-
-  async insertVerification(record) {
-    const id = record.id || `vr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-    const entry = { ...record, id, created_at: record.created_at || new Date().toISOString() };
-    this.tables.verification_records.push(entry);
+  async insertVerification(verification) {
+    const id = verification.id || `vr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const record = { ...verification, id, created_at: verification.created_at || new Date().toISOString() };
+    this.tables.verification_records.push(record);
     this.saveToDisk();
 
     if (this.isPgConnected && this.pgPool) {
       try {
         await this.pgPool.query(
-          `INSERT INTO verification_records (
-            id, target_type, target_id, action, verified_by, actor_id, reason, previous_status, new_status, confidence_before, confidence_after
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          `INSERT INTO verification_records (id, target_type, target_id, action, verified_by, actor_id, reason, previous_status, new_status, confidence_before, confidence_after)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO NOTHING`,
           [
-            entry.id, entry.target_type || 'event', entry.target_id, entry.action, entry.verified_by || 'admin',
-            entry.actor_id || 'admin@imd.gov.in', entry.reason || '', entry.previous_status || null, entry.new_status || null,
-            entry.confidence_before || null, entry.confidence_after || null
+            id, record.target_type || 'event', record.target_id, record.action || 'VERIFY', record.verified_by || 'admin',
+            record.actor_id || null, record.reason || null, record.previous_status || null, record.new_status || null,
+            record.confidence_before || null, record.confidence_after || null,
           ]
         );
       } catch (e) {
-        console.warn('[DB-PG] Verification log sync failed:', e.message);
+        console.warn('[DB-PG] Verification sync failed:', e.message);
       }
     }
-    return entry;
-  }
-
-  async getVerifications(targetId = null) {
-    if (targetId) {
-      return this.tables.verification_records.filter(r => r.target_id === targetId);
-    }
-    return this.tables.verification_records;
-  }
-
-  async insertAiPrediction(pred) {
-    const id = pred.id || `pred_${Date.now()}`;
-    const record = { ...pred, id, created_at: new Date().toISOString() };
-    this.tables.ai_predictions.push(record);
-    this.saveToDisk();
     return record;
   }
 
-  async insertAdminAction(action) {
-    const id = action.id || `act_${Date.now()}`;
-    const record = { ...action, id, created_at: new Date().toISOString() };
+  async insertAuditAction(action) {
+    const id = action.id || `act_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const record = { ...action, id, created_at: action.created_at || new Date().toISOString() };
     this.tables.admin_actions.push(record);
-    this.saveToDisk();
-    return record;
-  }
-
-  // ============================================================
-  // ANALYTICS & KPIS
-  // ============================================================
-  async getAnalytics() {
-    const totalSignals = this.tables.signals.size;
-    const totalEvents = this.tables.weather_events.size;
-    const events = Array.from(this.tables.weather_events.values());
-    const signals = Array.from(this.tables.signals.values());
-
-    const verifiedEvents = events.filter(e => e.status === 'VERIFIED').length;
-    const underReviewEvents = events.filter(e => e.status === 'UNDER_REVIEW').length;
-    const detectedEvents = events.filter(e => e.status === 'DETECTED').length;
-    const resolvedEvents = events.filter(e => e.status === 'RESOLVED').length;
-
-    const rejectedSignals = signals.filter(s => s.verification_status === 'REJECTED').length;
-    const duplicateSignals = signals.filter(s => s.is_duplicate).length;
-    const suspiciousSignals = signals.filter(s => (s.misinformation_score || 0) > 0.5).length;
-
-    // Signals by Source
-    const sourceCounts = {};
-    for (const s of signals) {
-      sourceCounts[s.source_type] = (sourceCounts[s.source_type] || 0) + 1;
-    }
-
-    // Events by Type
-    const eventsByType = {};
-    for (const e of events) {
-      eventsByType[e.event_type] = (eventsByType[e.event_type] || 0) + 1;
-    }
-
-    // Events by State
-    const eventsByState = {};
-    for (const e of events) {
-      if (e.state) eventsByState[e.state] = (eventsByState[e.state] || 0) + 1;
-    }
-
-    // Events by 24h Hourly Buckets
-    const now = Date.now();
-    const eventsByHour = Array.from({ length: 24 }, (_, i) => {
-      const hourStart = now - (23 - i) * 3600000;
-      const hourEnd = hourStart + 3600000;
-      const label = new Date(hourStart).toISOString().slice(11, 13) + ':00';
-      const count = events.filter(e => {
-        const t = new Date(e.first_detected_at).getTime();
-        return t >= hourStart && t < hourEnd;
-      }).length;
-      return { hour: label, count };
-    });
-
-    return {
-      totals: {
-        signals: totalSignals,
-        incidents: totalEvents,
-        verified: verifiedEvents,
-        under_review: underReviewEvents,
-        detected: detectedEvents,
-        resolved: resolvedEvents,
-        users: 48,
-        evaluations: totalSignals,
-        traces: totalEvents * 3,
-        duplicates_removed: duplicateSignals,
-        suspicious: suspiciousSignals
-      },
-      signalsBySource: sourceCounts,
-      eventsByType,
-      eventsByState,
-      eventsByHour,
-      incidentsByStatus: {
-        verified: verifiedEvents,
-        under_review: underReviewEvents,
-        detected: detectedEvents,
-        resolved: resolvedEvents
-      },
-      last24h: {
-        signals: totalSignals,
-        incidents: totalEvents
-      },
-      kpis: {
-        falsePositiveRate: totalSignals > 0 ? `${((rejectedSignals / totalSignals) * 100).toFixed(1)}%` : '0%',
-        verificationRate: totalEvents > 0 ? `${((verifiedEvents / totalEvents) * 100).toFixed(1)}%` : '0%',
-        duplicateRate: totalSignals > 0 ? `${((duplicateSignals / totalSignals) * 100).toFixed(1)}%` : '18.4%',
-        avgProcessingLatency: '380ms',
-        sourcesOnline: Object.keys(sourceCounts).length
-      }
-    };
-  }
-
-  // ============================================================
-  // DATABASE RESET / CLEAR
-  // ============================================================
-  async reset() {
-    this.tables.signals.clear();
-    this.tables.weather_events.clear();
-    this.tables.event_evidence.clear();
-    this.tables.event_signals.clear();
-    this.tables.event_clusters.clear();
-    this.tables.verification_records = [];
-    this.tables.ai_predictions = [];
-    this.tables.admin_actions = [];
-
-    this.seedDefaults();
     this.saveToDisk();
 
     if (this.isPgConnected && this.pgPool) {
       try {
-        await this.pgPool.query('TRUNCATE signals, weather_events, event_signals, event_evidence, event_clusters, verification_records, ai_predictions, admin_actions CASCADE');
-        console.log('[DB-PG] PostgreSQL tables truncated.');
+        await this.pgPool.query(
+          `INSERT INTO admin_actions (id, admin_user, action_type, target_id, details)
+           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+          [id, record.admin_user || 'system', record.action_type, record.target_id || null, JSON.stringify(record.details || {})]
+        );
       } catch (e) {
-        console.warn('[DB-PG] Reset query error:', e.message);
+        console.warn('[DB-PG] Audit sync failed:', e.message);
       }
     }
-    console.log('[DB]  Database state reset to clean baseline.');
+    return record;
+  }
+
+  async insertMediaMetadata(media) {
+    const id = media.media_id || `med_${Date.now()}`;
+    const record = { ...media, id, created_at: media.created_at || new Date().toISOString() };
+    this.tables.media_metadata.set(id, record);
+    this.saveToDisk();
+
+    if (this.isPgConnected && this.pgPool) {
+      try {
+        await this.pgPool.query(
+          `INSERT INTO media_metadata (media_id, event_id, signal_id, object_key, url, mime_type, file_size, checksum, storage_provider)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (media_id) DO NOTHING`,
+          [record.media_id, record.event_id || null, record.signal_id || null, record.object_key, record.url, record.mime_type, record.file_size, record.checksum, record.storage_provider || 'DEMO/LOCAL']
+        );
+      } catch (e) {
+        console.warn('[DB-PG] Media metadata sync failed:', e.message);
+      }
+    }
+    return record;
+  }
+
+  async insertAiPrediction(prediction) {
+    const id = prediction.id || `aip_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const record = {
+      ...prediction,
+      id,
+      created_at: prediction.created_at || new Date().toISOString(),
+    };
+    this.tables.ai_predictions.push(record);
+    this.saveToDisk();
+
+    if (this.isPgConnected && this.pgPool) {
+      try {
+        await this.pgPool.query(
+          `INSERT INTO ai_predictions (id, signal_id, event_id, model, prediction_type, raw_output, confidence, latency_ms, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT (id) DO NOTHING`,
+          [
+            id,
+            record.signal_id || null,
+            record.event_id || null,
+            record.model || 'gemini-2.5-flash',
+            record.prediction_type || 'CLASSIFICATION',
+            JSON.stringify(record.raw_output || {}),
+            record.confidence ?? null,
+            record.latency_ms ?? 0,
+            record.created_at,
+          ]
+        );
+      } catch (e) {
+        console.warn('[DB-PG] AI prediction sync failed:', e.message);
+      }
+    }
+    return record;
   }
 
   getStorageInfo() {
     return {
       storage_type: this.isPgConnected ? 'POSTGRESQL_POSTGIS' : 'PERSISTENT_DISK_STORE',
-      disk_store_path: STORE_PATH,
       postgres_connected: this.isPgConnected,
+      disk_store_path: STORE_PATH,
+      authoritative_engine: this.isPgConnected ? 'PostgreSQL 16 + PostGIS' : 'Atomic JSON Store (Fallback)',
       counts: {
         sources: this.tables.sources.size,
         signals: this.tables.signals.size,
         events: this.tables.weather_events.size,
         evidence: this.tables.event_evidence.size,
-        verifications: this.tables.verification_records.length
-      }
+        verifications: this.tables.verification_records.length,
+        admin_actions: this.tables.admin_actions.length,
+        media: this.tables.media_metadata.size,
+      },
     };
+  }
+
+  async reset() {
+    this.tables.signals.clear();
+    this.tables.weather_events.clear();
+    this.tables.event_evidence.clear();
+    this.tables.verification_records.length = 0;
+    this.tables.admin_actions.length = 0;
+    this.tables.media_metadata.clear();
+    this.saveToDisk();
+
+    if (this.isPgConnected && this.pgPool) {
+      try {
+        await this.pgPool.query('TRUNCATE TABLE event_evidence, event_signals, verification_records, signals, weather_events CASCADE');
+      } catch (e) {
+        console.warn('[DB-PG] Reset failed:', e.message);
+      }
+    }
   }
 }
 
-// Singleton instance
 export const db = new DatabaseEngine();

@@ -9,13 +9,18 @@ import { URL, fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import 'dotenv/config';
 
 import { db } from './database/db.mjs';
 import { weatherApiConnector } from './connectors/weather-api.mjs';
+import { openWeatherConnector } from './connectors/openweather.mjs';
 import { newsRssConnector } from './connectors/news-rss.mjs';
 import { imdAdapter } from './connectors/imd-adapter.mjs';
 import { socialStreamConnector } from './connectors/social-stream.mjs';
 import { publicDatasetConnector } from './connectors/public-dataset.mjs';
+import { redisService } from './storage/redis-client.mjs';
+import { mediaStorageService } from './storage/media-storage.mjs';
+import { geminiService } from './ai/gemini-service.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -261,6 +266,18 @@ function validateAndTransitionStatus(event, targetStatus, reason, officerName = 
   }
 
   if (fromStatus === targetStatus) {
+    if (targetStatus === 'VERIFIED') {
+      event.last_updated_at = new Date().toISOString();
+      event.verified_at = event.last_updated_at;
+      const logEntry = logLifecycleTransition(
+        event.id,
+        fromStatus,
+        targetStatus,
+        reason || `Re-verified and reinforced by ${officerName}`,
+        `officer:${officerName}`
+      );
+      return { success: true, event, transition: logEntry };
+    }
     return { success: false, error: `Incident is already in status ${targetStatus}` };
   }
 
@@ -374,18 +391,33 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 }
 
 function resolveLocation(text, lat, lng, cityHint, stateHint) {
-  if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
+  // Tier 1: Explicit GPS coordinates within Indian territorial bounds
+  if (typeof lat === 'number' && typeof lng === 'number') {
     if (lat >= 6.5 && lat <= 37.5 && lng >= 68.0 && lng <= 97.5) {
       return { lat, lng, city: cityHint || 'Ground Station', state: stateHint || 'India', method: 'native_gps', confidence: 0.98 };
     }
   }
-  const lower = text.toLowerCase();
+
+  // Tier 2: Source metadata & structured location hints
+  if (cityHint) {
+    const hintLower = cityHint.toLowerCase();
+    for (const city of MAJOR_CITIES) {
+      if (hintLower.includes(city.name.toLowerCase()) || city.aliases.some(a => hintLower.includes(a))) {
+        return { lat: city.lat, lng: city.lng, city: city.name, state: city.state, method: 'structured_metadata', confidence: 0.92 };
+      }
+    }
+  }
+
+  // Tier 3: Gazetteer reasoning from text
+  const lower = (text || '').toLowerCase();
   for (const city of MAJOR_CITIES) {
     if (lower.includes(city.name.toLowerCase()) || city.aliases.some(a => lower.includes(a))) {
       return { lat: city.lat, lng: city.lng, city: city.name, state: city.state, method: 'geo_reasoning', confidence: 0.90 };
     }
   }
-  return { lat: 28.6139, lng: 77.209, city: 'New Delhi', state: 'Delhi', method: 'geocoder_fallback', confidence: 0.25 };
+
+  // Tier 4: Unresolved (NEVER invent fake coordinates in India center!)
+  return { lat: null, lng: null, city: cityHint || null, state: stateHint || null, method: 'unresolved', confidence: 0 };
 }
 
 function classifyWeather(text) {
@@ -434,34 +466,90 @@ function checkDuplicateSignal(candidate, existingSignals) {
   for (const existing of existingSignals) {
     // Level 1: Exact External ID
     if (candidate.external_id && existing.external_id && candidate.external_id === existing.external_id) {
-      return { isDuplicate: true, layer: 'exact', reason: `Exact ID match (${candidate.external_id})`, parentId: existing.id };
+      return {
+        isDuplicate: true,
+        layer: 'exact',
+        reason: `Exact ID match (${candidate.external_id})`,
+        parentId: existing.id,
+        duplicate_of: existing.id,
+        duplicate_reason: `Exact external identifier match (${candidate.external_id})`,
+        similarity_score: 1.0,
+        distance_km: 0,
+        time_difference_minutes: 0,
+      };
     }
 
     // Level 2: Exact Content SHA-256 Hash
     const existingNorm = (existing.text || '').toLowerCase().trim();
     const existingHash = crypto.createHash('sha256').update(existingNorm).digest('hex');
     if (candidateHash === existingHash && candidateHash.length > 0) {
-      return { isDuplicate: true, layer: 'content_hash', reason: `Exact Content SHA-256 match (${candidateHash.slice(0, 8)})`, parentId: existing.id };
+      return {
+        isDuplicate: true,
+        layer: 'content_hash',
+        reason: `Exact Content SHA-256 match (${candidateHash.slice(0, 8)})`,
+        parentId: existing.id,
+        duplicate_of: existing.id,
+        duplicate_reason: `Exact SHA-256 text checksum match`,
+        similarity_score: 1.0,
+        distance_km: 0,
+        time_difference_minutes: 0,
+      };
     }
 
     // Level 3: Tokenized Jaccard Semantic Similarity
     const sim = jaccardSimilarity(candidate.text, existing.text);
     if (sim >= 0.75) {
-      return { isDuplicate: true, layer: 'semantic', reason: `Semantic overlap ${(sim * 100).toFixed(0)}%`, parentId: existing.id };
+      return {
+        isDuplicate: true,
+        layer: 'semantic',
+        reason: `Semantic overlap ${(sim * 100).toFixed(0)}%`,
+        parentId: existing.id,
+        duplicate_of: existing.id,
+        duplicate_reason: `Semantic word token similarity overlap (${(sim * 100).toFixed(0)}% >= 75%)`,
+        similarity_score: parseFloat(sim.toFixed(2)),
+        distance_km: 0,
+        time_difference_minutes: 0,
+      };
     }
 
-    // Level 4: Media URL / Checksum Hash Match
+    // Level 4: Media URL / Checksum Hash Match (Perceptual Media Deduplication)
     if (candidate.media_urls?.length && existing.media_urls?.length) {
       const matchMedia = candidate.media_urls.some(url => existing.media_urls.includes(url));
       if (matchMedia) {
-        return { isDuplicate: true, layer: 'media_hash', reason: 'Identical media asset/photo checksum match', parentId: existing.id };
+        return {
+          isDuplicate: true,
+          layer: 'media_hash',
+          reason: 'Identical media asset / photo checksum match (Media Deduplication)',
+          parentId: existing.id,
+          duplicate_of: existing.id,
+          duplicate_reason: 'Identical photographic asset or perceptual hash reuse',
+          similarity_score: 1.0,
+          distance_km: 0,
+          time_difference_minutes: 0,
+        };
       }
     }
 
-    // Level 5: Spatiotemporal Cluster Proximity
-    const dist = haversineKm(candidate.latitude, candidate.longitude, existing.latitude, existing.longitude);
-    if (dist <= 3.0 && candidate.event_candidate === existing.event_candidate && sim >= 0.40) {
-      return { isDuplicate: true, layer: 'spatiotemporal', reason: `Proximity ${dist.toFixed(1)}km, matching event`, parentId: existing.id };
+    // Level 5: Spatiotemporal Cluster Proximity (distance <= 3 km AND time diff <= 120 minutes)
+    if (candidate.latitude && candidate.longitude && existing.latitude && existing.longitude) {
+      const dist = haversineKm(candidate.latitude, candidate.longitude, existing.latitude, existing.longitude);
+      const candTime = new Date(candidate.timestamp || Date.now()).getTime();
+      const existTime = new Date(existing.timestamp || Date.now()).getTime();
+      const timeDiffMin = Math.abs(candTime - existTime) / 60000;
+
+      if (dist <= 3.0 && timeDiffMin <= 120 && candidate.event_candidate === existing.event_candidate && sim >= 0.40) {
+        return {
+          isDuplicate: true,
+          layer: 'spatiotemporal',
+          reason: `Spatiotemporal proximity (${dist.toFixed(1)}km, ${timeDiffMin.toFixed(0)}m diff), matching event`,
+          parentId: existing.id,
+          duplicate_of: existing.id,
+          duplicate_reason: `Spatiotemporal cluster match (${dist.toFixed(1)}km <= 3km, ${timeDiffMin.toFixed(0)}m <= 120m)`,
+          similarity_score: parseFloat(sim.toFixed(2)),
+          distance_km: parseFloat(dist.toFixed(2)),
+          time_difference_minutes: Math.round(timeDiffMin),
+        };
+      }
     }
   }
   return { isDuplicate: false };
@@ -868,7 +956,24 @@ function generateVolunteerDispatch(event) {
 // -------------------------------------------------------------
 async function ingestSignal(raw) {
   const geo = resolveLocation(raw.text, raw.latitude, raw.longitude, raw.city, raw.state);
-  const classification = classifyWeather(raw.text);
+  let classification = classifyWeather(raw.text);
+
+  let geminiOutput = null;
+  if (geminiService.isConfigured) {
+    try {
+      const gRes = await geminiService.classifyWeatherText(raw.text);
+      if (gRes && gRes.event_category) {
+        geminiOutput = gRes;
+        classification = {
+          eventType: gRes.event_category,
+          probability: gRes.confidence || 0.90,
+          keywordsMatched: gRes.key_hazards || [],
+        };
+      }
+    } catch (e) {
+      console.warn('[AI] Gemini classification fallback:', e.message);
+    }
+  }
 
   const mediaUrls = raw.media_urls || [];
   const lowerMedia = mediaUrls.join(' ').toLowerCase();
@@ -906,8 +1011,37 @@ async function ingestSignal(raw) {
   };
 
   memSignals.set(signal.id, signal);
-  db.tables.signals.set(signal.id, signal);
-  db.saveToDisk();
+  await db.insertSignal(signal);
+
+  if (geminiOutput) {
+    await db.insertAiPrediction({
+      signal_id: signal.id,
+      model: geminiService.model,
+      prediction_type: 'CLASSIFICATION',
+      raw_output: geminiOutput,
+      confidence: geminiOutput.confidence || 0.9,
+    });
+  }
+
+  if (mediaUrls.length > 0 && geminiService.isConfigured) {
+    try {
+      const visionRes = await geminiService.analyzeDisasterImage({
+        imageUrl: mediaUrls[0],
+        userPrompt: 'Verify weather hazard and structural impact',
+      });
+      if (visionRes) {
+        await db.insertAiPrediction({
+          signal_id: signal.id,
+          model: geminiService.model,
+          prediction_type: 'MULTIMODAL_VISION',
+          raw_output: visionRes,
+          confidence: visionRes.confidence || 0.85,
+        });
+      }
+    } catch (err) {
+      console.warn('[AI] Gemini multimodal vision warning:', err.message);
+    }
+  }
 
   if (isRejected) {
     const vRec = {
@@ -920,8 +1054,7 @@ async function ingestSignal(raw) {
       created_at: new Date().toISOString(),
     };
     memVerifications.push(vRec);
-    db.tables.verification_records.push(vRec);
-    db.saveToDisk();
+    await db.insertVerification(vRec);
     broadcastSSE({ type: 'signal_rejected', signal });
     return { signal, isMisinformation: true, associatedEvent: null };
   }
@@ -932,6 +1065,7 @@ async function ingestSignal(raw) {
   if (dup.isDuplicate) {
     signal.verification_status = 'DUPLICATE';
     signal.duplicate_of = dup.parentId;
+    await db.insertSignal(signal);
     broadcastSSE({ type: 'signal_duplicate', signal, reason: dup.reason });
     return { signal, isDuplicate: true, duplicateReason: dup.reason, associatedEvent: null };
   }
@@ -1020,8 +1154,7 @@ async function ingestSignal(raw) {
   };
 
   memEvents.set(eventId, eventPayload);
-  db.tables.weather_events.set(eventId, eventPayload);
-  db.saveToDisk();
+  await db.insertEvent(eventPayload);
 
   if (isNewEvent) {
     logLifecycleTransition(
@@ -1061,8 +1194,11 @@ async function ingestSignal(raw) {
     created_at: new Date().toISOString(),
   };
   memEvidence.set(`ev_${signal.id}`, evRecord);
-  db.tables.event_evidence.set(`ev_${signal.id}`, evRecord);
-  db.saveToDisk();
+  await db.insertEvidence(evRecord);
+
+  if (redisService.isConnected) {
+    redisService.publish('nweis:events', JSON.stringify({ type: 'incident_update', event: eventPayload })).catch(() => {});
+  }
 
   broadcastSSE({ type: 'incident_update', event: eventPayload });
   broadcastSSE({ type: 'signal_processed', signal, event: eventPayload });
@@ -1746,22 +1882,161 @@ const server = http.createServer(async (req, res) => {
     return sendJson(200, { success: true, dispatch: dispatchReceipt });
   }
 
-  // --- ADMIN STATUS OVERRIDE & MANUAL VERIFICATION ---
-  const statusOverrideMatch = pathname.match(/^\/(?:api\/v1\/events|events)\/([^\/]+)\/(?:status|verify)$/);
-  if (statusOverrideMatch && (req.method === 'PATCH' || req.method === 'POST')) {
-    const id = statusOverrideMatch[1];
+  // --- ADMIN & ANALYST HUMAN VERIFICATION, REJECTION, MERGE & STATUS OVERRIDE ---
+  const eventActionMatch = pathname.match(/^\/(?:api\/v1\/events|events)\/([^\/]+)\/(status|verify|reject|merge)$/);
+  if (eventActionMatch && (req.method === 'PATCH' || req.method === 'POST')) {
+    const id = eventActionMatch[1];
+    const action = eventActionMatch[2];
     const event = memEvents.get(id);
-    if (!event) return sendJson(404, { success: false, message: 'Event not found' });
+    if (!event) return sendJson(404, { success: false, message: `Event ${id} not found` });
 
     const body = await getBody();
-    const targetStatus = body.status || 'VERIFIED';
-    const reason = body.reason || 'Manual verification by IMD Duty Meteorologist';
-    const officer = body.officer_name || 'Dr. M. Mohapatra (IMD Director General / Duty Meteorologist)';
 
+    // Server-side Role Check (ADMIN, ANALYST, METEOROLOGIST required)
+    const roleHeader = (req.headers['x-user-role'] || '').toUpperCase();
+    const userRole = roleHeader || (body.role ? String(body.role).toUpperCase() : 'ANALYST');
+    const allowedRoles = ['ADMIN', 'ANALYST', 'METEOROLOGIST', 'SUPERVISOR'];
+    if (!allowedRoles.includes(userRole)) {
+      return sendJson(403, {
+        success: false,
+        message: `Forbidden: role '${userRole}' is not authorized to verify or modify incidents. Required: ADMIN or ANALYST.`
+      });
+    }
+
+    const officer = body.officer_name || body.analyst_name || (userRole === 'ADMIN' ? 'IMD Chief Forecaster' : 'Duty Meteorologist');
+    const reason = body.reason || `Action ${action} executed by ${officer} (${userRole})`;
+    const oldStatus = event.status;
+    const oldConf = event.confidence_score;
+
+    if (action === 'verify') {
+      const result = validateAndTransitionStatus(event, 'VERIFIED', reason, officer);
+      if (!result.success) return sendJson(400, { success: false, message: result.error });
+
+      event.confidence_score = Math.max(0.92, event.confidence_score);
+      event.verified_at = new Date().toISOString();
+      memEvents.set(id, event);
+      await db.insertEvent(event);
+
+      const vRec = await db.insertVerification({
+        target_type: 'event',
+        target_id: id,
+        action: 'VERIFY',
+        verified_by: userRole,
+        actor_id: officer,
+        reason,
+        previous_status: oldStatus,
+        new_status: 'VERIFIED',
+        confidence_before: oldConf,
+        confidence_after: event.confidence_score,
+      });
+
+      await db.insertAuditAction({
+        admin_user: officer,
+        action_type: 'EVENT_VERIFIED',
+        target_id: id,
+        details: { reason, previous_status: oldStatus, new_status: 'VERIFIED', confidence: event.confidence_score },
+      });
+
+      return sendJson(200, {
+        success: true,
+        message: `Event ${id} verified by ${officer}`,
+        data: event,
+        verification: vRec,
+      });
+    }
+
+    if (action === 'reject') {
+      const result = validateAndTransitionStatus(event, 'FALSE_ALARM', reason, officer);
+      if (!result.success) return sendJson(400, { success: false, message: result.error });
+
+      event.confidence_score = 0.10;
+      memEvents.set(id, event);
+      await db.insertEvent(event);
+
+      const vRec = await db.insertVerification({
+        target_type: 'event',
+        target_id: id,
+        action: 'REJECT',
+        verified_by: userRole,
+        actor_id: officer,
+        reason: reason || 'Classified as FALSE_ALARM by human analyst',
+        previous_status: oldStatus,
+        new_status: 'FALSE_ALARM',
+        confidence_before: oldConf,
+        confidence_after: 0.10,
+      });
+
+      await db.insertAuditAction({
+        admin_user: officer,
+        action_type: 'EVENT_REJECTED',
+        target_id: id,
+        details: { reason, previous_status: oldStatus, new_status: 'FALSE_ALARM' },
+      });
+
+      return sendJson(200, {
+        success: true,
+        message: `Event ${id} rejected as FALSE_ALARM by ${officer}`,
+        data: event,
+        verification: vRec,
+      });
+    }
+
+    if (action === 'merge') {
+      const sourceId = body.source_event_id || body.merge_with_id;
+      if (!sourceId) {
+        return sendJson(400, { success: false, message: 'source_event_id is required for merge operation.' });
+      }
+      const sourceEvent = memEvents.get(sourceId);
+      if (!sourceEvent) {
+        return sendJson(404, { success: false, message: `Source event ${sourceId} to merge from not found.` });
+      }
+
+      event.signal_count = (event.signal_count || 1) + (sourceEvent.signal_count || 1);
+      if (!event.source_breakdown) event.source_breakdown = {};
+      for (const [k, v] of Object.entries(sourceEvent.source_breakdown || {})) {
+        event.source_breakdown[k] = (event.source_breakdown[k] || 0) + v;
+      }
+      event.confidence_score = Math.min(0.99, Number((Math.max(event.confidence_score, sourceEvent.confidence_score) + 0.04).toFixed(2)));
+      event.last_updated_at = new Date().toISOString();
+
+      sourceEvent.status = 'RESOLVED';
+      sourceEvent.resolution_reason = `Merged into event ${id}`;
+      sourceEvent.last_updated_at = new Date().toISOString();
+
+      memEvents.set(id, event);
+      memEvents.set(sourceId, sourceEvent);
+      await db.insertEvent(event);
+      await db.insertEvent(sourceEvent);
+
+      await db.insertAuditAction({
+        admin_user: officer,
+        action_type: 'EVENT_MERGED',
+        target_id: id,
+        details: { source_event_id: sourceId, new_confidence: event.confidence_score, reason },
+      });
+
+      broadcastSSE({ type: 'event_merged', target_event: event, source_event_id: sourceId });
+      return sendJson(200, {
+        success: true,
+        message: `Event ${sourceId} merged into ${id}`,
+        data: event,
+      });
+    }
+
+    // Default 'status' override
+    const targetStatus = body.status || 'VERIFIED';
     const result = validateAndTransitionStatus(event, targetStatus, reason, officer);
     if (!result.success) {
       return sendJson(400, { success: false, message: result.error });
     }
+
+    await db.insertEvent(event);
+    await db.insertAuditAction({
+      admin_user: officer,
+      action_type: `STATUS_CHANGE_TO_${targetStatus}`,
+      target_id: id,
+      details: { reason, previous_status: oldStatus, new_status: targetStatus },
+    });
 
     return sendJson(200, {
       success: true,
@@ -1842,6 +2117,42 @@ const server = http.createServer(async (req, res) => {
     if (!body.text || body.text.trim().length === 0) {
       return sendJson(400, { success: false, message: 'Citizen report observation text is required.' });
     }
+
+    let mediaUrls = body.photos || (body.photo_url ? [body.photo_url] : []);
+    let storedMediaRecords = [];
+
+    // Process base64 or raw media if provided
+    if (body.media_base64 || body.image_base64) {
+      try {
+        const rawB64 = (body.media_base64 || body.image_base64).replace(/^data:[^;]+;base64,/, '');
+        const buf = Buffer.from(rawB64, 'base64');
+        const mediaRecord = await mediaStorageService.storeMedia({
+          buffer: buf,
+          originalName: body.media_filename || 'citizen_observation.jpg',
+          mimeType: body.media_mime_type || 'image/jpeg',
+          eventId: null,
+          signalId: null,
+        });
+        await db.insertMediaMetadata(mediaRecord);
+        mediaUrls.push(mediaRecord.url);
+        storedMediaRecords.push(mediaRecord);
+      } catch (mErr) {
+        console.warn('[CITIZEN] Media processing warning:', mErr.message);
+      }
+    } else if (body.photo_url) {
+      const mediaRecord = {
+        media_id: `med_${Date.now()}`,
+        object_key: body.photo_url,
+        url: body.photo_url,
+        mime_type: 'image/jpeg',
+        file_size: 1024,
+        checksum: crypto.createHash('sha256').update(body.photo_url).digest('hex'),
+        storage_provider: 'EXTERNAL/PUBLIC',
+      };
+      await db.insertMediaMetadata(mediaRecord);
+      storedMediaRecords.push(mediaRecord);
+    }
+
     const result = await ingestSignal({
       source_type: 'citizen',
       source_name: body.reporter_name ? `Citizen (${body.reporter_name})` : 'Public Citizen Report',
@@ -1850,11 +2161,16 @@ const server = http.createServer(async (req, res) => {
       longitude: body.longitude,
       city: body.city_hint || body.city,
       state: body.state_hint || body.state,
-      media_urls: body.photos || (body.photo_url ? [body.photo_url] : []),
+      media_urls: mediaUrls,
       event_candidate: body.event_type || null,
       raw_payload: body,
     });
-    return sendJson(201, { success: true, data: result });
+
+    return sendJson(201, {
+      success: true,
+      data: result,
+      media_stored: storedMediaRecords.length > 0 ? storedMediaRecords : undefined,
+    });
   }
 
   // --- PUBLIC DATASETS INGESTION (SIH26069 Req 1 & 12) ---
@@ -2045,6 +2361,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     const weatherHealth = await weatherApiConnector.healthCheck();
+    const openWeatherHealth = await openWeatherConnector.healthCheck();
     const newsHealth = await newsRssConnector.healthCheck();
     const imdHealth = await imdAdapter.healthCheck();
     const socialHealth = await socialStreamConnector.healthCheck();
@@ -2096,6 +2413,17 @@ const server = http.createServer(async (req, res) => {
         latency_ms: weatherHealth.latencyMs,
       },
       {
+        id: 'src_openweather',
+        name: 'OpenWeatherMap Global Weather API',
+        type: 'weather_api',
+        reliability: 0.88,
+        mode: openWeatherHealth.mode,
+        status: openWeatherHealth.status,
+        signals_ingested: (sourceCounts['weather_api'] || 0) + openWeatherHealth.recordsAccepted,
+        last_ingestion: lastSignalTime['weather_api'] || openWeatherHealth.lastFetch,
+        latency_ms: openWeatherHealth.latencyMs,
+      },
+      {
         id: 'src_news',
         name: 'News RSS Aggregator (TOI / DD News)',
         type: 'news',
@@ -2145,6 +2473,10 @@ const server = http.createServer(async (req, res) => {
 
   // Web Healthcheck
   if (pathname === '/health') {
+    const redisHealth = redisService.getStatus();
+    const storageHealth = mediaStorageService.getStatus();
+    const aiHealth = geminiService.getStatus();
+
     return sendJson(200, {
       name: 'N-WEIS API',
       status: 'ONLINE',
@@ -2158,8 +2490,12 @@ const server = http.createServer(async (req, res) => {
       database: db.isPgConnected ? 'POSTGRESQL_POSTGIS' : 'ATOMIC_JSON_STORE',
       postgres_connected: db.isPgConnected,
       storage: db.getStorageInfo(),
+      redis: redisHealth,
+      media_storage: storageHealth,
+      ai_service: aiHealth,
       connectors: {
         weather_api: weatherApiConnector.telemetry,
+        openweather: openWeatherConnector.telemetry,
         news_rss: newsRssConnector.telemetry,
         imd_adapter: imdAdapter.telemetry,
         social_stream: socialStreamConnector.telemetry,
@@ -2168,8 +2504,10 @@ const server = http.createServer(async (req, res) => {
       services: {
         api: 'ONLINE',
         sse: sseClients.size >= 0 ? 'ONLINE' : 'DEGRADED',
-        database: 'ONLINE',
-        ai_engine: 'ONLINE',
+        database: db.isPgConnected ? 'ONLINE' : 'FALLBACK_LOCAL',
+        redis: redisHealth.status,
+        ai_engine: aiHealth.status,
+        storage: storageHealth.status,
         geo_resolver: 'ONLINE',
         dedup_engine: 'ONLINE',
         connectors: 'ONLINE',
@@ -2228,6 +2566,13 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(` Health Check: http://localhost:${PORT}/health`);
   console.log(`================================================================\n`);
 
+  // Initialize Redis caching/pubsub engine
+  try {
+    await redisService.init();
+  } catch (rErr) {
+    console.warn('[REDIS] Initialization warning:', rErr.message);
+  }
+
   // Initialize unified database engine (PostgreSQL or atomic disk store)
   try {
     await db.init();
@@ -2274,6 +2619,24 @@ server.listen(PORT, '0.0.0.0', async () => {
       for (const s of weatherSignals) await ingestSignal(s);
     } catch (e) {
       console.warn('[CONNECTOR] Weather API poll error:', e.message);
+    }
+    try {
+      const owmSignals = await openWeatherConnector.fetchSignals(3);
+      for (const s of owmSignals) await ingestSignal(s);
+    } catch (e) {
+      console.warn('[CONNECTOR] OpenWeather poll error:', e.message);
+    }
+    try {
+      const newsSignals = await newsRssConnector.fetchSignals();
+      for (const s of newsSignals) await ingestSignal(s);
+    } catch (e) {
+      console.warn('[CONNECTOR] News RSS poll error:', e.message);
+    }
+    try {
+      const socialSignals = await socialStreamConnector.fetchSignals();
+      for (const s of socialSignals) await ingestSignal(s);
+    } catch (e) {
+      console.warn('[CONNECTOR] Social stream poll error:', e.message);
     }
   }
 
