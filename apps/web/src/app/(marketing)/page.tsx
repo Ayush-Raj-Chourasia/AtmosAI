@@ -3,6 +3,7 @@ import Hero from '@/components/marketing/Hero';
 import ProblemSection from '@/components/marketing/ProblemSection';
 import PipelineSection from '@/components/marketing/PipelineSection';
 import PlatformSection from '@/components/marketing/PlatformSection';
+import FeasibilitySection from '@/components/marketing/FeasibilitySection';
 import TechStackStrip from '@/components/marketing/TechStackStrip';
 import ImpactSection from '@/components/marketing/ImpactSection';
 import CTAFooter from '@/components/marketing/CTAFooter';
@@ -16,6 +17,7 @@ export default function LandingPage() {
         <ProblemSection />
         <PipelineSection />
         <PlatformSection />
+        <FeasibilitySection />
         <TechStackStrip />
         <ImpactSection />
         <CTAFooter />

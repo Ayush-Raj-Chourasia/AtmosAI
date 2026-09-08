@@ -8,6 +8,7 @@ const LINKS = [
   { href: '#problem', label: 'The problem' },
   { href: '#pipeline', label: 'How it verifies' },
   { href: '#platform', label: 'Platform' },
+  { href: '#feasibility', label: 'Feasibility' },
   { href: '#impact', label: 'Impact' },
 ];
 
