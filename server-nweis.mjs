@@ -2534,9 +2534,15 @@ const server = http.createServer(async (req, res) => {
     };
     const contentType = mimeTypes[ext] || 'application/octet-stream';
     const headers = { 'Content-Type': contentType };
-    if (ext === '.js' && relPath.endsWith('sw.js')) {
+    if (ext === '.html' || relPath.endsWith('.html') || pathname === '/' || pathname === '/dashboard') {
+      headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0';
+      headers['Pragma'] = 'no-cache';
+      headers['Expires'] = '0';
+    } else if (ext === '.js' && relPath.endsWith('sw.js')) {
       headers['Service-Worker-Allowed'] = '/';
-      headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0';
+      headers['Pragma'] = 'no-cache';
+      headers['Expires'] = '0';
     }
     res.writeHead(200, headers);
     res.end(fs.readFileSync(localFilePath));
