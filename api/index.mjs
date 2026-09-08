@@ -1,6 +1,6 @@
 /**
- * N-WEIS Vercel Serverless Function Bridge
- * Bridges Vercel serverless requests directly to the N-WEIS Unified Router.
+ * WeatherNexus Vercel Serverless Function Bridge
+ * Bridges Vercel serverless requests directly to the WeatherNexus Unified Router.
  * Handles SIH26069 APIs: /health, /api/v1/events, /api/v1/signals, /api/v1/admin/analytics, etc.
  */
 

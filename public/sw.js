@@ -1,11 +1,11 @@
 /**
- * N-WEIS: National Weather Event Intelligence System
+ * WeatherNexus: National Weather Event Intelligence System
  * Disaster Resilient Service Worker & Offline Cache (SIH26069)
  * Enables field disaster responders and Aapda Mitra volunteers to operate
  * seamlessly during severe weather-induced cellular / power blackouts.
  */
 
-const CACHE_NAME = 'nweis-v2-live';
+const CACHE_NAME = 'weathernexus-v2-live';
 const PREVIOUS_CACHE = 'nweis-v1-offline';
 const SHELL_ASSETS = [
   '/',
@@ -20,7 +20,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[N-WEIS SW] Caching offline emergency operational shell v2-live');
+      console.log('[WeatherNexus SW] Caching offline emergency operational shell v2-live');
       return cache.addAll(SHELL_ASSETS);
     })
   );
@@ -32,7 +32,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.filter((key) => key !== CACHE_NAME).map((key) => {
-          console.log('[N-WEIS SW] Deleting obsolete cache:', key);
+          console.log('[WeatherNexus SW] Deleting obsolete cache:', key);
           return caches.delete(key);
         })
       );
@@ -63,7 +63,7 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(async () => {
-          console.warn('[N-WEIS SW] Offline mode: Serving cached index.html');
+          console.warn('[WeatherNexus SW] Offline mode: Serving cached index.html');
           const cached = await caches.match('/index.html');
           if (cached) return cached;
           return caches.match(request);
@@ -84,12 +84,12 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(async () => {
-          console.warn('[N-WEIS SW] Network unreachable. Serving cached incident intelligence for:', url.pathname);
+          console.warn('[WeatherNexus SW] Network unreachable. Serving cached incident intelligence for:', url.pathname);
           const cachedResponse = await caches.match(request);
           if (cachedResponse) return cachedResponse;
           return new Response(JSON.stringify({
             offline: true,
-            message: 'N-WEIS Offline Mode: Network connection unavailable in disaster sector. Displaying local cached intelligence.'
+            message: 'WeatherNexus Offline Mode: Network connection unavailable in disaster sector. Displaying local cached intelligence.'
           }), {
             headers: { 'Content-Type': 'application/json' }
           });

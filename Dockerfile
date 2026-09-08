@@ -1,5 +1,5 @@
 # =============================================================================
-# N-WEIS: National Weather Event Intelligence System
+# WeatherNexus: National Weather Event Intelligence System
 # Standalone Server Container (SIH 2026 - Problem Statement SIH26069)
 # Target: Ministry of Earth Sciences / India Meteorological Department (IMD)
 # =============================================================================
@@ -7,16 +7,16 @@
 FROM node:20-alpine
 
 # OCI & System Labels
-LABEL title="N-WEIS" \
-      description="National Weather Event Intelligence System - AI-Powered Weather Intelligence Platform for MoES / IMD" \
+LABEL title="WeatherNexus" \
+      description="WeatherNexus - National Weather Big Data Analytics Platform for MoES / IMD" \
       version="1.0.0" \
       sih.edition="SIH 2026" \
       sih.problem_statement="SIH26069" \
-      org.opencontainers.image.title="N-WEIS" \
-      org.opencontainers.image.description="National Weather Event Intelligence System (SIH26069)" \
+      org.opencontainers.image.title="WeatherNexus" \
+      org.opencontainers.image.description="WeatherNexus National Weather Big Data Analytics Platform (SIH26069)" \
       org.opencontainers.image.vendor="Ministry of Earth Sciences / India Meteorological Department (IMD)" \
       org.opencontainers.image.version="1.0.0" \
-      org.opencontainers.image.authors="Team N-WEIS"
+      org.opencontainers.image.authors="Team WeatherNexus"
 
 # Set environment variables
 ENV NODE_ENV=production \

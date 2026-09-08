@@ -1,5 +1,7 @@
 /**
- * N-WEIS: National Weather Event Intelligence System
+ * WeatherNexus: National Weather Event Intelligence System
+ * Ministry of Earth Sciences (MoES) / India Meteorological Department (IMD)
+ * Smart India Hackathon 2026 (SIH26069)
  * High-Performance Zero-Dependency Standalone API & Real-Time SSE Server
  * Fully conforms to SIH26069 API Contract (PRD Section 25)
  */
@@ -691,7 +693,7 @@ function generateMultilingualBulletin(event, lang = 'en') {
 // ITU-T X.1303 / OASIS CAP v1.2 EARLY WARNING XML GENERATOR
 // -------------------------------------------------------------
 function generateCapXml(event) {
-  const alertId = `urn:oid:2.49.0.0.356.0.nweis.${event.id.replace('evt_', '')}`;
+  const alertId = `urn:oid:2.49.0.0.356.0.weathernexus.${event.id.replace('evt_', '')}`;
   const now = new Date().toISOString();
   const expires = new Date(Date.now() + 6 * 3600 * 1000).toISOString();
   const severity = event.severity === 'critical' ? 'Extreme' : 'Severe';
@@ -723,11 +725,11 @@ function generateCapXml(event) {
     <instruction>${(event.recommended_actions || []).join(' ')}</instruction>
     <contact>ndrf-control@nic.in</contact>
     <parameter>
-      <valueName>NWEIS-Confidence</valueName>
+      <valueName>WeatherNexus-Confidence</valueName>
       <value>${(event.confidence_score * 100).toFixed(0)}%</value>
     </parameter>
     <parameter>
-      <valueName>NWEIS-Freshness</valueName>
+      <valueName>WeatherNexus-Freshness</valueName>
       <value>${event.freshness_score}%</value>
     </parameter>
     <area>
@@ -751,7 +753,7 @@ function generateGeoJson(events) {
     metadata: {
       generated_at: new Date().toISOString(),
       authority: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
-      system: 'N-WEIS: National Weather Event Intelligence System (SIH26069)',
+      system: 'WeatherNexus: National Weather Event Intelligence System (SIH26069)',
       standards_conformance: ['RFC 7946 GeoJSON', 'OGC WFS 2.0 Interoperable', 'ISRO Bhuvan Ready'],
       total_features: events.length
     },
@@ -814,7 +816,7 @@ function generateKml(events) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-    <name>N-WEIS Live Weather Event Intelligence Layer</name>
+    <name>WeatherNexus Live Weather Event Intelligence Layer</name>
     <description>IMD / MoES Real-Time Multi-Hazard Situational Awareness (SIH26069)</description>
 ${placemarks}
   </Document>
@@ -1197,7 +1199,7 @@ async function ingestSignal(raw) {
   await db.insertEvidence(evRecord);
 
   if (redisService.isConnected) {
-    redisService.publish('nweis:events', JSON.stringify({ type: 'incident_update', event: eventPayload })).catch(() => {});
+    redisService.publish('weathernexus:events', JSON.stringify({ type: 'incident_update', event: eventPayload })).catch(() => {});
   }
 
   broadcastSSE({ type: 'incident_update', event: eventPayload });
@@ -1608,7 +1610,7 @@ export async function handleRequest(req, res) {
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     });
-    res.write('data: {"type":"connected","message":"N-WEIS Real-Time Meteorological Stream Connected"}\n\n');
+    res.write('data: {"type":"connected","message":"WeatherNexus Real-Time Meteorological Stream Connected"}\n\n');
     sseClients.add(res);
     req.on('close', () => sseClients.delete(res));
     return;
@@ -1630,7 +1632,7 @@ export async function handleRequest(req, res) {
     const geojson = generateGeoJson(events);
     res.writeHead(200, {
       'Content-Type': 'application/geo+json; charset=utf-8',
-      'Content-Disposition': 'inline; filename="nweis-hazards.geojson"'
+      'Content-Disposition': 'inline; filename="weathernexus-hazards.geojson"'
     });
     res.end(JSON.stringify(geojson, null, 2));
     return;
@@ -1652,7 +1654,7 @@ export async function handleRequest(req, res) {
     const kml = generateKml(events);
     res.writeHead(200, {
       'Content-Type': 'application/vnd.google-earth.kml+xml; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="nweis-hazards.kml"'
+      'Content-Disposition': 'attachment; filename="weathernexus-hazards.kml"'
     });
     res.end(kml);
     return;
@@ -1674,7 +1676,7 @@ export async function handleRequest(req, res) {
     const csv = generateCsv(events);
     res.writeHead(200, {
       'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="nweis-hazards.csv"'
+      'Content-Disposition': 'attachment; filename="weathernexus-hazards.csv"'
     });
     res.end(csv);
     return;
@@ -1728,9 +1730,9 @@ export async function handleRequest(req, res) {
 
     const sitrep = {
       sitrep_id: `SITREP-${event.id.replace('evt_', '')}`,
-      reference: `MoES/IMD/N-WEIS/${event.state.toUpperCase().slice(0, 3)}/${new Date().getFullYear()}`,
+      reference: `MoES/IMD/WeatherNexus/${event.state.toUpperCase().slice(0, 3)}/${new Date().getFullYear()}`,
       issuing_authority: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
-      system: 'N-WEIS: National Weather Event Intelligence System (SIH26069)',
+      system: 'WeatherNexus: National Weather Event Intelligence System (SIH26069)',
       generated_at: new Date().toISOString(),
       hazard_classification: {
         event_type: event.event_type,
@@ -1769,7 +1771,7 @@ export async function handleRequest(req, res) {
       })),
       lifecycle_audit_trail: lifecycle,
       digital_sign_off: {
-        system_agent: 'N-WEIS Autonomous Verification Engine v1.0',
+        system_agent: 'WeatherNexus Autonomous Verification Engine v1.0',
         tamper_seal: `sha256_${Buffer.from(event.id + event.last_updated_at).toString('hex').slice(0, 16)}`
       }
     };
@@ -1807,7 +1809,7 @@ export async function handleRequest(req, res) {
     if (format === 'json') {
       return sendJson(200, {
         success: true,
-        identifier: `urn:oid:2.49.0.0.356.0.nweis.${event.id.replace('evt_', '')}`,
+        identifier: `urn:oid:2.49.0.0.356.0.weathernexus.${event.id.replace('evt_', '')}`,
         sender: 'warning@imd.gov.in',
         sent: new Date().toISOString(),
         status: 'Actual',
@@ -1849,7 +1851,7 @@ export async function handleRequest(req, res) {
     const dispatchReceipt = {
       success: true,
       broadcast_id: `CBC-${Date.now()}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`,
-      alert_id: `urn:oid:2.49.0.0.356.0.nweis.${event.id.replace('evt_', '')}`,
+      alert_id: `urn:oid:2.49.0.0.356.0.weathernexus.${event.id.replace('evt_', '')}`,
       protocol: 'OASIS CAP v1.2 / ITU-T X.1303 Cell Broadcast Service (CBS)',
       target_area: {
         city: event.city,
@@ -2478,7 +2480,7 @@ export async function handleRequest(req, res) {
     const aiHealth = geminiService.getStatus();
 
     return sendJson(200, {
-      name: 'N-WEIS API',
+      name: 'WeatherNexus API',
       status: 'ONLINE',
       target: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
       problemStatement: 'SIH26069',
@@ -2551,7 +2553,7 @@ export async function handleRequest(req, res) {
 
   if (pathname === '/') {
     return sendJson(200, {
-      name: 'N-WEIS API',
+      name: 'WeatherNexus API',
       status: 'ONLINE',
       target: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
       problemStatement: 'SIH26069',
@@ -2646,7 +2648,7 @@ const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTI
 if (!isServerless) {
   server.listen(PORT, '0.0.0.0', async () => {
     console.log(`\n================================================================`);
-    console.log(` N-WEIS Standalone API & Real-Time SSE Server Active!`);
+    console.log(` WeatherNexus Standalone API & Real-Time SSE Server Active!`);
     console.log(` Endpoint: http://localhost:${PORT}`);
     console.log(` SSE Stream: http://localhost:${PORT}/api/v1/events/stream`);
     console.log(` Health Check: http://localhost:${PORT}/health`);

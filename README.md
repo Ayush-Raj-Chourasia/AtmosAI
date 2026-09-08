@@ -1,4 +1,4 @@
-# 🇮🇳 N-WEIS: National Weather Event Intelligence System
+# 🇮🇳 WeatherNexus: National Weather Event Intelligence System
 ### Real-Time AI-Powered Weather Intelligence & Operations Platform
 ![SIH 2026](https://img.shields.io/badge/SIH_2026-Problem_SIH26069-0891b2?style=for-the-badge) ![Node.js](https://img.shields.io/badge/Node.js-Zero_Dependency-339933?style=for-the-badge)
 
@@ -6,7 +6,7 @@
 
 ## 📋 Executive Summary
 
-**N-WEIS** is an autonomous, real-time, AI-driven meteorological intelligence platform engineered for **SIH 2026 Problem Statement SIH26069** (Ministry of Earth Sciences / India Meteorological Department). 
+**WeatherNexus** is an autonomous, real-time, AI-driven meteorological intelligence platform engineered for **SIH 2026 Problem Statement SIH26069** (Ministry of Earth Sciences / India Meteorological Department). 
 
 It ingests highly fragmented weather signals from official IMD bulletins, news RSS feeds, citizen ground reports, and social media, normalizes them, filters hoaxes, deduplicates redundant data, and fuses corroborating evidence into verified weather events. The platform is designed to provide actionable, high-confidence disaster intelligence while completely avoiding the spread of unverified panic and misinformation.
 
@@ -78,7 +78,7 @@ flowchart TD
 
 ## 🚀 Quick Start
 
-N-WEIS is built as a **high-performance, zero-dependency** standalone Node.js server. No `npm install` is required.
+WeatherNexus is built as a **high-performance, zero-dependency** standalone Node.js server. No `npm install` is required.
 
 ```bash
 # Clone the repository and run the server natively
@@ -138,7 +138,7 @@ The system includes pre-configured scenarios designed for the SIH 2026 jury to d
 
 ## 📉 Confidence Decay Model
 
-**Confidence is not permanent.** N-WEIS utilizes a monotonic temporal decay engine to ensure stale alerts fade over time unless reinforced with new evidence.
+**Confidence is not permanent.** WeatherNexus utilizes a monotonic temporal decay engine to ensure stale alerts fade over time unless reinforced with new evidence.
 
 $$ \text{Confidence}(t) = \text{Base Confidence} \times \left(0.5\right)^{\frac{\Delta t}{\text{Half-Life}}} $$
 
@@ -156,7 +156,7 @@ $$ \text{Confidence}(t) = \text{Base Confidence} \times \left(0.5\right)^{\frac{
 
 ## 🔄 State Machine Lifecycle
 
-N-WEIS relies on a strict incident state machine, preserving a fully explainable audit trail.
+WeatherNexus relies on a strict incident state machine, preserving a fully explainable audit trail.
 
 ```mermaid
 stateDiagram-v2
@@ -174,7 +174,7 @@ stateDiagram-v2
 
 ## 🧪 Testing
 
-The N-WEIS codebase includes a comprehensive, zero-dependency testing suite that validates the AI pipeline, deduplication, state machine, and confidence decay invariants.
+The WeatherNexus codebase includes a comprehensive, zero-dependency testing suite that validates the AI pipeline, deduplication, state machine, and confidence decay invariants.
 
 ```bash
 node test-nweis.mjs
@@ -216,7 +216,7 @@ Full technical documentation satisfying all SIH26069 requirements is available i
 ## 📂 Project Structure
 
 ```text
-n-weis/
+weathernexus/
 ├── server-nweis.mjs          # Standalone Enterprise Server, Ingestion Pipeline & API
 ├── nweis-cli.mjs             # Operations Headless Terminal CLI (10 commands)
 ├── simulate-stream.mjs       # Real-Time Telemetry & Event Stream Feeder Simulator

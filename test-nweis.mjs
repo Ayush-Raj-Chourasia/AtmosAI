@@ -26,7 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 console.log('================================================================');
-console.log(' N-WEIS: National Weather Event Intelligence System (SIH 2026)');
+console.log(' WeatherNexus: National Weather Event Intelligence System (SIH 2026)');
 console.log(' SIH Problem Statement: SIH26069 | Ministry of Earth Sciences / IMD');
 console.log(' Running Automated Intelligence & Verification Test Suite...');
 console.log('================================================================\n');
@@ -592,9 +592,9 @@ assert(fogDirectives.some(d => d.includes('CAT-III')) && fogDirectives.some(d =>
 function buildSitrep(event) {
   return {
     sitrep_id: `SITREP-${event.id.replace('evt_', '')}`,
-    reference: `MoES/IMD/N-WEIS/${event.state.toUpperCase().slice(0, 3)}/${new Date().getFullYear()}`,
+    reference: `MoES/IMD/WeatherNexus/${event.state.toUpperCase().slice(0, 3)}/${new Date().getFullYear()}`,
     issuing_authority: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
-    system: 'N-WEIS: National Weather Event Intelligence System (SIH26069)',
+    system: 'WeatherNexus: National Weather Event Intelligence System (SIH26069)',
     generated_at: new Date().toISOString(),
     hazard_classification: {
       event_type: event.event_type,
@@ -619,7 +619,7 @@ function buildSitrep(event) {
     },
     operational_directives: event.recommended_actions || generateActionDirectives(event.event_type, event.severity, event.city, event.state),
     digital_sign_off: {
-      system_agent: 'N-WEIS Autonomous Verification Engine v1.0',
+      system_agent: 'WeatherNexus Autonomous Verification Engine v1.0',
       tamper_seal: `sha256_${Buffer.from(event.id + event.last_updated_at).toString('hex').slice(0, 16)}`
     }
   };
@@ -724,7 +724,7 @@ function generateMultilingualBulletin(event, lang = 'en') {
 }
 
 function generateCapXml(event) {
-  const alertId = `urn:oid:2.49.0.0.356.0.nweis.${event.id.replace('evt_', '')}`;
+  const alertId = `urn:oid:2.49.0.0.356.0.weathernexus.${event.id.replace('evt_', '')}`;
   const now = new Date().toISOString();
   const expires = new Date(Date.now() + 6 * 3600 * 1000).toISOString();
   const severity = event.severity === 'critical' ? 'Extreme' : 'Severe';
@@ -777,7 +777,7 @@ assert(kannadaBulletin.headline.includes('ಕರ್ನಾಟಕ') && kannadaBull
 // 10c: OASIS CAP v1.2 XML compliance
 const capXml = generateCapXml(mockGuwahatiEvent);
 assert(capXml.includes('xmlns="urn:oasis:names:tc:emergency:cap:1.2"'), 'CAP XML complies with OASIS CAP v1.2 namespace');
-assert(capXml.includes('<identifier>urn:oid:2.49.0.0.356.0.nweis.'), 'CAP XML contains standardized OID alert identifier');
+assert(capXml.includes('<identifier>urn:oid:2.49.0.0.356.0.weathernexus.') || capXml.includes('<identifier>urn:oid:2.49.0.0.356.0.nweis.'), 'CAP XML contains standardized OID alert identifier');
 assert(capXml.includes('<sender>warning@imd.gov.in</sender>'), 'CAP XML cites official IMD alerting sender authority');
 assert(capXml.includes('<circle>26.1445,91.7362,15.0</circle>'), 'CAP XML geofences incident with 15km circular broadcast zone');
 
@@ -1006,7 +1006,7 @@ function generateGeoJsonTest(events) {
     metadata: {
       generated_at: new Date().toISOString(),
       authority: 'Ministry of Earth Sciences / India Meteorological Department (IMD)',
-      system: 'N-WEIS: National Weather Event Intelligence System (SIH26069)',
+      system: 'WeatherNexus: National Weather Event Intelligence System (SIH26069)',
       standards_conformance: ['RFC 7946 GeoJSON', 'OGC WFS 2.0 Interoperable', 'ISRO Bhuvan Ready'],
       total_features: events.length
     },
@@ -1086,7 +1086,7 @@ function generateKmlTest(events) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
-    <name>N-WEIS Live Weather Event Intelligence Layer</name>
+    <name>WeatherNexus Live Weather Event Intelligence Layer</name>
     <description>IMD / MoES Real-Time Multi-Hazard Situational Awareness (SIH26069)</description>
 ${placemarks}
   </Document>
@@ -1447,5 +1447,5 @@ assert(typeof storageInfo.storage_type === 'string' && storageInfo.counts.events
 
 console.log('\n================================================================');
 console.log(` TEST SUMMARY: ${passedTests}/${totalTests} Tests Passed (100% Success)`);
-console.log(' N-WEIS Architecture, AI Pipeline & Verification Gates VALIDATED.');
+console.log(' WeatherNexus Architecture, AI Pipeline & Verification Gates VALIDATED.');
 console.log('================================================================\n');

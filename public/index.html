@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>N-WEIS — National Weather Event Intelligence System | SIH 2026</title>
+  <title>WeatherNexus — National Weather Big Data Analytics Platform | SIH 2026</title>
   
   <!-- PWA & Mobile Meta Tags -->
   <link rel="manifest" href="/manifest.json">
@@ -50,9 +50,9 @@
     if (typeof window !== 'undefined' && 'caches' in window) {
       caches.keys().then(function(keys) {
         keys.forEach(function(key) {
-          if (key !== 'nweis-v2-live') {
+          if (key !== 'weathernexus-v2-live') {
             caches.delete(key);
-            console.log('[N-WEIS] Evicted obsolete offline cache:', key);
+            console.log('[WeatherNexus] Evicted obsolete offline cache:', key);
           }
         });
       });
@@ -147,7 +147,7 @@
       <div>
         <div class="flex items-center space-x-2">
           <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            <span>N-WEIS</span>
+            <span>WeatherNexus</span>
             <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono font-medium">SIH26069</span>
           </h1>
           <span class="hidden md:inline-block text-xs text-slate-400">• National Weather Event Intelligence System</span>
@@ -648,7 +648,7 @@
           <span class="text-xl">🏛️</span>
           <div>
             <h3 class="font-bold text-white text-xs md:text-sm">IMD / MoES Official Weather Disaster Situation Report</h3>
-            <div id="sitrep-modal-ref" class="text-[10px] text-slate-400 font-mono">SITREP-2026-NWEIS</div>
+            <div id="sitrep-modal-ref" class="text-[10px] text-slate-400 font-mono">SITREP-2026-WEATHERNEXUS</div>
           </div>
         </div>
         <div class="flex items-center space-x-2">
@@ -1342,20 +1342,20 @@
 
     // Offline Citizen Report Queue Management (PWA Resilience)
     function queueOfflineReport(payload) {
-      const queue = JSON.parse(localStorage.getItem('nweis_offline_reports') || '[]');
+      const queue = JSON.parse(localStorage.getItem('weathernexus_offline_reports') || localStorage.getItem('nweis_offline_reports') || '[]');
       queue.push({ ...payload, queued_at: new Date().toISOString() });
-      localStorage.setItem('nweis_offline_reports', JSON.stringify(queue));
+      localStorage.setItem('weathernexus_offline_reports', JSON.stringify(queue));
       updateOfflineBadge();
     }
 
     function updateOfflineBadge() {
-      const queue = JSON.parse(localStorage.getItem('nweis_offline_reports') || '[]');
+      const queue = JSON.parse(localStorage.getItem('weathernexus_offline_reports') || localStorage.getItem('nweis_offline_reports') || '[]');
       const badge = document.getElementById('offline-queue-badge');
       if (badge) badge.innerText = `${queue.length} queued`;
     }
 
     async function flushOfflineReports() {
-      let queue = JSON.parse(localStorage.getItem('nweis_offline_reports') || '[]');
+      let queue = JSON.parse(localStorage.getItem('weathernexus_offline_reports') || localStorage.getItem('nweis_offline_reports') || '[]');
       if (queue.length === 0) return;
       let sentCount = 0;
       const remaining = [];
@@ -1371,11 +1371,12 @@
           remaining.push(item);
         }
       }
-      localStorage.setItem('nweis_offline_reports', JSON.stringify(remaining));
+      localStorage.setItem('weathernexus_offline_reports', JSON.stringify(remaining));
+      localStorage.removeItem('nweis_offline_reports');
       updateOfflineBadge();
       if (sentCount > 0) {
         await fetchInitialData();
-        console.log(`[N-WEIS Offline Sync] Successfully synced ${sentCount} cached citizen observations.`);
+        console.log(`[WeatherNexus Offline Sync] Successfully synced ${sentCount} cached citizen observations.`);
       }
     }
 
@@ -2251,7 +2252,7 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').then((reg) => {
           reg.update().catch(() => {});
-        }).catch(err => console.warn('[N-WEIS SW]', err));
+        }).catch(err => console.warn('[WeatherNexus SW]', err));
       }
       window.addEventListener('online', updateOnlineStatus);
       window.addEventListener('offline', updateOnlineStatus);
@@ -2745,7 +2746,7 @@
       if (!container || container.dataset.rendered === 'true') return;
       const stages = [
         ['📡','MULTI-SOURCE INGESTION','IMD API • News RSS • Social #IMD • Citizen Reports • Public Datasets','Collecting raw signals from 8 data connectors in real-time','emerald'],
-        ['📝','NORMALIZATION & NLP','Language Detection • Entity Extraction • Geolocation Inference','Structuring unstructured text into canonical N-WEIS signal format','blue'],
+        ['📝','NORMALIZATION & NLP','Language Detection • Entity Extraction • Geolocation Inference','Structuring unstructured text into canonical WeatherNexus signal format','blue'],
         ['🧠','AI EVENT CLASSIFICATION','Gemini Pro / Fine-tuned NLP • 8 Hazard Categories • Confidence Scoring','Determining event_type: FLOOD, THUNDERSTORM, RAINFALL, etc.','cyan'],
         ['📍','4-TIER GEOLOCATION','GPS → City NLP → State Regex → Centroid Fallback','Extracting lat/lng for every signal to enable GIS placement','purple'],
         ['🔍','MISINFORMATION DETECTION','Skeptic Agent • pHash Verification • Temporal Anomaly Check • Source Credibility','Filtering recycled media, hoax patterns, and coordinated inauthentic behavior','rose'],
@@ -3094,7 +3095,7 @@
 
       <!-- Architecture note -->
       <div class="p-4 rounded-xl bg-blue-950/30 border border-blue-800/40 text-xs text-blue-300">
-        <strong class="text-blue-400">Architecture:</strong> N-WEIS runs as a zero-dependency standalone Node.js server.
+        <strong class="text-blue-400">Architecture:</strong> WeatherNexus runs as a zero-dependency standalone Node.js server.
         All data is held in an in-memory store with PostGIS/Haversine emulation for spatial queries.
         No PostgreSQL, Redis, or external dependencies required for demo. Production deployment uses Docker + PostgreSQL + PostGIS.
       </div>
@@ -3107,7 +3108,7 @@
   <div id="page-pipeline" class="hidden fixed inset-0 top-16 left-14 bg-slate-950 overflow-y-auto z-[800] p-6">
     <div class="max-w-3xl mx-auto space-y-4">
       <div>
-        <h2 class="text-xl font-bold text-white flex items-center gap-2">🔄 N-WEIS Data Intelligence Pipeline</h2>
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">🔄 WeatherNexus Data Intelligence Pipeline</h2>
         <p class="text-sm text-slate-400 mt-0.5">End-to-end data flow — from raw social/IMD signals to verified GIS event. <span class="text-amber-400">SIH26069 Architecture</span></p>
       </div>
 

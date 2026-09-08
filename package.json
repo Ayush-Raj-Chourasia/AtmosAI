@@ -1,6 +1,7 @@
 {
-  "name": "n-weis",
+  "name": "weathernexus",
   "version": "1.0.0",
+  "description": "WeatherNexus — National Weather Big Data Analytics Platform (SIH26069)",
   "packageManager": "npm@10.8.2",
   "devEngines": {
     "packageManager": {
@@ -10,6 +11,7 @@
   },
   "private": true,
   "bin": {
+    "weathernexus": "./nweis-cli.mjs",
     "nweis": "./nweis-cli.mjs"
   },
   "scripts": {
