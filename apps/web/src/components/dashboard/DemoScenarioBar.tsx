@@ -21,7 +21,7 @@ export default function DemoScenarioBar({ onScenarioTriggered }: DemoScenarioBar
 
   const handleScenario = (scenarioId: string) => {
     setIsRunning(true);
-    setToastMessage('Synthesizing multi-source signals into AtmosAI pipeline...');
+    setToastMessage('Synthesizing multi-source signals into Weather Nexus pipeline...');
 
     setTimeout(() => {
       if (scenarioId === 'reset') {

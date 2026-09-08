@@ -1,7 +1,7 @@
 {
   "name": "api",
   "version": "1.0.0",
-  "description": "AtmosAI Autonomous Meteorological & Extreme Weather Intelligence Platform API",
+  "description": "Weather Nexus National Weather Big Data Analytics Platform API (by Team AtmosAI)",
   "private": true,
   "scripts": {
     "build": "nest build",

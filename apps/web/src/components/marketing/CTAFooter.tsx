@@ -41,10 +41,13 @@ export default function CTAFooter() {
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F7F4EC] text-[#12141A]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#FF5A1F]" />
                 </span>
-                <span className="font-display text-[16px] text-[#F7F4EC]">AtmosAI</span>
+                <div className="flex flex-col">
+                  <span className="font-display text-[16px] text-[#F7F4EC]">Weather Nexus</span>
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-[#FF5A1F]">by Team AtmosAI</span>
+                </div>
               </div>
               <p className="mt-3 max-w-xs text-[13px] leading-relaxed">
-                Autonomous Meteorological &amp; Extreme Weather Intelligence Platform.
+                National Weather Big Data Analytics Platform, engineered by Team AtmosAI.
               </p>
             </div>
 

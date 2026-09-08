@@ -172,7 +172,7 @@ DISPATCH PROTOCOL: NDMA / SDMA Alert Ingress v1.2
                 7-Factor Evidence Decomposition
               </h3>
               <p className="text-xs text-[#565b68]">
-                How the autonomous AtmosAI pipeline synthesized and corroborated this signal
+                How the autonomous Weather Nexus pipeline synthesized and corroborated this signal
               </p>
             </div>
             <span className="text-xs font-mono font-bold text-[#1F8A70] bg-[#1F8A70]/10 px-3 py-1 rounded-full">
@@ -211,7 +211,7 @@ DISPATCH PROTOCOL: NDMA / SDMA Alert Ingress v1.2
               { timestamp: '1h ago', source: 'Citizen Observation App', action: 'Initial geo-tagged ground report ingested', confidenceDelta: '35%' },
               { timestamp: '42m ago', source: 'Doppler Weather Radar', action: 'Reflectivity gate echo confirmed precipitation rate', confidenceDelta: '+28%' },
               { timestamp: '20m ago', source: 'IMD Automatic Station', action: 'AWS telemetric threshold reached danger mark', confidenceDelta: '+22%' },
-              { timestamp: '5m ago', source: 'AtmosAI Fusion Engine', action: 'Cross-corroborated event published to national operations feed', confidenceDelta: '94% (Verified)' },
+              { timestamp: '5m ago', source: 'Weather Nexus Fusion Engine', action: 'Cross-corroborated event published to national operations feed', confidenceDelta: '94% (Verified)' },
             ]).map((t, idx) => (
               <div key={idx} className="relative">
                 <div className="absolute -left-[27px] top-1 w-3 h-3 rounded-full bg-[#FF5A1F] border-2 border-white shadow-sm" />
@@ -232,7 +232,7 @@ DISPATCH PROTOCOL: NDMA / SDMA Alert Ingress v1.2
             <div>
               <h3 className="text-sm font-bold text-[#12141A]">Are you in this geographical sector?</h3>
               <p className="text-xs text-[#565b68]">
-                Help calibrate AtmosAI by confirming or providing observational feedback on this incident.
+                Help calibrate Weather Nexus by confirming or providing observational feedback on this incident.
               </p>
             </div>
             <div className="flex items-center gap-3">

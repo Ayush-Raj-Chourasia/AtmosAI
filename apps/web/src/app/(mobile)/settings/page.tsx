@@ -26,7 +26,7 @@ export default function SettingsPage() {
           </Link>
           <div>
             <h1 className="text-lg font-bold font-display text-[#12141A]">{t('settings.title')}</h1>
-            <p className="text-[11px] text-[#565b68] font-mono">AtmosAI Operational Configuration</p>
+            <p className="text-[11px] text-[#565b68] font-mono">Weather Nexus &bull; Team AtmosAI</p>
           </div>
         </div>
 
@@ -192,7 +192,7 @@ export default function SettingsPage() {
           <Link href="/dashboard" className="font-semibold text-[#12141A] hover:underline">
             &larr; Return to Live Operations Dashboard
           </Link>
-          <span className="font-mono">AtmosAI v1.0 &bull; Local Engine</span>
+          <span className="font-mono">Weather Nexus v1.0 &bull; Team AtmosAI</span>
         </div>
       </main>
     </div>

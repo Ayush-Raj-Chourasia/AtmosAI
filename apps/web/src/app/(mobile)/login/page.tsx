@@ -34,9 +34,12 @@ export default function LoginPage() {
               <span className="h-3 w-3 rounded-full bg-[#FF5A1F] group-hover:scale-125 transition-transform" />
             </span>
           </Link>
-          <h1 className="text-3xl font-extrabold font-display text-[#12141A]">AtmosAI</h1>
-          <p className="text-xs text-[#565b68] mt-1.5 font-mono">
-            Autonomous Meteorological Intelligence Platform
+          <h1 className="text-3xl font-extrabold font-display text-[#12141A]">Weather Nexus</h1>
+          <p className="text-xs text-[#FF5A1F] font-semibold mt-1 font-mono uppercase tracking-wider">
+            by Team AtmosAI
+          </p>
+          <p className="text-xs text-[#565b68] mt-1 font-mono">
+            National Weather Big Data Analytics Platform
           </p>
         </div>
 

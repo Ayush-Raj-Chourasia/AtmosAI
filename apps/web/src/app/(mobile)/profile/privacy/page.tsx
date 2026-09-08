@@ -28,8 +28,8 @@ export default function PrivacyPolicyPage() {
                 <div className="text-[#33363f] leading-relaxed text-sm">
                     <p>
                         {isEn 
-                            ? "AtmosAI operates on principles of radical transparency, scientific verifiability, and privacy-by-design. This platform exists to provide life-saving extreme weather intelligence without compromising citizen telemetry."
-                            : "AtmosAI पूर्ण पारदर्शिता, वैज्ञानिक सत्यापन और गोपनीयता के सिद्धांतों पर संचालित होता है। यह प्लेटफ़ॉर्म आपकी व्यक्तिगत गोपनीयता से समझौता किए बिना जीवन रक्षक मौसम पूर्वानुमान प्रदान करता है।"}
+                            ? "Weather Nexus (engineered by Team AtmosAI) operates on principles of radical transparency, scientific verifiability, and privacy-by-design. This platform exists to provide life-saving extreme weather intelligence without compromising citizen telemetry."
+                            : "Weather Nexus (टीम AtmosAI द्वारा विकसित) पूर्ण पारदर्शिता, वैज्ञानिक सत्यापन और गोपनीयता के सिद्धांतों पर संचालित होता है। यह प्लेटफ़ॉर्म आपकी व्यक्तिगत गोपनीयता से समझौता किए बिना जीवन रक्षक मौसम पूर्वानुमान प्रदान करता है।"}
                     </p>
                 </div>
 
@@ -111,7 +111,7 @@ export default function PrivacyPolicyPage() {
 
                  <div className="pt-6 text-center">
                     <p className="text-xs text-[#565b68]">
-                        {isEn ? 'AtmosAI Core v2.4 • Updated September 2026' : 'AtmosAI कोर v2.4 • अद्यतन सितंबर 2026'}
+                        {isEn ? 'Weather Nexus v2.4 • Team AtmosAI • Updated September 2026' : 'Weather Nexus v2.4 • टीम AtmosAI • अद्यतन सितंबर 2026'}
                     </p>
                 </div>
             </div>

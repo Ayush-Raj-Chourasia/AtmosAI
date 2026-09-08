@@ -35,9 +35,14 @@ export default function MarketingNav() {
           <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[#12141A] text-[#F7F4EC]">
             <span className="h-2 w-2 rounded-full bg-[#FF5A1F] group-hover:scale-125 transition-transform" />
           </span>
-          <span className="font-display text-[17px] tracking-tight text-[#12141A]">
-            AtmosAI
-          </span>
+          <div className="flex flex-col">
+            <span className="font-display text-[17px] tracking-tight text-[#12141A] leading-tight">
+              Weather Nexus
+            </span>
+            <span className="font-mono text-[9px] uppercase tracking-wider text-[#FF5A1F] font-semibold">
+              by AtmosAI
+            </span>
+          </div>
         </Link>
 
         <nav className="hidden md:flex items-center gap-8">

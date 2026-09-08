@@ -81,8 +81,8 @@ export default function GuideAISearch() {
       const isHi = language === 'hi';
       setResponse({
         answer: isHi 
-          ? `### मौसम सुरक्षा प्रोटोकॉल (AtmosAI)\n\n- तुरंत सुरक्षित आश्रय में जाएं।\n- राष्ट्रीय आपदा हेल्पलाइन: **1078** | आपातकालीन: **112**।\n- अफवाहों से बचें और केवल आधिकारिक IMD अलर्ट पर भरोसा करें।`
-          : `### Weather Emergency Protocol (AtmosAI)\n\n- Seek secure, structurally sound shelter immediately.\n- National Disaster Helpline: **1078** | Unified Emergency: **112**.\n- Rely solely on verified IMD weather advisories.`,
+          ? `### मौसम सुरक्षा प्रोटोकॉल (Weather Nexus - Team AtmosAI)\n\n- तुरंत सुरक्षित आश्रय में जाएं।\n- राष्ट्रीय आपदा हेल्पलाइन: **1078** | आपातकालीन: **112**।\n- अफवाहों से बचें और केवल आधिकारिक IMD अलर्ट पर भरोसा करें।`
+          : `### Weather Emergency Protocol (Weather Nexus - Team AtmosAI)\n\n- Seek secure, structurally sound shelter immediately.\n- National Disaster Helpline: **1078** | Unified Emergency: **112**.\n- Rely solely on verified IMD weather advisories.`,
         sources: [{ id: 'flood', title: isHi ? 'बाढ़' : 'Flood' }, { id: 'thunderstorm', title: isHi ? 'तूफान' : 'Thunderstorm' }],
         confidence: 0.92,
       });

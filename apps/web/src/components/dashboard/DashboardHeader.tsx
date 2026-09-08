@@ -32,7 +32,10 @@ export default function DashboardHeader() {
                     <div className="h-8 w-8 rounded-full bg-[#12141A] flex items-center justify-center text-white shadow-sm">
                         <span className="h-2 w-2 rounded-full bg-[#FF5A1F]" />
                     </div>
-                    <h1 className="font-semibold tracking-tight text-lg text-slate-900 font-display">AtmosAI</h1>
+                    <div className="flex flex-col">
+                        <h1 className="font-semibold tracking-tight text-base text-slate-900 font-display leading-tight">Weather Nexus</h1>
+                        <span className="text-[9px] font-mono uppercase tracking-wider text-[#FF5A1F] font-semibold">by AtmosAI</span>
+                    </div>
                 </div>
                 
                 {/* Status Indicator */}

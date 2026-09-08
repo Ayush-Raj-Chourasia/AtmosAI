@@ -1,28 +1,28 @@
 const STEPS = [
   {
     n: '01',
-    title: 'Ingest',
-    body: 'Pull raw signals from IMD bulletins, news RSS, social posts tagged #IMD, and citizen reports with GPS + photos.',
+    title: 'Multi-Source Ingestion',
+    body: 'Continuous collection from IMD bulletins & radar, Weather APIs, news RSS feeds, social media signals, and geotagged citizen reports.',
   },
   {
     n: '02',
-    title: 'Normalize & geolocate',
-    body: 'Standardize timestamps to UTC and units across sources, then pin every report to a real city, district and state.',
+    title: 'Cleaning & Normalization',
+    body: 'Automated data cleaning, metadata extraction, ISO 8601 UTC timestamp standardization, and precise Indian administrative boundary geolocation.',
   },
   {
     n: '03',
-    title: 'Classify & screen',
-    body: 'An AI classifier sorts each report into one of 8 hazard types, while a skeptic pass quarantines hoaxes and recycled disaster media.',
+    title: 'AI Event Detection',
+    body: 'NLP & Computer Vision models classify weather event type (rainfall, flood, cyclone, heatwave, storm, fog, wind) and assess situational severity.',
   },
   {
     n: '04',
-    title: 'Deduplicate & cluster',
-    body: 'Exact-match, semantic similarity and space/time proximity merge near-identical reports of the same event.',
+    title: 'Verification & Deduplication',
+    body: 'Cross-checks source credibility, measures semantic similarity, and runs spatial-temporal clustering to eliminate rumors and merge duplicate reports.',
   },
   {
     n: '05',
-    title: 'Fuse & score',
-    body: 'Independent evidence is combined into one event with a confidence score that decays over time unless something new confirms it.',
+    title: 'Event Fusion & GIS',
+    body: 'Fuses independent evidence into one unified verified event with an auditable confidence score, streamed directly to the live national GIS dashboard.',
   },
 ];
 

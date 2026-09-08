@@ -49,11 +49,11 @@ export default function AdminSidebar() {
       <div className="p-4 border-b border-white/10">
         <Link href="/" className="flex items-center gap-3 overflow-hidden group">
           <div className="min-w-[32px] min-h-[32px] w-8 h-8 rounded-xl bg-gradient-to-br from-[#FF5A1F] to-[#FF9166] flex items-center justify-center shrink-0 shadow-md">
-            <span className="text-white font-bold text-xs tracking-wider">AA</span>
+            <span className="text-white font-bold text-xs tracking-wider">WN</span>
           </div>
           <div className={`transition-opacity duration-200 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-            <h1 className="font-display font-semibold text-sm whitespace-nowrap text-[#F7F4EC]">AtmosAI</h1>
-            <p className="text-[10px] text-[#8b8e97] uppercase tracking-wider whitespace-nowrap font-mono">Operations Console</p>
+            <h1 className="font-display font-semibold text-sm whitespace-nowrap text-[#F7F4EC]">Weather Nexus</h1>
+            <p className="text-[10px] text-[#FF5A1F] uppercase tracking-wider whitespace-nowrap font-mono font-medium">Team AtmosAI &bull; Admin</p>
           </div>
         </Link>
       </div>

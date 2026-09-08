@@ -203,7 +203,7 @@ export default function EventIntelligenceDrawer({ event, onClose }: EventIntelli
                 </div>
                 <div className="relative">
                   <div className="absolute -left-[21px] top-0.5 w-2.5 h-2.5 rounded-full bg-[#10B981] border-2 border-[#12141A]" />
-                  <div className="font-semibold text-[#1FBF9B]">Verified by AtmosAI Pipeline</div>
+                  <div className="font-semibold text-[#1FBF9B]">Verified by Weather Nexus Pipeline</div>
                   <div className="text-[#8b8e97] text-[11px]">Score passed 85% high confidence threshold</div>
                 </div>
               </>

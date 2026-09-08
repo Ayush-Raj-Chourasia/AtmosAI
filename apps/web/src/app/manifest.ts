@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'AtmosAI',
-    short_name: 'AtmosAI',
-    description: 'Autonomous Meteorological & Extreme Weather Intelligence Platform',
+    name: 'Weather Nexus',
+    short_name: 'WeatherNexus',
+    description: 'National Weather Big Data Analytics Platform by Team AtmosAI',
     start_url: '/',
     display: 'standalone',
     background_color: '#ffffff',

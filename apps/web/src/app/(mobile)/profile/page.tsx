@@ -24,7 +24,7 @@ export default function ProfilePage() {
           </Link>
           <div>
             <h1 className="text-base font-bold font-display text-[#12141A]">Observer Station Telemetry</h1>
-            <p className="text-[11px] text-[#565b68] font-mono">AtmosAI National Ground Network</p>
+            <p className="text-[11px] text-[#565b68] font-mono">Weather Nexus &bull; Team AtmosAI</p>
           </div>
         </div>
 
@@ -136,7 +136,7 @@ export default function ProfilePage() {
                 <GoogleIcon name="admin_panel_settings" size={20} className="text-[#1FBF9B]" />
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-[#12141A]">AtmosAI Operations Console</h4>
+                <h4 className="text-sm font-semibold text-[#12141A]">Weather Nexus Operations Console</h4>
                 <p className="text-xs text-[#565b68]">Inspect AI agent reasoning traces, ground truth &amp; health</p>
               </div>
             </div>

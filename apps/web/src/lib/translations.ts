@@ -28,8 +28,8 @@ export const translations = {
       },
     },
     dashboard: {
-      title: 'AtmosAI',
-      subtitle: 'Autonomous Meteorological & Extreme Weather Intelligence',
+      title: 'Weather Nexus',
+      subtitle: 'National Weather Big Data Analytics Platform • Team AtmosAI',
       status: {
         online: 'Live Operational Radar',
         offline: 'Offline Simulation Mode',
@@ -82,7 +82,7 @@ export const translations = {
       },
       submit: 'Run Verification & Ingest',
       submitting: 'Synthesizing with IMD & satellite data...',
-      success: 'Field observation successfully ingested into AtmosAI pipeline! Thank you for contributing to national situational awareness.',
+      success: 'Field observation successfully ingested into Weather Nexus pipeline! Thank you for contributing to national situational awareness.',
     },
     settings: {
       title: 'System Preferences',
@@ -192,8 +192,8 @@ export const translations = {
       },
     },
     dashboard: {
-      title: 'AtmosAI',
-      subtitle: 'स्वायत्त मौसम एवं चरम मौसमी आपदा बुद्धिमत्ता प्लेटफॉर्म',
+      title: 'Weather Nexus',
+      subtitle: 'राष्ट्रीय वेदर बिग डेटा एनालिटिक्स प्लेटफॉर्म • टीम AtmosAI',
       status: {
         online: 'सक्रिय राष्ट्रीय रडार',
         offline: 'सिमुलेशन मोड',
@@ -246,7 +246,7 @@ export const translations = {
       },
       submit: 'रिपोर्ट भेजें',
       submitting: 'सत्यापन जारी है...',
-      success: 'आपकी रिपोर्ट AtmosAI सिस्टम में दर्ज हो चुकी है! सतर्कता में योगदान हेतु धन्यवाद।',
+      success: 'आपकी रिपोर्ट Weather Nexus सिस्टम में दर्ज हो चुकी है! सतर्कता में योगदान हेतु धन्यवाद।',
     },
     settings: {
       title: 'सेटिंग्स',

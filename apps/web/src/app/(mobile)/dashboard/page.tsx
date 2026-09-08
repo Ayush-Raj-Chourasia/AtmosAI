@@ -99,7 +99,10 @@ export default function DashboardPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-display font-bold text-[18px] tracking-tight text-[#12141A]">
-                  AtmosAI
+                  Weather Nexus
+                </span>
+                <span className="text-[11px] font-mono font-semibold text-[#FF5A1F]">
+                  by AtmosAI
                 </span>
                 <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-[#1F8A70] bg-[#1F8A70]/10 px-2 py-0.5 rounded-full border border-[#1F8A70]/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#1F8A70] animate-ping" />
@@ -107,7 +110,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <p className="text-[11px] text-[#565b68] hidden sm:block font-mono">
-                National Meteorological Intelligence &amp; Multi-Source Verification
+                National Weather Big Data Analytics &amp; Multi-Source Verification Platform
               </p>
             </div>
           </Link>

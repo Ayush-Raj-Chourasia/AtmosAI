@@ -19,8 +19,8 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AtmosAI — Autonomous Weather Intelligence & Verification Platform",
-  description: "Real-time AI-powered national weather intelligence and multi-source event verification platform for India.",
+  title: "Weather Nexus — National Weather Big Data Analytics Platform | Team AtmosAI",
+  description: "Real-time AI-powered national weather big data analytics, multi-source event verification, and disaster intelligence platform by Team AtmosAI.",
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: '32x32' },

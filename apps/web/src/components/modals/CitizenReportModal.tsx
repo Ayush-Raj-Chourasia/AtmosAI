@@ -46,7 +46,7 @@ export default function CitizenReportModal({ isOpen, onClose, onReportSubmitted 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setFeedback('Ingesting into AtmosAI Pipeline: Skeptic pass & Doppler radar cross-check...');
+    setFeedback('Ingesting into Weather Nexus Pipeline: Skeptic pass & Doppler radar cross-check...');
 
     // Save to local store so it appears instantly on the map and feed
     addCitizenReport({
@@ -100,7 +100,7 @@ export default function CitizenReportModal({ isOpen, onClose, onReportSubmitted 
             </div>
             <div>
               <h3 className="font-bold text-sm text-[#F7F4EC]">File Ground Meteorological Report</h3>
-              <p className="text-xs text-[#8b8e97]">Crowdsourced evidence ingestion for AtmosAI verification</p>
+              <p className="text-xs text-[#8b8e97]">Crowdsourced evidence ingestion for Weather Nexus verification</p>
             </div>
           </div>
           <button

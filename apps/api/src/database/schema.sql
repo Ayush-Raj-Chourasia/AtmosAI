@@ -1,7 +1,7 @@
 -- ============================================================
--- AtmosAI: Autonomous Meteorological & Extreme Weather Intelligence Platform
+-- Weather Nexus: National Weather Big Data Analytics Platform
+-- Developed by Team AtmosAI
 -- Unified PostgreSQL + PostGIS Production Schema
--- Target: Indian Meteorological Intelligence & Disaster Early Warning
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;

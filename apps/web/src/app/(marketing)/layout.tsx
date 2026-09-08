@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "AtmosAI — Autonomous Meteorological & Extreme Weather Intelligence Platform",
+  title: "Weather Nexus — National Weather Big Data Analytics Platform | Team AtmosAI",
   description:
-    "One verified national weather signal, fused from IMD bulletins, Doppler radar, satellite telemetry, news, and ground observer reports.",
+    "One verified national weather signal, fused from IMD bulletins, weather APIs, news, social media, and citizen reports by Team AtmosAI.",
 };
 
 export default function MarketingLayout({

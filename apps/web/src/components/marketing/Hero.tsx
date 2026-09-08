@@ -29,8 +29,9 @@ export default function Hero() {
       </div>
 
       <div className="relative mx-auto max-w-6xl px-5 sm:px-8 pt-16 pb-20 sm:pt-24 sm:pb-28">
-        <div className="animate-drift-up inline-flex items-center gap-2 rounded-full border border-[#12141A]/15 bg-white/60 px-3 py-1 text-[12px] font-mono uppercase tracking-wider text-[#565b68]">
-          National weather intelligence, for India
+        <div className="animate-drift-up inline-flex items-center gap-2 rounded-full border border-[#12141A]/15 bg-white/60 px-3.5 py-1 text-[12px] font-mono uppercase tracking-wider text-[#565b68]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#FF5A1F]" />
+          Team AtmosAI &bull; National Weather Big Data Analytics Platform
         </div>
 
         <h1
@@ -45,9 +46,9 @@ export default function Hero() {
           className="animate-drift-up mt-6 max-w-xl text-[16px] leading-relaxed text-[#33363f] sm:text-[18px]"
           style={{ animationDelay: '140ms' }}
         >
-          AtmosAI pulls in IMD bulletins, news, social posts and citizen reports, cross-checks
-          them against each other, screens out hoaxes and duplicates, and gives every weather
-          event a confidence score before it ever reaches a dashboard.
+          Weather Nexus pulls in IMD bulletins, weather APIs, news, social posts and citizen reports,
+          cross-checks them against each other, screens out hoaxes and duplicates, and fuses
+          independent evidence into a single verified event with an auditable confidence score.
         </p>
 
         <div
