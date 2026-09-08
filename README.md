@@ -15,7 +15,7 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 ## ✨ Key Features
 
 - 📡 **Multi-Source Ingestion:** Aggregates streams from official IMD bulletins, Live Open-Meteo Weather API, News RSS, Social Media (#IMD), Citizen Reports, and Bulk Open Datasets.
-- 💾 **Dual-Tier Enterprise Persistence:** Real-time data persistence backed by PostgreSQL 16 + PostGIS (spatial GIST indexing) and crash-resilient atomic disk storage (`data/nweis-store.json`). Events survive server restarts, container reboots, and browser refreshes.
+- 💾 **Dual-Tier Enterprise Persistence:** Real-time data persistence backed by Supabase Cloud (PostgreSQL 16 + PostGIS + RLS + Storage) with zero-crash atomic disk fallback. Events survive restarts, reboots, and redeployments.
 - 🧠 **7-Factor Confidence Fusion Engine:** Calculates deterministic confidence scoring based on source reliability, cross-source corroboration, sensor proximity, temporal freshness, geocoding precision, media quality, and Skeptic penalty.
 - 👯 **5-Layer Deduplication:** Eliminates noise via Exact ID, SHA-256 Content Hash, Jaccard Semantic overlap (≥ 0.75), Media URL/Checksum match, and Spatiotemporal proximity (≤ 3.0 km).
 - ⏳ **Temporal Confidence Decay:** Employs a mathematical half-life model where incident confidence decays over time without new corroborating evidence, specific to each hazard.
@@ -24,7 +24,7 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 - 🌡️ **Official Sensor Alignment:** Connects field observations with official IMD AWS/ARG data and CWC (Central Water Commission) river gauges for authoritative corroboration.
 - 📋 **Official NDMA/IMD SITREP Export:** Generates standardized Disaster Situation Reports with automated tactical response directives (NDRF, CWC, NHAI, Civil Aviation) and tamper-evident digital seal.
 - ⚡ **Real-Time SSE & GIS Dashboard:** Sub-second Server-Sent Events (SSE) telemetry paired with an interactive Leaflet-powered GIS operations command dashboard.
-- 🌪️ **8 IMD Hazard Categories:** Full taxonomy support for `FLOOD`, `THUNDERSTORM`, `RAINFALL`, `HEATWAVE`, `FOG`, `DUST_STORM`, `STRONG_WIND`, and `OTHER`.
+- 🌪️ **11 Official IMD Hazard Categories:** Full taxonomy support for `RAINFALL`, `THUNDERSTORM`, `FLOOD`, `HEATWAVE`, `COLD_WAVE`, `FOG`, `DUST_STORM`, `CYCLONE`, `STRONG_WIND`, `HAILSTORM`, `LIGHTNING`, and `OTHER`.
 - 📡 **IMD Doppler Weather Radar (DWR) 6-Station Network:** Live rotating 360° radar sweep beams across Delhi Palam, Kolkata, Mumbai, Guwahati, Jaipur, and Bengaluru with real-time dBZ reflectivity scales.
 - 📱 **Progressive Web App (PWA) Offline Resiliency:** Operates in offline field mode with service worker caching and local citizen report queueing that auto-synchronizes upon reconnect.
 - 🗺️ **RFC 7946 GeoJSON & OGC GIS Interoperability:** Generates standard GeoJSON FeatureCollections projected in OGC CRS84 for instant ingestion into QGIS, ArcGIS, and ISRO Bhuvan mapping systems.

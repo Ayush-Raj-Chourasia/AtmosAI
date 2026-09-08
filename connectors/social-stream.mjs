@@ -1,5 +1,5 @@
 /**
- * N-WEIS Social Media Stream Connector (connectors/social-stream.mjs)
+ * WeatherNexus Social Media Stream Connector (connectors/social-stream.mjs)
  * SIH26069 National Weather Big Data Analytics Platform
  *
  * Implements real X/Twitter v2 API integration when TWITTER_BEARER_TOKEN is configured.
@@ -199,11 +199,15 @@ export class SocialStreamConnector extends BaseWeatherConnector {
     const lower = text.toLowerCase();
     if (/flood|submerged|waterlogging/i.test(lower)) candidate = 'FLOOD';
     else if (/rain|downpour|cloudburst/i.test(lower)) candidate = 'RAINFALL';
-    else if (/thunder|lightning|squall/i.test(lower)) candidate = 'THUNDERSTORM';
+    else if (/thunder|squall/i.test(lower)) candidate = 'THUNDERSTORM';
+    else if (/lightning|vajrapat/i.test(lower)) candidate = 'LIGHTNING';
+    else if (/hail|hailstorm/i.test(lower)) candidate = 'HAILSTORM';
     else if (/heatwave|4[5-9]°c/i.test(lower)) candidate = 'HEATWAVE';
+    else if (/coldwave|sheet lahar/i.test(lower)) candidate = 'COLD_WAVE';
     else if (/fog|dense fog/i.test(lower)) candidate = 'FOG';
     else if (/dust storm|andhi/i.test(lower)) candidate = 'DUST_STORM';
-    else if (/gale|strong wind|cyclone/i.test(lower)) candidate = 'STRONG_WIND';
+    else if (/cyclone|typhoon/i.test(lower)) candidate = 'CYCLONE';
+    else if (/gale|strong wind/i.test(lower)) candidate = 'STRONG_WIND';
 
     return this.normalize({
       source_id: this.id,
@@ -218,7 +222,7 @@ export class SocialStreamConnector extends BaseWeatherConnector {
       latitude: null,
       longitude: null,
       location_confidence: 0,
-      location_method: 'unresolved',
+      location_method: 'UNKNOWN',
       event_candidate: candidate,
       media_urls: [],
       media_types: [],

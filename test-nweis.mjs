@@ -1268,12 +1268,15 @@ if (process.env.REDIS_URL && process.env.REDIS_URL.trim().length > 0) {
   console.log('  [SKIPPED] Live Redis connection: REDIS_URL not configured. Operating in graceful in-memory fallback.');
 }
 
-// 18f. Cloudflare R2 / S3 Object Storage
-if (mediaStorageService.isR2Configured) {
-  assert(mediaStorageService.storageMode === 'CLOUDFLARE_R2', 'Media storage mode is CLOUDFLARE_R2');
+// 18f. Object Storage (Supabase Storage / Cloudflare R2)
+if (mediaStorageService.isSupabaseConfigured || mediaStorageService.isR2Configured) {
+  assert(
+    mediaStorageService.storageMode === 'SUPABASE_STORAGE' || mediaStorageService.storageMode === 'CLOUDFLARE_R2',
+    'Media storage mode is SUPABASE_STORAGE or CLOUDFLARE_R2'
+  );
 } else {
-  assert(mediaStorageService.storageMode === 'DEMO/LOCAL', 'Media storage defaults to DEMO/LOCAL mode when R2 credentials are unset');
-  console.log('  [SKIPPED] Live Cloudflare R2 upload: R2 credentials not configured. Operating in DEMO/LOCAL mode.');
+  assert(mediaStorageService.storageMode === 'DEMO/LOCAL', 'Media storage defaults to DEMO/LOCAL mode when storage credentials are unset');
+  console.log('  [SKIPPED] Live cloud storage upload: Storage credentials not configured. Operating in DEMO/LOCAL mode.');
 }
 
 // =============================================================

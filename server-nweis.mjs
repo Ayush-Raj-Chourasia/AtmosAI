@@ -2489,7 +2489,8 @@ export async function handleRequest(req, res) {
       activeEvents: memEvents.size,
       activeSignals: memSignals.size,
       sseClients: sseClients.size,
-      database: db.isPgConnected ? 'POSTGRESQL_POSTGIS' : 'ATOMIC_JSON_STORE',
+      database: db.isSupabaseConnected ? 'SUPABASE_POSTGRESQL' : (db.isPgConnected ? 'POSTGRESQL_POSTGIS' : 'ATOMIC_JSON_STORE'),
+      supabase_connected: db.isSupabaseConnected,
       postgres_connected: db.isPgConnected,
       storage: db.getStorageInfo(),
       redis: redisHealth,
@@ -2506,7 +2507,7 @@ export async function handleRequest(req, res) {
       services: {
         api: 'ONLINE',
         sse: sseClients.size >= 0 ? 'ONLINE' : 'DEGRADED',
-        database: db.isPgConnected ? 'ONLINE' : 'FALLBACK_LOCAL',
+        database: (db.isSupabaseConnected || db.isPgConnected) ? 'ONLINE' : 'FALLBACK_LOCAL',
         redis: redisHealth.status,
         ai_engine: aiHealth.status,
         storage: storageHealth.status,

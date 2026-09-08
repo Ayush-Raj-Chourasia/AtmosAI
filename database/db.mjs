@@ -1,10 +1,10 @@
 /**
- * N-WEIS Unified Database Layer (database/db.mjs)
+ * WeatherNexus Unified Database Layer (database/db.mjs)
  * SIH26069 National Weather Big Data Analytics Platform
  *
- * Authoritative Persistence Engine: Dual PostgreSQL+PostGIS & Atomic Disk Store
- * When DATABASE_URL is set: PostgreSQL + PostGIS is AUTHORITATIVE.
- * When DATABASE_URL is not set: Atomic disk storage (data/nweis-store.json) is fallback.
+ * Authoritative Persistence Engine: Supabase (PostgreSQL + PostGIS) & Atomic Crash-Resilient Store
+ * When Supabase credentials are configured: Supabase Cloud PostgreSQL + PostGIS is AUTHORITATIVE.
+ * When Supabase tables are unavailable: Atomic disk storage (data/nweis-store.json) provides OFFLINE_FALLBACK.
  */
 
 import fs from 'node:fs';
@@ -37,6 +37,11 @@ class DatabaseEngine {
   constructor() {
     this.pgPool = null;
     this.isPgConnected = false;
+    this.supabase = null;
+    this.isSupabaseConnected = false;
+    this.supabaseUrl = process.env.SUPABASE_URL || 'https://huzfbxgwzzeqeosjisgi.supabase.co';
+    this.supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || null;
+    this.mode = 'OFFLINE_FALLBACK';
     this.isInitialized = false;
 
     this.tables = {
@@ -61,8 +66,42 @@ class DatabaseEngine {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
 
+    // Always load existing disk state first to ensure baseline readiness
+    this.loadFromDisk();
+
+    // 1. Authoritative Supabase Integration
+    if (this.supabaseUrl && this.supabaseKey) {
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        this.supabase = createClient(this.supabaseUrl, this.supabaseKey, {
+          auth: { persistSession: false },
+        });
+
+        // Verify if tables are deployed in Supabase schema cache
+        const { data, error } = await this.supabase.from('weather_events').select('id').limit(1);
+        if (!error) {
+          this.isSupabaseConnected = true;
+          this.mode = 'AUTHORITATIVE';
+          console.log('[SUPABASE] Mode: AUTHORITATIVE — Supabase PostgreSQL + PostGIS connected.');
+          await this.hydrateFromSupabase();
+        } else {
+          console.warn(`[SUPABASE] ⚠️ Schema not yet applied on Supabase (${error.message}).`);
+          console.log('[SUPABASE] Mode: OFFLINE_FALLBACK — Operating with Atomic Crash-Resilient Disk Storage.');
+          this.mode = 'OFFLINE_FALLBACK';
+        }
+      } catch (err) {
+        console.warn(`[SUPABASE] ⚠️ Supabase connection failed (${err.message}).`);
+        console.log('[SUPABASE] Mode: OFFLINE_FALLBACK — Operating with Atomic Crash-Resilient Disk Storage.');
+        this.mode = 'OFFLINE_FALLBACK';
+      }
+    } else {
+      console.log('[SUPABASE] Mode: OFFLINE_FALLBACK — Supabase credentials not set. Using Atomic Crash-Resilient Disk Store.');
+      this.mode = 'OFFLINE_FALLBACK';
+    }
+
+    // 2. Direct PostgreSQL fallback (if DATABASE_URL is set)
     const dbUrl = process.env.DATABASE_URL;
-    if (dbUrl) {
+    if (dbUrl && !this.isSupabaseConnected) {
       try {
         const pg = await import('pg');
         const { Pool } = pg.default || pg;
@@ -72,30 +111,52 @@ class DatabaseEngine {
         });
         const client = await this.pgPool.connect();
         this.isPgConnected = true;
-        console.log('[DB]  PostgreSQL/PostGIS authoritative connection established.');
+        console.log('[DB]  Direct PostgreSQL/PostGIS connection established.');
 
-        // Apply authoritative schema migrations if file exists
         if (fs.existsSync(SCHEMA_PATH)) {
           const sql = fs.readFileSync(SCHEMA_PATH, 'utf8');
           await client.query(sql);
           console.log('[DB]  PostgreSQL schema & PostGIS extensions verified.');
         }
         client.release();
-
-        // Hydrate in-memory cache directly from authoritative PostgreSQL tables
         await this.hydrateFromPostgres();
       } catch (err) {
-        console.warn(`[DB] ⚠️ PostgreSQL connection failed (${err.message}). Falling back to Atomic Disk Store.`);
-        this.isPgConnected = false;
-        this.pgPool = null;
-        this.loadFromDisk();
+        console.warn(`[DB] ⚠️ Direct PostgreSQL connection failed (${err.message}).`);
       }
-    } else {
-      console.log('[DB] ℹ️ DATABASE_URL not set. Operating with Atomic Crash-Resilient Disk Storage.');
-      this.loadFromDisk();
     }
 
     this.isInitialized = true;
+  }
+
+  async hydrateFromSupabase() {
+    if (!this.isSupabaseConnected || !this.supabase) return;
+    try {
+      const { data: srcRows } = await this.supabase.from('sources').select('*');
+      if (srcRows && srcRows.length > 0) {
+        for (const r of srcRows) this.tables.sources.set(r.id, r);
+      }
+
+      const { data: evRows } = await this.supabase.from('weather_events').select('*').order('last_updated_at', { ascending: false });
+      if (evRows && evRows.length > 0) {
+        for (const r of evRows) {
+          this.tables.weather_events.set(r.id, {
+            ...r,
+            confidence: parseFloat(r.confidence_score) || 0.5,
+            latitude: parseFloat(r.latitude),
+            longitude: parseFloat(r.longitude),
+          });
+        }
+      }
+
+      const { data: sigRows } = await this.supabase.from('signals').select('*').order('timestamp', { ascending: false }).limit(500);
+      if (sigRows && sigRows.length > 0) {
+        for (const r of sigRows) this.tables.signals.set(r.id, r);
+      }
+
+      console.log(`[SUPABASE]  Hydration complete: ${evRows?.length || 0} events, ${sigRows?.length || 0} signals.`);
+    } catch (err) {
+      console.warn('[SUPABASE] Hydration error:', err.message);
+    }
   }
 
   async hydrateFromPostgres() {
@@ -225,6 +286,40 @@ class DatabaseEngine {
     this.tables.signals.set(id, record);
     this.saveToDisk();
 
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        await this.supabase.from('signals').insert([{
+          id: record.id,
+          source_id: record.source_id || null,
+          source_type: record.source_type,
+          source_name: record.source_name || null,
+          external_id: record.external_id || null,
+          text: record.text,
+          language: record.language || 'en',
+          timestamp: record.timestamp,
+          ingested_at: record.ingested_at,
+          city: record.city || null,
+          state: record.state || null,
+          country: record.country || 'India',
+          latitude: record.latitude || null,
+          longitude: record.longitude || null,
+          location_confidence: record.location_confidence,
+          location_method: record.location_method || null,
+          event_candidate: record.event_candidate || null,
+          relevance_score: record.relevance_score,
+          credibility_score: record.credibility_score,
+          misinformation_score: record.misinformation_score,
+          verification_status: record.verification_status,
+          media_urls: record.media_urls,
+          media_types: record.media_types,
+          hashtags: record.hashtags,
+          raw_payload: record.raw_payload || {},
+        }]);
+      } catch (e) {
+        console.warn('[SUPABASE] Signal sync warning:', e.message);
+      }
+    }
+
     if (this.isPgConnected && this.pgPool) {
       try {
         await this.pgPool.query(
@@ -252,6 +347,24 @@ class DatabaseEngine {
   }
 
   async getSignals(filters = {}) {
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        let query = this.supabase.from('signals').select('*');
+        if (filters.source_type && filters.source_type !== 'ALL') {
+          query = query.eq('source_type', filters.source_type);
+        }
+        if (filters.verification_status && filters.verification_status !== 'ALL') {
+          query = query.eq('verification_status', filters.verification_status);
+        }
+        if (filters.from_date) {
+          query = query.gte('timestamp', filters.from_date);
+        }
+        const { data, error } = await query.order('timestamp', { ascending: false }).limit(200);
+        if (!error && data && data.length > 0) return data;
+      } catch (e) {
+        console.warn('[SUPABASE] Signal query warning:', e.message);
+      }
+    }
     if (this.isPgConnected && this.pgPool) {
       try {
         let q = 'SELECT * FROM signals WHERE 1=1';
@@ -317,6 +430,34 @@ class DatabaseEngine {
     this.tables.weather_events.set(id, record);
     this.saveToDisk();
 
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        await this.supabase.from('weather_events').upsert([{
+          id: record.id,
+          event_type: record.event_type,
+          title: record.title,
+          description: record.description || null,
+          severity: record.severity,
+          status: record.status,
+          latitude: record.latitude,
+          longitude: record.longitude,
+          city: record.city,
+          state: record.state,
+          country: record.country || 'India',
+          radius_m: record.radius_m || 5000,
+          confidence_score: record.confidence_score,
+          first_detected_at: record.first_detected_at,
+          last_updated_at: record.last_updated_at,
+          signal_count: record.signal_count,
+          source_breakdown: record.source_breakdown,
+          ai_reasoning: record.ai_reasoning,
+          evidence_summary: [record.evidence_summary],
+        }]);
+      } catch (e) {
+        console.warn('[SUPABASE] Event upsert warning:', e.message);
+      }
+    }
+
     if (this.isPgConnected && this.pgPool) {
       try {
         await this.pgPool.query(
@@ -347,6 +488,34 @@ class DatabaseEngine {
   }
 
   async getEvents(filters = {}) {
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        let query = this.supabase.from('weather_events').select('*');
+        if (filters.event_type && filters.event_type !== 'ALL') {
+          query = query.eq('event_type', filters.event_type);
+        }
+        if (filters.status && filters.status !== 'ALL') {
+          query = query.eq('status', filters.status);
+        }
+        if (filters.state && filters.state !== 'All India') {
+          query = query.ilike('state', `%${filters.state}%`);
+        }
+        if (filters.from_date) {
+          query = query.gte('last_updated_at', filters.from_date);
+        }
+        const { data, error } = await query.order('last_updated_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+          return data.map((r) => ({
+            ...r,
+            confidence: parseFloat(r.confidence_score) || 0.5,
+            latitude: parseFloat(r.latitude),
+            longitude: parseFloat(r.longitude),
+          }));
+        }
+      } catch (e) {
+        console.warn('[SUPABASE] Event query warning:', e.message);
+      }
+    }
     if (this.isPgConnected && this.pgPool) {
       try {
         let q = 'SELECT * FROM weather_events WHERE 1=1';
@@ -399,6 +568,22 @@ class DatabaseEngine {
   }
 
   async getEventById(id) {
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const { data, error } = await this.supabase.from('weather_events').select('*').eq('id', id).single();
+        if (!error && data) {
+          return {
+            ...data,
+            confidence: parseFloat(data.confidence_score) || 0.5,
+            latitude: parseFloat(data.latitude),
+            longitude: parseFloat(data.longitude),
+          };
+        }
+      } catch (e) {
+        console.warn('[SUPABASE] Event getById warning:', e.message);
+      }
+    }
+
     if (this.isPgConnected && this.pgPool) {
       try {
         const res = await this.pgPool.query('SELECT * FROM weather_events WHERE id = $1', [id]);
@@ -433,6 +618,17 @@ class DatabaseEngine {
 
     this.tables.weather_events.set(id, updated);
     this.saveToDisk();
+
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const patch = { last_updated_at: new Date().toISOString() };
+        if (updates.status) patch.status = updates.status;
+        if (updates.confidence !== undefined) patch.confidence_score = updates.confidence;
+        await this.supabase.from('weather_events').update(patch).eq('id', id);
+      } catch (e) {
+        console.warn('[SUPABASE] Event update warning:', e.message);
+      }
+    }
 
     if (this.isPgConnected && this.pgPool) {
       try {
@@ -613,11 +809,15 @@ class DatabaseEngine {
   }
 
   getStorageInfo() {
+    const isSupa = this.isSupabaseConnected;
     return {
-      storage_type: this.isPgConnected ? 'POSTGRESQL_POSTGIS' : 'PERSISTENT_DISK_STORE',
+      storage_type: isSupa ? 'SUPABASE_POSTGRESQL' : (this.isPgConnected ? 'POSTGRESQL_POSTGIS' : 'PERSISTENT_DISK_STORE'),
+      supabase_connected: isSupa,
       postgres_connected: this.isPgConnected,
       disk_store_path: STORE_PATH,
-      authoritative_engine: this.isPgConnected ? 'PostgreSQL 16 + PostGIS' : 'Atomic JSON Store (Fallback)',
+      authoritative_engine: isSupa
+        ? 'Supabase Cloud (PostgreSQL 16 + PostGIS + RLS)'
+        : (this.isPgConnected ? 'PostgreSQL 16 + PostGIS' : 'Atomic JSON Store (Fallback)'),
       counts: {
         sources: this.tables.sources.size,
         signals: this.tables.signals.size,

@@ -1,5 +1,5 @@
 /**
- * N-WEIS OpenWeather API Connector (Secondary Weather Provider)
+ * WeatherNexus OpenWeather API Connector (Secondary Weather Provider)
  * SIH26069 — Ministry of Earth Sciences / India Meteorological Department (IMD)
  *
  * Provides secondary meteorological observations for multi-source corroboration.
@@ -82,9 +82,12 @@ export class OpenWeatherConnector extends BaseWeatherConnector {
         const data = await res.json();
         const temp = data.main?.temp ?? 0;
         const humidity = data.main?.humidity ?? 0;
+        const pressure = data.main?.pressure ?? 1013;
         const rain = data.rain?.['1h'] || data.rain?.['3h'] || 0;
         const wind = (data.wind?.speed ?? 0) * 3.6; // convert m/s to km/h
         const description = data.weather?.[0]?.description || 'Clear';
+        const weatherCondition = data.weather?.[0]?.main || 'Clear';
+        const observedAt = data.dt ? new Date(data.dt * 1000).toISOString() : new Date().toISOString();
 
         let candidate = 'OTHER';
         if (rain >= 15.0) candidate = rain >= 50.0 ? 'FLOOD' : 'RAINFALL';
@@ -97,7 +100,9 @@ export class OpenWeatherConnector extends BaseWeatherConnector {
           source_type: this.type,
           source_name: `OpenWeather (${st.city})`,
           external_id: `owm_${st.city.toLowerCase()}_${data.dt || Date.now()}`,
-          text: `[OPENWEATHER OBSERVATION] ${st.city}, ${st.state}: ${description}. Temp: ${temp.toFixed(1)}°C, Humidity: ${humidity}%, Wind: ${wind.toFixed(0)} km/h, Rain: ${rain} mm.`,
+          text: `[OPENWEATHER OBSERVATION] ${st.city}, ${st.state}: ${description}. Temp: ${temp.toFixed(1)}°C, Humidity: ${humidity}%, Pressure: ${pressure} hPa, Wind: ${wind.toFixed(0)} km/h, Rain: ${rain} mm.`,
+          timestamp: observedAt,
+          observed_at: observedAt,
           city: st.city,
           state: st.state,
           country: 'India',
@@ -106,6 +111,9 @@ export class OpenWeatherConnector extends BaseWeatherConnector {
           location_confidence: 0.95,
           location_method: 'native_gps',
           event_candidate: candidate,
+          pressure_hpa: pressure,
+          precipitation_mm: rain,
+          weather_condition: weatherCondition,
           media_urls: [],
           media_types: [],
           hashtags: ['#OpenWeather', `#${st.city.replace(/\s+/g, '')}`],

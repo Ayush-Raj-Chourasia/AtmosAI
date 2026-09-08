@@ -1,10 +1,10 @@
 /**
- * N-WEIS Object Storage Service (Cloudflare R2 & Local Demo Storage)
+ * WeatherNexus Object Storage Service (Supabase Storage & Resilient Fallback)
  * SIH26069 — Ministry of Earth Sciences / India Meteorological Department (IMD)
  *
- * Implements S3-compatible object storage for citizen media uploads.
- * If R2 is not configured, stores to local uploads directory and reports:
- * MEDIA STORAGE = DEMO/LOCAL
+ * Implements authoritative cloud storage for citizen media and weather evidence.
+ * Primary: Supabase Storage (buckets: 'weather-evidence', 'citizen-media').
+ * Secondary/Fallback: Cloudflare R2 / S3 or Local Cache.
  */
 
 import fs from 'node:fs';
@@ -30,14 +30,26 @@ const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
 
 export class MediaStorageService {
   constructor() {
+    this.supabaseUrl = process.env.SUPABASE_URL || 'https://huzfbxgwzzeqeosjisgi.supabase.co';
+    this.supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || null;
+    this.supabase = null;
+
     this.accountId = process.env.R2_ACCOUNT_ID || null;
     this.bucketName = process.env.R2_BUCKET_NAME || null;
     this.accessKeyId = process.env.R2_ACCESS_KEY_ID || null;
     this.secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || null;
     this.endpoint = process.env.R2_ENDPOINT || (this.accountId ? `https://${this.accountId}.r2.cloudflarestorage.com` : null);
 
+    this.isSupabaseConfigured = Boolean(this.supabaseUrl && this.supabaseKey);
     this.isR2Configured = Boolean(this.accountId && this.bucketName && this.accessKeyId && this.secretAccessKey);
-    this.storageMode = this.isR2Configured ? 'CLOUDFLARE_R2' : 'DEMO/LOCAL';
+
+    if (this.isSupabaseConfigured) {
+      this.storageMode = 'SUPABASE_STORAGE';
+    } else if (this.isR2Configured) {
+      this.storageMode = 'CLOUDFLARE_R2';
+    } else {
+      this.storageMode = 'DEMO/LOCAL';
+    }
 
     if (!fs.existsSync(LOCAL_UPLOADS_DIR)) {
       try {
@@ -46,13 +58,32 @@ export class MediaStorageService {
     }
   }
 
+  async getSupabaseClient() {
+    if (this.supabase) return this.supabase;
+    if (this.isSupabaseConfigured) {
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        this.supabase = createClient(this.supabaseUrl, this.supabaseKey, {
+          auth: { persistSession: false },
+        });
+        return this.supabase;
+      } catch (e) {
+        console.warn('[MediaStorage] Could not init Supabase client:', e.message);
+      }
+    }
+    return null;
+  }
+
   healthCheck() {
     return {
-      status: this.isR2Configured ? 'ONLINE' : 'ONLINE',
+      status: 'ONLINE',
       mode: this.storageMode,
-      bucket: this.bucketName || 'LOCAL_UPLOADS_DIR',
+      bucket: this.isSupabaseConfigured ? 'weather-evidence / citizen-media' : (this.bucketName || 'LOCAL_UPLOADS_DIR'),
+      is_supabase_storage: this.isSupabaseConfigured,
       is_production_r2: this.isR2Configured,
-      note: this.isR2Configured ? 'Connected to Cloudflare R2' : 'Operating in DEMO/LOCAL storage mode',
+      note: this.isSupabaseConfigured
+        ? 'Connected to Supabase Object Storage'
+        : (this.isR2Configured ? 'Connected to Cloudflare R2' : 'Operating in DEMO/LOCAL storage mode'),
     };
   }
 
@@ -87,19 +118,30 @@ export class MediaStorageService {
     const objectKey = `disaster-media/${Date.now()}-${checksum.slice(0, 12)}${ext}`;
 
     let publicUrl = '';
+    const localFileName = `${mediaId}${ext}`;
+    const localFilePath = path.join(LOCAL_UPLOADS_DIR, localFileName);
+    fs.writeFileSync(localFilePath, buffer);
+    publicUrl = `/uploads/${localFileName}`;
 
-    if (this.isR2Configured) {
-      // In production Cloudflare R2 upload:
-      // Uses PUT request with S3-compatible Authorization header or public endpoint
+    const supa = await this.getSupabaseClient();
+    if (supa) {
+      try {
+        const bucket = eventId ? 'weather-evidence' : 'citizen-media';
+        const { data, error } = await supa.storage.from(bucket).upload(objectKey, buffer, {
+          contentType: normMime,
+          upsert: true,
+        });
+        if (!error) {
+          const { data: pubData } = supa.storage.from(bucket).getPublicUrl(objectKey);
+          if (pubData?.publicUrl) {
+            publicUrl = pubData.publicUrl;
+          }
+        }
+      } catch (err) {
+        console.warn('[MediaStorage] Supabase Storage upload error:', err.message);
+      }
+    } else if (this.isR2Configured) {
       publicUrl = `${this.endpoint}/${this.bucketName}/${objectKey}`;
-      // In local runtime we also keep a cache copy
-      fs.writeFileSync(path.join(LOCAL_UPLOADS_DIR, `${mediaId}${ext}`), buffer);
-    } else {
-      // Local demo storage
-      const localFileName = `${mediaId}${ext}`;
-      const localFilePath = path.join(LOCAL_UPLOADS_DIR, localFileName);
-      fs.writeFileSync(localFilePath, buffer);
-      publicUrl = `/uploads/${localFileName}`;
     }
 
     const record = {

@@ -1,9 +1,9 @@
 /**
- * N-WEIS Multimodal AI & Gemini Reasoning Service
+ * WeatherNexus Multimodal AI & Gemini Reasoning Service
  * SIH26069 — Ministry of Earth Sciences / India Meteorological Department (IMD)
  *
  * Implements Google Gemini API integration (server-side only) for:
- * 1. Weather event classification
+ * 1. Weather event classification across 11 IMD official hazard categories
  * 2. Text understanding & structured extraction
  * 3. Misinformation assessment
  * 4. Image understanding & visual damage verification
@@ -16,7 +16,8 @@
 export class GeminiService {
   constructor() {
     this.apiKey = process.env.GEMINI_API_KEY || null;
-    this.model = process.env.GEMINI_FLASH_MODEL || 'gemini-3.6-flash';
+    this.model = process.env.GEMINI_MODEL || process.env.GEMINI_FLASH_MODEL || 'gemini-3.8-flash';
+    this.fallbackModel = 'gemini-2.5-flash';
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     this.isConfigured = Boolean(this.apiKey && this.apiKey.trim().length > 0);
   }
@@ -51,7 +52,7 @@ export class GeminiService {
     const prompt = `You are a meteorologist at the India Meteorological Department (IMD).
 Analyze this weather report from India and return a STRICT JSON object:
 {
-  "event_category": "FLOOD" | "THUNDERSTORM" | "RAINFALL" | "HEATWAVE" | "FOG" | "DUST_STORM" | "STRONG_WIND" | "OTHER",
+  "event_category": "RAINFALL" | "THUNDERSTORM" | "FLOOD" | "HEATWAVE" | "COLD_WAVE" | "FOG" | "DUST_STORM" | "CYCLONE" | "STRONG_WIND" | "HAILSTORM" | "LIGHTNING" | "OTHER",
   "severity": "minor" | "moderate" | "severe" | "critical",
   "confidence": number between 0.0 and 1.0,
   "extracted_location": { "city": string or null, "state": string or null },
@@ -193,15 +194,32 @@ Return a STRICT JSON object:
    */
   heuristicTextClassification(text) {
     const lower = text.toLowerCase();
-    const scores = { RAINFALL: 0, THUNDERSTORM: 0, FLOOD: 0, HEATWAVE: 0, FOG: 0, DUST_STORM: 0, STRONG_WIND: 0, OTHER: 0.1 };
+    const scores = {
+      RAINFALL: 0,
+      THUNDERSTORM: 0,
+      FLOOD: 0,
+      HEATWAVE: 0,
+      COLD_WAVE: 0,
+      FOG: 0,
+      DUST_STORM: 0,
+      CYCLONE: 0,
+      STRONG_WIND: 0,
+      HAILSTORM: 0,
+      LIGHTNING: 0,
+      OTHER: 0.1,
+    };
 
     if (/flood|submerged|inundat|overflow|waterlogging|water entering/i.test(lower)) scores.FLOOD += 4;
     if (/rain|downpour|cloudburst|precipitation/i.test(lower)) scores.RAINFALL += 3;
-    if (/thunder|lightning|squall|storm|thunderstorm/i.test(lower)) scores.THUNDERSTORM += 3.5;
+    if (/thunder|squall|storm|thunderstorm/i.test(lower)) scores.THUNDERSTORM += 3.5;
+    if (/lightning|vajrapat|lightning strike/i.test(lower)) scores.LIGHTNING += 4;
+    if (/hail|hailstorm|hailed/i.test(lower)) scores.HAILSTORM += 4;
     if (/heatwave|temperature.*above|4[5-9]°c|loo|heat stroke/i.test(lower)) scores.HEATWAVE += 4;
+    if (/coldwave|freezing|sheet lahar|frost/i.test(lower)) scores.COLD_WAVE += 4;
     if (/fog|dense fog|visibility.*<|smog/i.test(lower)) scores.FOG += 4;
     if (/dust storm|andhi|sandstorm/i.test(lower)) scores.DUST_STORM += 4;
-    if (/gale|strong wind|cyclone|uprooted tree/i.test(lower)) scores.STRONG_WIND += 3.5;
+    if (/cyclone|typhoon|depresssion/i.test(lower)) scores.CYCLONE += 4;
+    if (/gale|strong wind|uprooted tree/i.test(lower)) scores.STRONG_WIND += 3.5;
 
     let best = 'OTHER';
     let max = 0;
