@@ -7,7 +7,35 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3001:3001"
+    environment:
+      - PORT=3001
+      - DATABASE_URL=postgresql://nweis:nweis_secure_password_2026@postgres:5432/nweis_db
+      - NODE_ENV=production
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - disaster_network
+
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: nweis_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nweis
+      POSTGRES_PASSWORD: nweis_secure_password_2026
+      POSTGRES_DB: nweis_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - nweis_pgdata:/var/lib/postgresql/data
+      - ./apps/api/src/database/schema.sql:/docker-entrypoint-initdb.d/init-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nweis -d nweis_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - disaster_network
 
@@ -103,3 +131,7 @@ services:
 networks:
   disaster_network:
     driver: bridge
+
+volumes:
+  nweis_pgdata:
+    driver: local

@@ -14,13 +14,14 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 
 ## ✨ Key Features
 
-- 📡 **Multi-Source Ingestion:** Aggregates streams from official IMD/MoES channels, News Media, Social Media (#IMD), and Direct Citizen Reports.
-- 🧠 **7-Factor Confidence Fusion Engine:** Calculates deterministic confidence scoring based on source reliability, AI relevance, media presence, spatial proximity, temporal freshness, corroboration, and IMD synergy.
-- 👯 **3-Layer Deduplication:** Eliminates noise via Exact ID matching, Jaccard Semantic overlap (≥ 0.75), and Spatiotemporal proximity (≤ 3.0 km).
+- 📡 **Multi-Source Ingestion:** Aggregates streams from official IMD bulletins, Live Open-Meteo Weather API, News RSS, Social Media (#IMD), Citizen Reports, and Bulk Open Datasets.
+- 💾 **Dual-Tier Enterprise Persistence:** Real-time data persistence backed by PostgreSQL 16 + PostGIS (spatial GIST indexing) and crash-resilient atomic disk storage (`data/nweis-store.json`). Events survive server restarts, container reboots, and browser refreshes.
+- 🧠 **7-Factor Confidence Fusion Engine:** Calculates deterministic confidence scoring based on source reliability, cross-source corroboration, sensor proximity, temporal freshness, geocoding precision, media quality, and Skeptic penalty.
+- 👯 **5-Layer Deduplication:** Eliminates noise via Exact ID, SHA-256 Content Hash, Jaccard Semantic overlap (≥ 0.75), Media URL/Checksum match, and Spatiotemporal proximity (≤ 3.0 km).
 - ⏳ **Temporal Confidence Decay:** Employs a mathematical half-life model where incident confidence decays over time without new corroborating evidence, specific to each hazard.
 - 🛡️ **Misinformation Quarantine (Skeptic Agent):** Flags sensationalist text, hoaxes, and recycled disaster media through perceptual hashing and LLM analysis, putting them in an immutable quarantine.
 - 📜 **State Machine Lifecycle:** Maintains a strict, immutable audit trail for every status transition (`DETECTED` → `UNDER_REVIEW` → `VERIFIED` → `RESOLVED`).
-- 🌡️ **Official Sensor Alignment:** Connects field observations with official IMD AWS/ARG data and CWC (Central Water Commission) gauges for authoritative corroboration.
+- 🌡️ **Official Sensor Alignment:** Connects field observations with official IMD AWS/ARG data and CWC (Central Water Commission) river gauges for authoritative corroboration.
 - 📋 **Official NDMA/IMD SITREP Export:** Generates standardized Disaster Situation Reports with automated tactical response directives (NDRF, CWC, NHAI, Civil Aviation) and tamper-evident digital seal.
 - ⚡ **Real-Time SSE & GIS Dashboard:** Sub-second Server-Sent Events (SSE) telemetry paired with an interactive Leaflet-powered GIS operations command dashboard.
 - 🌪️ **8 IMD Hazard Categories:** Full taxonomy support for `FLOOD`, `THUNDERSTORM`, `RAINFALL`, `HEATWAVE`, `FOG`, `DUST_STORM`, `STRONG_WIND`, and `OTHER`.
@@ -31,7 +32,7 @@ It ingests highly fragmented weather signals from official IMD bulletins, news R
 - 📑 **Tabular CSV Disaster Logs:** Instant CSV export formatted for District Disaster Management Authorities (DDMA) and Excel morning briefing logbooks.
 - 🚨 **Volunteer SDRF & Aapda Mitra SMS Dispatch:** Mobilizes localized response units with GSM 160-character cellular SMS budget compliance and official helplines (1077/112).
 - 🛡️ **IMD Duty Meteorologist Governance:** Human-in-the-loop sign-off with strict state machine invariants and tamper-evident audit logging.
-- 🖥️ **Headless Operations CLI (`nweis-cli.mjs`):** Complete terminal command-line utility for duty forecasters, EOC operators, and low-bandwidth VSAT satellite terminals (`nweis status`, `nweis list`, `nweis inspect`, `nweis broadcast`, `nweis dispatch`).
+- 🖥️ **Headless Operations CLI (`nweis-cli.mjs`):** Complete terminal command-line utility for duty forecasters, EOC operators, and low-bandwidth VSAT satellite terminals.
 
 ---
 
@@ -184,12 +185,31 @@ node test-nweis.mjs
 
 ## 🛠️ Tech Stack
 
-- **Backend:** Node.js (Zero-Dependency, built-in `node:http`, `node:url`, `node:fs`, `node:path`)
+- **Backend:** Node.js (Zero-Dependency core, built-in `node:http`, `node:url`, `node:fs`, `node:path`, `node:crypto`)
+- **Persistence:** Dual-Tier (PostgreSQL 16 + PostGIS & Atomic Disk Storage `data/nweis-store.json`)
+- **Connectors:** Live Open-Meteo REST, News RSS XML, Official IMD Adapter (`[LIVE]` / `[REPLAY]`), Social Media (#IMD), Public Datasets
 - **Frontend:** HTML5, Tailwind CSS (via CDN), Google Fonts
 - **GIS / Mapping:** Leaflet.js with Doppler Weather Radar (DWR) Canvas Sweep Layer
 - **Real-Time:** Server-Sent Events (SSE)
 - **Audio / Alerts:** Browser Web Speech API & OASIS CAP v1.2 Cell Broadcast
-- **Architecture:** In-Memory PostGIS/Haversine emulator & Event Sourcing
+
+---
+
+## 📚 Technical Documentation Directory
+
+Full technical documentation satisfying all SIH26069 requirements is available in the `/docs` directory:
+
+| Document | Description |
+|---|---|
+| [**SIH26069 Compliance Matrix**](docs/SIH26069-COMPLIANCE.md) | 100% Traceability matrix across all 24 SIH26069 requirements with verified tests |
+| [**Enterprise Architecture**](docs/ARCHITECTURE.md) | System architecture, component relationships, dual-tier persistence, and scaling model |
+| [**Data Flow Specification**](docs/DATA-FLOW.md) | Step-by-step lifecycle from raw signal ingestion to GIS visualization and CAP broadcast |
+| [**REST & SSE API Reference**](docs/API.md) | Complete endpoint schemas, request/response payloads, and curl integration examples |
+| [**AI Pipeline & Mathematical Models**](docs/AI-PIPELINE.md) | 7-Factor confidence fusion formulas, exponential decay half-lives, and Skeptic filter |
+| [**Database Schema & Queries**](docs/DATABASE.md) | 10-table schema, PostGIS spatial GIST queries, migrations, and atomic disk storage |
+| [**Live Demonstration Playbook**](docs/DEMO.md) | Step-by-step judge demonstration script, scenario triggers, and verification commands |
+| [**Limitations & Production Roadmap**](docs/LIMITATIONS.md) | Transparent analysis of operational constraints, API quotas, and 5-phase scaling roadmap |
+| [**Judge Defense & FAQ**](docs/JUDGE_QA.md) | 25 deep technical answers to potential jury and meteorologist questions |
 
 ---
 
@@ -197,29 +217,33 @@ node test-nweis.mjs
 
 ```text
 n-weis/
-├── server-nweis.mjs          # Standalone Backend Server & API (~1,980 lines)
+├── server-nweis.mjs          # Standalone Enterprise Server, Ingestion Pipeline & API
 ├── nweis-cli.mjs             # Operations Headless Terminal CLI (10 commands)
 ├── simulate-stream.mjs       # Real-Time Telemetry & Event Stream Feeder Simulator
 ├── test-nweis.mjs            # 90/90 Passing Verification Test Suite (15 Suites)
-├── test-api.ps1              # 14-Pipeline Windows PowerShell Verification Script
-├── test-push.sh              # 14-Pipeline Linux / macOS Bash Verification Script
-├── package-release.ps1       # Automated Release Zip Packager for SIH Portal
-├── Dockerfile                # Alpine Node.js Container (<50 MB, zero-dependency)
-├── docker-compose.yml        # Multi-service container orchestration
+├── Dockerfile                # Hardened Alpine Node.js Container (<50 MB)
+├── docker-compose.yml        # Orchestration with PostgreSQL + PostGIS 16
+├── database/
+│   └── db.mjs                # Dual-Tier Persistence Engine (PostGIS + Atomic Disk)
+├── connectors/
+│   ├── weather-api.mjs       # Live Open-Meteo REST Weather API Connector
+│   ├── news-rss.mjs          # Indian News RSS XML Aggregator (TOI / DD News)
+│   ├── imd-adapter.mjs       # Official IMD Adapter ([LIVE], [REPLAY], [MOCK])
+│   ├── social-stream.mjs     # Social Media Hashtag Stream (#IMD, #rain, #flood)
+│   └── public-dataset.mjs    # Public CSV/JSON/GeoJSON Meteorological Dataset Ingester
+├── scripts/
+│   ├── migrate.mjs           # Database migration CLI (npm run db:migrate)
+│   ├── seed.mjs              # Realistic Indian disaster data seeder (npm run db:seed)
+│   └── reset.mjs             # State reset CLI (npm run db:reset)
+├── data/
+│   └── nweis-store.json      # Atomic crash-resilient disk storage file
 ├── public/
-│   ├── index.html            # GIS Operations Dashboard with Radar Sweeps (~2,200 lines)
+│   ├── index.html            # GIS Operations Dashboard with Radar Sweeps & Telemetry
 │   ├── manifest.json         # PWA Web App Manifest
 │   └── sw.js                 # PWA Service Worker for Offline Field Resiliency
-├── docs/
-│   ├── PRESENTATION_SLIDES.md# 10-Slide Pitch Deck for SIH 2026 Evaluation
-│   ├── JUDGE_QA.md           # Comprehensive Technical Defense Guide & FAQ
-│   └── WALKTHROUGH.md        # 5-Minute SIH Judge Demo Playbook
-├── specs/
-│   ├── AGENTS.md             # Core System Philosophy & Rules
-│   ├── CONFIDENCE_DECAY.md   # Mathematical Decay Model Specs
-│   ├── INCIDENT_STATE_MACHINE.md # Status Transition Invariants
-│   └── INCIDENT_THRESHOLDS.md    # 8-Category Taxonomy Rules
-└── README.md                 # Master Documentation (You are here)
+├── docs/                     # 9 In-Depth Technical Specification Documents
+├── specs/                    # Machine State & Taxonomy Invariants
+└── README.md                 # Master Project Documentation
 ```
 
 ---

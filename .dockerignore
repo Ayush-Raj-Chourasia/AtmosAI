@@ -4,6 +4,7 @@ node_modules
 
 # Monorepo apps and packages
 apps/
+!apps/api/src/database/schema.sql
 packages/
 
 # Media, documentation and specifications

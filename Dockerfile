@@ -28,8 +28,13 @@ WORKDIR /app
 # Configure permissions for the pre-existing non-root 'node' user
 RUN chown -R node:node /app
 
-# Copy zero-dependency standalone server and web dashboard assets
+# Copy server, connectors, database layer, and web dashboard assets
+COPY --chown=node:node package.json ./
 COPY --chown=node:node server-nweis.mjs ./
+COPY --chown=node:node database/ ./database/
+COPY --chown=node:node connectors/ ./connectors/
+COPY --chown=node:node data/ ./data/
+COPY --chown=node:node apps/api/src/database/schema.sql ./apps/api/src/database/schema.sql
 COPY --chown=node:node public/ ./public/
 
 # Switch to non-root user for security hardening
