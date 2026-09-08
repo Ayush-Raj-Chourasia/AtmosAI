@@ -209,16 +209,16 @@ Return a STRICT JSON object:
       OTHER: 0.1,
     };
 
-    if (/flood|submerged|inundat|overflow|waterlogging|water entering/i.test(lower)) scores.FLOOD += 4;
-    if (/rain|downpour|cloudburst|precipitation/i.test(lower)) scores.RAINFALL += 3;
-    if (/thunder|squall|storm|thunderstorm/i.test(lower)) scores.THUNDERSTORM += 3.5;
+    if (/flood|submerged|inundat|overflow|waterlogg|water enter|embankment|breach|river.*danger|danger.*siren/i.test(lower)) scores.FLOOD += 4;
+    if (/rain|downpour|cloudburst|precipitation|torrential/i.test(lower)) scores.RAINFALL += 3;
+    if (/thunder|squall|storm|thunderstorm|gust/i.test(lower)) scores.THUNDERSTORM += 3.5;
     if (/lightning|vajrapat|lightning strike/i.test(lower)) scores.LIGHTNING += 4;
     if (/hail|hailstorm|hailed/i.test(lower)) scores.HAILSTORM += 4;
-    if (/heatwave|temperature.*above|4[5-9]°c|loo|heat stroke/i.test(lower)) scores.HEATWAVE += 4;
+    if (/heatwave|temperature.*above|4[5-9]°c|loo|heat stroke|blistering/i.test(lower)) scores.HEATWAVE += 4;
     if (/coldwave|freezing|sheet lahar|frost/i.test(lower)) scores.COLD_WAVE += 4;
     if (/fog|dense fog|visibility.*<|smog/i.test(lower)) scores.FOG += 4;
     if (/dust storm|andhi|sandstorm/i.test(lower)) scores.DUST_STORM += 4;
-    if (/cyclone|typhoon|depresssion/i.test(lower)) scores.CYCLONE += 4;
+    if (/cyclone|typhoon|depression|deep depression/i.test(lower)) scores.CYCLONE += 4;
     if (/gale|strong wind|uprooted tree/i.test(lower)) scores.STRONG_WIND += 3.5;
 
     let best = 'OTHER';

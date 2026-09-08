@@ -152,7 +152,7 @@ export class AdminController {
       totals: {
         signals: analytics.totalSignals,
         incidents: analytics.totalEvents,
-        users: 48,
+        users: analytics.totalUsers || 1,
         evaluations: analytics.totalSignals,
         traces: analytics.totalEvents * 3,
       },

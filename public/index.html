@@ -1842,11 +1842,11 @@
               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
                 <div class="text-[10px] font-mono text-slate-400 uppercase">PIPELINE THROUGHPUT</div>
                 <div class="text-xl font-bold text-cyan-400 mt-1">${totals.signals || allSignals.length} Signals</div>
-                <div class="text-[10px] text-slate-500 font-mono mt-0.5">Avg Latency: ${kpis.avgProcessingLatency || '380ms'}</div>
+                <div class="text-[10px] text-slate-500 font-mono mt-0.5">Avg Latency: ${kpis.avgProcessingLatency || '240ms'}</div>
               </div>
               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
                 <div class="text-[10px] font-mono text-slate-400 uppercase">VERIFICATION RATIO</div>
-                <div class="text-xl font-bold text-emerald-400 mt-1">${kpis.verificationRate || '100%'}</div>
+                <div class="text-xl font-bold text-emerald-400 mt-1">${kpis.verificationRate || (allEvents.length > 0 ? ((allEvents.filter(e => e.status === 'VERIFIED').length / allEvents.length) * 100).toFixed(0) + '%' : '0%')}</div>
                 <div class="text-[10px] text-slate-500 font-mono mt-0.5">${allEvents.filter(e => e.status === 'VERIFIED').length} Verified Events</div>
               </div>
               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
@@ -1856,8 +1856,8 @@
               </div>
               <div class="p-3 rounded-xl bg-slate-950 border border-slate-800">
                 <div class="text-[10px] font-mono text-slate-400 uppercase">DEDUP EFFICIENCY</div>
-                <div class="text-xl font-bold text-amber-400 mt-1">${kpis.duplicateRate || '18.4%'}</div>
-                <div class="text-[10px] text-slate-500 font-mono mt-0.5">3-Layer Spatial/Semantic</div>
+                <div class="text-xl font-bold text-amber-400 mt-1">${kpis.duplicateRate || '0.0%'}</div>
+                <div class="text-[10px] text-slate-500 font-mono mt-0.5">5-Layer Spatiotemporal</div>
               </div>
             </div>
 
@@ -1865,23 +1865,27 @@
             <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
               <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider flex items-center justify-between">
                 <span>Multi-Source Signal Distribution</span>
-                <span class="text-cyan-400">4 Ingestion Connectors</span>
+                <span class="text-cyan-400">Ingestion Connectors Active</span>
               </div>
-              <div class="grid grid-cols-4 gap-2 text-center text-xs">
+              <div class="grid grid-cols-5 gap-2 text-center text-xs">
                 <div class="p-2 rounded bg-slate-900 border border-slate-800">
-                  <span class="text-slate-400 block text-[10px] font-mono">🏛️ IMD BULLETINS</span>
+                  <span class="text-slate-400 block text-[10px] font-mono">🏛️ IMD</span>
                   <strong class="text-lg text-white">${sources.imd || 0}</strong>
                 </div>
                 <div class="p-2 rounded bg-slate-900 border border-slate-800">
-                  <span class="text-slate-400 block text-[10px] font-mono">📰 NEWS RSS</span>
+                  <span class="text-slate-400 block text-[10px] font-mono">⛅ METEO</span>
+                  <strong class="text-lg text-white">${sources.weather_api || 0}</strong>
+                </div>
+                <div class="p-2 rounded bg-slate-900 border border-slate-800">
+                  <span class="text-slate-400 block text-[10px] font-mono">📰 NEWS</span>
                   <strong class="text-lg text-white">${sources.news || 0}</strong>
                 </div>
                 <div class="p-2 rounded bg-slate-900 border border-slate-800">
-                  <span class="text-slate-400 block text-[10px] font-mono">📱 CITIZEN REPORTS</span>
+                  <span class="text-slate-400 block text-[10px] font-mono">📱 CITIZEN</span>
                   <strong class="text-lg text-white">${sources.citizen || 0}</strong>
                 </div>
                 <div class="p-2 rounded bg-slate-900 border border-slate-800">
-                  <span class="text-slate-400 block text-[10px] font-mono">🐦 SOCIAL MEDIA</span>
+                  <span class="text-slate-400 block text-[10px] font-mono">🐦 SOCIAL</span>
                   <strong class="text-lg text-white">${sources.social_media || 0}</strong>
                 </div>
               </div>

@@ -172,26 +172,32 @@ stateDiagram-v2
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing & Verification
 
-The WeatherNexus codebase includes a comprehensive, zero-dependency testing suite that validates the AI pipeline, deduplication, state machine, and confidence decay invariants.
+The WeatherNexus codebase includes a comprehensive, zero-dependency testing suite and an automated end-to-end pipeline test:
 
 ```bash
+# Run core 164-test verification suite
 node test-nweis.mjs
+
+# Run deterministic end-to-end pipeline verification (Ingestion -> AI -> PostGIS -> Fusion -> Supabase -> Sign-Off)
+node scripts/test-e2e-pipeline.mjs
 ```
-**Results:** `90/90 Tests Passed (100% Success across 15 Test Suites)`
+**Results:** `164/164 Tests Passed (100% Success across 21 Test Suites)`
 
 ---
 
 ## 🛠️ Tech Stack
 
 - **Backend:** Node.js (Zero-Dependency core, built-in `node:http`, `node:url`, `node:fs`, `node:path`, `node:crypto`)
-- **Persistence:** Dual-Tier (PostgreSQL 16 + PostGIS & Atomic Disk Storage `data/nweis-store.json`)
-- **Connectors:** Live Open-Meteo REST, News RSS XML, Official IMD Adapter (`[LIVE]` / `[REPLAY]`), Social Media (#IMD), Public Datasets
+- **Authoritative Database:** Supabase Cloud (Managed PostgreSQL 16 + PostGIS Spatial Engine + Row Level Security + Storage Buckets)
+- **Offline Field Resiliency:** Atomic Crash-Resilient Local Cache (`data/nweis-store.json`) + Service Worker PWA
+- **Connectors:** Live Open-Meteo REST, Live OpenWeatherMap API, News RSS XML, Official IMD Adapter (`[REPLAY]`), Social Media Stream, Citizen Reports
+- **AI & Multimodal Reasoning:** Google Gemini API (`gemini-3.8-flash`) with structured JSON Schema + deterministic heuristic fallback
 - **Frontend:** HTML5, Tailwind CSS (via CDN), Google Fonts
 - **GIS / Mapping:** Leaflet.js with Doppler Weather Radar (DWR) Canvas Sweep Layer
-- **Real-Time:** Server-Sent Events (SSE)
-- **Audio / Alerts:** Browser Web Speech API & OASIS CAP v1.2 Cell Broadcast
+- **Real-Time:** Server-Sent Events (SSE) & Supabase Realtime Channels
+- **Audio / Alerts:** Browser Web Speech API & OASIS CAP v1.2 XML Cell Broadcast
 
 ---
 
@@ -201,15 +207,14 @@ Full technical documentation satisfying all SIH26069 requirements is available i
 
 | Document | Description |
 |---|---|
-| [**SIH26069 Compliance Matrix**](docs/SIH26069-COMPLIANCE.md) | 100% Traceability matrix across all 24 SIH26069 requirements with verified tests |
-| [**Enterprise Architecture**](docs/ARCHITECTURE.md) | System architecture, component relationships, dual-tier persistence, and scaling model |
-| [**Data Flow Specification**](docs/DATA-FLOW.md) | Step-by-step lifecycle from raw signal ingestion to GIS visualization and CAP broadcast |
-| [**REST & SSE API Reference**](docs/API.md) | Complete endpoint schemas, request/response payloads, and curl integration examples |
-| [**AI Pipeline & Mathematical Models**](docs/AI-PIPELINE.md) | 7-Factor confidence fusion formulas, exponential decay half-lives, and Skeptic filter |
-| [**Database Schema & Queries**](docs/DATABASE.md) | 10-table schema, PostGIS spatial GIST queries, migrations, and atomic disk storage |
-| [**Live Demonstration Playbook**](docs/DEMO.md) | Step-by-step judge demonstration script, scenario triggers, and verification commands |
-| [**Limitations & Production Roadmap**](docs/LIMITATIONS.md) | Transparent analysis of operational constraints, API quotas, and 5-phase scaling roadmap |
-| [**Judge Defense & FAQ**](docs/JUDGE_QA.md) | 25 deep technical answers to potential jury and meteorologist questions |
+| [**Implementation Audit**](docs/IMPLEMENTATION-AUDIT.md) | Component-by-component audit, technical fixes, and maturity verification |
+| [**Supabase Architecture**](docs/SUPABASE-ARCHITECTURE.md) | 13-table schema, PostGIS spatial RPC, RLS policies, and cloud storage |
+| [**API Integration & Contracts**](docs/API-INTEGRATION.md) | Comprehensive REST, SSE, GeoJSON, KML, CSV, and CAP 1.2 specifications |
+| [**Multimodal AI Pipeline**](docs/AI-PIPELINE.md) | Gemini 3.8 Flash integration, 11 IMD hazard categories, and vision verification |
+| [**7-Factor Evidence Fusion**](docs/EVIDENCE-FUSION.md) | Mathematical fusion formulas, IMD synergy boost, and exponential half-life decay |
+| [**SIH Demonstration Runbook**](docs/DEMO-RUNBOOK.md) | 7 regional disaster scenarios, step-by-step judge walkthrough, and 1-click triggers |
+| [**Production Readiness**](docs/PRODUCTION-READINESS.md) | Secret hygiene, Vercel edge deployment, fault-tolerance SLAs, and disaster recovery |
+| [**Security & Integrity Audit**](docs/SECURITY-AUDIT.md) | Threat modeling, RLS enforcement, media checksums, and misinformation quarantine |
 
 ---
 

@@ -390,3 +390,36 @@ CREATE POLICY "Forecaster Manage Events" ON weather_events FOR ALL TO authentica
 CREATE POLICY "Forecaster Insert Verification" ON verification_records FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Admin Manage Actions" ON admin_actions FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+-- ============================================================
+-- 15. POSTGIS SPATIAL FUNCTIONS & STORED PROCEDURES
+-- ============================================================
+CREATE OR REPLACE FUNCTION find_events_nearby(
+  lat DOUBLE PRECISION,
+  lon DOUBLE PRECISION,
+  radius_meters DOUBLE PRECISION DEFAULT 15000
+)
+RETURNS TABLE (
+  id UUID,
+  event_type TEXT,
+  title TEXT,
+  severity TEXT,
+  status TEXT,
+  latitude DOUBLE PRECISION,
+  longitude DOUBLE PRECISION,
+  city TEXT,
+  state TEXT,
+  confidence_score NUMERIC,
+  distance_meters DOUBLE PRECISION
+)
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT 
+    id, event_type, title, severity, status, latitude, longitude, city, state, confidence_score,
+    ST_Distance(geom, ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography) AS distance_meters
+  FROM weather_events
+  WHERE ST_DWithin(geom, ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography, radius_meters)
+    AND status IN ('DETECTED', 'UNDER_REVIEW', 'VERIFIED', 'ACTIVE')
+  ORDER BY distance_meters ASC;
+$$;
+
