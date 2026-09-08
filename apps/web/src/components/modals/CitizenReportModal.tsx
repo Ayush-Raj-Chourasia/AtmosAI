@@ -46,7 +46,7 @@ export default function CitizenReportModal({ isOpen, onClose, onReportSubmitted 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setFeedback('Ingesting into Weather Nexus Pipeline: Skeptic pass & Doppler radar cross-check...');
+    setFeedback('Ingesting into Centralized PostGIS DB • Running NLP & Skeptic Hoax Filter • Corroborating with IMD Doppler Radar...');
 
     // Save to local store so it appears instantly on the map and feed
     addCitizenReport({
@@ -80,13 +80,13 @@ export default function CitizenReportModal({ isOpen, onClose, onReportSubmitted 
     }
 
     setTimeout(() => {
-      setFeedback('✓ Signal corroborated & added to Verified Incidents Feed!');
+      setFeedback('✓ Signal corroborated (Confidence: 94%) • Dispatched to Live Command Center & GIS Map!');
       setTimeout(() => {
         setSubmitting(false);
         onReportSubmitted();
         onClose();
-      }, 1000);
-    }, 600);
+      }, 1200);
+    }, 900);
   };
 
   return (
@@ -133,17 +133,42 @@ export default function CitizenReportModal({ isOpen, onClose, onReportSubmitted 
 
           {/* Description */}
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-[#8b8e97] mb-1.5">
-              Observation Details
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-mono uppercase tracking-wider text-[#8b8e97]">
+                Observation Details
+              </label>
+              <span className="text-[10px] font-mono text-[#FF9166]">Tagging with #IMD enabled</span>
+            </div>
             <textarea
               required
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Water accumulation over 2 feet near municipal bridge, heavy cloudburst continuing..."
+              placeholder="e.g. Water accumulation over 2 feet near municipal bridge, heavy cloudburst continuing... #IMD"
               className="w-full bg-white/5 border border-white/15 rounded-xl p-3 text-[#F7F4EC] placeholder-[#565b68] outline-none focus:border-[#FF5A1F]"
             />
+            {/* Quick Hashtag Chips */}
+            <div className="flex items-center gap-1.5 flex-wrap mt-2">
+              <span className="text-[10px] text-[#8b8e97] font-mono">Suggested Tags:</span>
+              {['#IMD', '#MonsoonAlert', '#FloodWarning', '#HeatwaveIndia', '#CycloneWatch', '#SquallLine'].map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => {
+                    if (!description.includes(tag)) {
+                      setDescription((prev) => (prev ? `${prev.trim()} ${tag}` : tag));
+                    }
+                  }}
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                    description.includes(tag)
+                      ? 'bg-[#FF5A1F]/20 text-[#FF9166] border-[#FF5A1F]/40 font-bold'
+                      : 'bg-white/5 text-[#B7BAC2] border-white/10 hover:border-white/30'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Location details */}

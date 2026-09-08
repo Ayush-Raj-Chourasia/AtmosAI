@@ -80,6 +80,56 @@ DISPATCH PROTOCOL: NDMA / SDMA Alert Ingress v1.2
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const handleExportCap = () => {
+    const capXml = `<?xml version="1.0" encoding="UTF-8"?>
+<alert xmlns="urn:oasis:names:tc:emergency:cap:1.2">
+  <identifier>ATMOSAI-CAP-${incident.id}-${Date.now()}</identifier>
+  <sender>ops-center@atmosai.imd.gov.in</sender>
+  <sent>${new Date().toISOString()}</sent>
+  <status>Actual</status>
+  <msgType>Alert</msgType>
+  <scope>Public</scope>
+  <code>DISASTER_ID_26069</code>
+  <info>
+    <category>Met</category>
+    <event>${incident.event_type}</event>
+    <urgency>Immediate</urgency>
+    <severity>${incident.severity === 'critical' ? 'Extreme' : incident.severity === 'high' ? 'Severe' : 'Moderate'}</severity>
+    <certainty>Observed</certainty>
+    <eventCode>
+      <valueName>IMD_MET_CODE</valueName>
+      <value>${incident.event_type}</value>
+    </eventCode>
+    <expires>${new Date(Date.now() + 4 * 3600 * 1000).toISOString()}</expires>
+    <headline>${incident.title}</headline>
+    <description>${incident.description}</description>
+    <instruction>Adhere to DDMA/SDMA directives. Keep emergency supplies ready. Dial 112 or 1078 for immediate relief assistance.</instruction>
+    <parameter>
+      <valueName>ConfidenceScore</valueName>
+      <value>${conf}%</value>
+    </parameter>
+    <parameter>
+      <valueName>FusionEngine</valueName>
+      <value>AtmosAI-7Factor-Skeptic-v2</value>
+    </parameter>
+    <area>
+      <areaDesc>${incident.city}, ${incident.state}</areaDesc>
+      <circle>${incident.latitude},${incident.longitude},15.0</circle>
+    </area>
+  </info>
+</alert>`;
+
+    const blob = new Blob([capXml], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CAP_ALERT_${incident.id}.xml`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setToastMessage('✓ OASIS CAP v1.2 XML alert generated and downloaded.');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   return (
     <div className="min-h-screen bg-[#F7F4EC] text-[#12141A] flex flex-col">
       {/* Header */}
@@ -102,9 +152,19 @@ DISPATCH PROTOCOL: NDMA / SDMA Alert Ingress v1.2
           <button
             onClick={handleExportSitrep}
             className="px-3.5 py-1.5 rounded-full border border-[#12141A]/20 bg-white text-xs font-semibold hover:border-[#12141A]/40 transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Download Situation Report"
           >
             <Download size={14} />
             <span className="hidden sm:inline">Export SITREP</span>
+          </button>
+
+          <button
+            onClick={handleExportCap}
+            className="px-3.5 py-1.5 rounded-full bg-[#12141A] text-white text-xs font-semibold hover:bg-[#FF5A1F] transition-colors flex items-center gap-1.5 cursor-pointer"
+            title="Download OASIS CAP v1.2 XML Alert"
+          >
+            <Radio size={14} className="text-[#FF9166]" />
+            <span>CAP v1.2</span>
           </button>
         </div>
       </header>
