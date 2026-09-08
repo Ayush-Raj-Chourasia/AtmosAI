@@ -2,8 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@n-weis/shared'],
-  turbopack: {},
-  output: "standalone",
   async headers() {
     return [
       {

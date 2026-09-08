@@ -1,6 +1,7 @@
 {
   "name": "weather-nexus",
   "private": true,
+  "packageManager": "npm@11.12.1",
   "scripts": {
     "postinstall": "npm run build -w packages/shared",
     "build": "turbo build",

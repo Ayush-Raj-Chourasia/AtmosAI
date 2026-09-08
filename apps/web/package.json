@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@n-weis/shared": "*",
+    "@n-weis/shared": "file:./n-weis-shared-1.0.0.tgz",
     "@radix-ui/react-toast": "^1.2.15",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
