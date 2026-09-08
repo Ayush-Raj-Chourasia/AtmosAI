@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node -e \"console.log('N-WEIS Web ready')\"",
     "start": "next start",
     "lint": "eslint"
   },

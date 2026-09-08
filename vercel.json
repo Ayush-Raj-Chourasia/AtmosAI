@@ -1,0 +1,22 @@
+﻿{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "turbo build",
+  "outputDirectory": "public",
+  "rewrites": [
+    { "source": "/health", "destination": "/api/index.mjs" },
+    { "source": "/api/(.*)", "destination": "/api/index.mjs" },
+    { "source": "/events/(.*)", "destination": "/api/index.mjs" },
+    { "source": "/sse/(.*)", "destination": "/api/index.mjs" },
+    { "source": "/dashboard", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    }
+  ]
+}

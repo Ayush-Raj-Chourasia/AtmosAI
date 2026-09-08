@@ -15,7 +15,8 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, '..', 'data');
-const STORE_PATH = path.join(DATA_DIR, 'nweis-store.json');
+const ORIGINAL_STORE_PATH = path.join(DATA_DIR, 'nweis-store.json');
+const STORE_PATH = process.env.VERCEL ? path.join('/tmp', 'nweis-store.json') : ORIGINAL_STORE_PATH;
 const SCHEMA_PATH = path.join(__dirname, '..', 'apps', 'api', 'src', 'database', 'schema.sql');
 
 const DEFAULT_SOURCES = [
@@ -133,8 +134,12 @@ class DatabaseEngine {
 
   loadFromDisk() {
     try {
-      if (fs.existsSync(STORE_PATH)) {
-        const raw = fs.readFileSync(STORE_PATH, 'utf8');
+      let targetPath = STORE_PATH;
+      if (!fs.existsSync(targetPath) && fs.existsSync(ORIGINAL_STORE_PATH)) {
+        targetPath = ORIGINAL_STORE_PATH;
+      }
+      if (fs.existsSync(targetPath)) {
+        const raw = fs.readFileSync(targetPath, 'utf8');
         const data = JSON.parse(raw);
         if (data.sources) this.tables.sources = new Map(Object.entries(data.sources));
         if (data.signals) this.tables.signals = new Map(Object.entries(data.signals));

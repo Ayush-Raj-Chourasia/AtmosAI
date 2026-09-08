@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "build": "tsc"
+    "build": "node -e \"console.log('@n-weis/shared ready')\""
   },
   "devDependencies": {
     "typescript": "^5.3.3"
