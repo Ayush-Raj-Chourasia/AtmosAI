@@ -218,12 +218,8 @@
   </div>
 
   <!-- 1-CLICK DEMO SCENARIO QUICK-BAR (SECTION 38 JUDGE STORY) -->
-  <div class="h-11 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between px-6 shrink-0 z-20 overflow-x-auto text-xs">
+  <div id="demo-scenarios-bar" class="hidden h-11 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between px-6 shrink-0 z-20 overflow-x-auto text-xs">
     <div class="flex items-center space-x-2 shrink-0">
-      <span class="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-        <span>Judge Demo Scenarios:</span>
-      </span>
       <button onclick="runScenario('national-overview')" id="btn-all-india" class="px-2.5 py-1 rounded bg-gradient-to-r from-cyan-900 to-blue-900 hover:from-cyan-800 hover:to-blue-800 border border-cyan-500/60 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-cyan-900/40">
         <span>🇮🇳 All India (7 Regions)</span>
         <span class="text-[10px] bg-cyan-500/30 px-1 py-0.2 rounded font-mono text-cyan-200">Full Map</span>
@@ -2258,6 +2254,10 @@
       window.addEventListener('offline', updateOnlineStatus);
       updateOnlineStatus();
       updateOfflineBadge();
+
+      if (new URLSearchParams(window.location.search).get('demo') === '1') {
+        document.getElementById('demo-scenarios-bar')?.classList.remove('hidden');
+      }
 
       // Load KPI cards on start
       loadKpiCards();
