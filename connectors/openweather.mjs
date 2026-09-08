@@ -11,7 +11,7 @@ import { BaseWeatherConnector } from './base-connector.mjs';
 export class OpenWeatherConnector extends BaseWeatherConnector {
   constructor() {
     super({
-      id: 'src_openweather_01',
+      id: 'src_owm_01',
       name: 'OpenWeatherMap API',
       type: 'weather_api',
       reliability: 0.88,
@@ -90,17 +90,28 @@ export class OpenWeatherConnector extends BaseWeatherConnector {
         const observedAt = data.dt ? new Date(data.dt * 1000).toISOString() : new Date().toISOString();
 
         let candidate = 'OTHER';
-        if (rain >= 15.0) candidate = rain >= 50.0 ? 'FLOOD' : 'RAINFALL';
-        else if (temp >= 42.0) candidate = 'HEATWAVE';
-        else if (wind >= 50.0) candidate = 'STRONG_WIND';
-        else if (humidity >= 95 && temp <= 15) candidate = 'FOG';
+        let floodIndicator = false;
+        if (rain >= 15.0) {
+          // Hardened Rule: RAIN != FLOOD. Rain >= 50mm flags heavy rainfall with flood risk/indicator.
+          // Inundation/riverine flood classification strictly requires hydrological evidence or corroborated waterlogging.
+          candidate = 'RAINFALL';
+          if (rain >= 50.0) {
+            floodIndicator = true;
+          }
+        } else if (temp >= 42.0) {
+          candidate = 'HEATWAVE';
+        } else if (wind >= 50.0) {
+          candidate = 'STRONG_WIND';
+        } else if (humidity >= 95 && temp <= 15) {
+          candidate = 'FOG';
+        }
 
         const signal = this.normalize({
           source_id: this.id,
           source_type: this.type,
           source_name: `OpenWeather (${st.city})`,
           external_id: `owm_${st.city.toLowerCase()}_${data.dt || Date.now()}`,
-          text: `[OPENWEATHER OBSERVATION] ${st.city}, ${st.state}: ${description}. Temp: ${temp.toFixed(1)}°C, Humidity: ${humidity}%, Pressure: ${pressure} hPa, Wind: ${wind.toFixed(0)} km/h, Rain: ${rain} mm.`,
+          text: `[OPENWEATHER OBSERVATION] ${st.city}, ${st.state}: ${description}. Temp: ${temp.toFixed(1)}°C, Humidity: ${humidity}%, Pressure: ${pressure} hPa, Wind: ${wind.toFixed(0)} km/h, Rain: ${rain} mm.${floodIndicator ? ' [FLOOD_RISK_INDICATOR: Cumulative rain >= 50mm]' : ''}`,
           timestamp: observedAt,
           observed_at: observedAt,
           city: st.city,
@@ -111,6 +122,7 @@ export class OpenWeatherConnector extends BaseWeatherConnector {
           location_confidence: 0.95,
           location_method: 'native_gps',
           event_candidate: candidate,
+          flood_indicator: floodIndicator,
           pressure_hpa: pressure,
           precipitation_mm: rain,
           weather_condition: weatherCondition,

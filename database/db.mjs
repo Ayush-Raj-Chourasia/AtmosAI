@@ -80,9 +80,6 @@ class DatabaseEngine {
     // Always seed baseline defaults into memory
     this.seedDefaults();
 
-    // Load existing disk state if available (for offline continuity)
-    this.loadFromDisk();
-
     // 1. Authoritative Supabase Integration
     if (isSupabaseConfigured()) {
       try {
@@ -98,18 +95,22 @@ class DatabaseEngine {
           console.warn(`[SUPABASE] ⚠️ Schema not yet applied on Supabase (${health.error}).`);
           console.log('[SUPABASE] Mode: OFFLINE_FALLBACK — Operating with Atomic Crash-Resilient Storage.');
           this.mode = 'OFFLINE_FALLBACK';
+          this.loadFromDisk();
         } else {
           console.warn(`[SUPABASE] ⚠️ Supabase connection failed (${health.error}).`);
           console.log('[SUPABASE] Mode: OFFLINE_FALLBACK — Operating with Atomic Crash-Resilient Storage.');
           this.mode = 'OFFLINE_FALLBACK';
+          this.loadFromDisk();
         }
       } catch (err) {
         console.warn(`[SUPABASE] ⚠️ Supabase initialization error: ${err.message}`);
         this.mode = 'OFFLINE_FALLBACK';
+        this.loadFromDisk();
       }
     } else {
       console.log('[SUPABASE] Mode: OFFLINE_FALLBACK — Supabase credentials not set. Using Atomic Crash-Resilient Store.');
       this.mode = 'OFFLINE_FALLBACK';
+      this.loadFromDisk();
     }
 
     this.isInitialized = true;
@@ -186,7 +187,13 @@ class DatabaseEngine {
   }
 
   saveToDisk() {
-    // Disk persistence is active for local crash resilience and explicit offline/replay mode
+    // Disk persistence is strictly gated behind REPLAY / OFFLINE / MOCK mode
+    const appMode = (process.env.APP_MODE || process.env.NODE_ENV || '').toUpperCase();
+    const isAllowedMode = appMode === 'REPLAY' || appMode === 'OFFLINE' || appMode === 'MOCK' || this.mode === 'OFFLINE_FALLBACK';
+    if (this.mode === 'AUTHORITATIVE' && !isAllowedMode) {
+      return;
+    }
+
     try {
       const serializable = {
         saved_at: new Date().toISOString(),
@@ -275,17 +282,22 @@ class DatabaseEngine {
           raw_payload: record.raw_payload || {},
         }]);
         if (error) {
-          console.warn('[SUPABASE] Signal insert notice:', error.message);
+          if (this.mode === 'AUTHORITATIVE') {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          } else {
+            console.warn('[SUPABASE] Signal insert notice:', error.message);
+          }
         }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Signal sync warning:', e.message);
       }
     }
 
-    // Transaction Step 3: Commit to Memory Cache
+    // Transaction Step 3: Commit to Memory Cache (Only reached upon Supabase success in authoritative mode)
     this.tables.signals.set(id, record);
 
-    // Transaction Step 4: Atomic Disk Save
+    // Transaction Step 4: Atomic Disk Save (Gated to offline/replay modes)
     this.saveToDisk();
     return record;
   }
@@ -304,8 +316,14 @@ class DatabaseEngine {
           query = query.gte('timestamp', filters.from_date);
         }
         const { data, error } = await query.order('timestamp', { ascending: false }).limit(200);
-        if (!error && data && data.length > 0) return data;
+        if (error && this.mode === 'AUTHORITATIVE') {
+          throw new Error(`AUTHORITATIVE_SUPABASE_READ_FAILED: ${error.message}`);
+        }
+        if (!error && data && data.length > 0) {
+          return data.map((s) => ({ ...s, _data_source: 'SUPABASE_AUTHORITATIVE' }));
+        }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Signal query warning:', e.message);
       }
     }
@@ -373,9 +391,14 @@ class DatabaseEngine {
           evidence_summary: Array.isArray(record.evidence_summary) ? record.evidence_summary : [record.evidence_summary],
         }]);
         if (error) {
-          console.warn('[SUPABASE] Event upsert notice:', error.message);
+          if (this.mode === 'AUTHORITATIVE') {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          } else {
+            console.warn('[SUPABASE] Event upsert notice:', error.message);
+          }
         }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Event upsert warning:', e.message);
       }
     }
@@ -405,15 +428,20 @@ class DatabaseEngine {
           query = query.gte('last_updated_at', filters.from_date);
         }
         const { data, error } = await query.order('last_updated_at', { ascending: false });
+        if (error && this.mode === 'AUTHORITATIVE') {
+          throw new Error(`AUTHORITATIVE_SUPABASE_READ_FAILED: ${error.message}`);
+        }
         if (!error && data && data.length > 0) {
           return data.map((r) => ({
             ...r,
             confidence: parseFloat(r.confidence_score) || 0.5,
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
+            _data_source: 'SUPABASE_AUTHORITATIVE',
           }));
         }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Event query warning:', e.message);
       }
     }
@@ -440,15 +468,20 @@ class DatabaseEngine {
     if (this.isSupabaseConnected && this.supabase) {
       try {
         const { data, error } = await this.supabase.from('weather_events').select('*').eq('id', id).single();
+        if (error && this.mode === 'AUTHORITATIVE') {
+          throw new Error(`AUTHORITATIVE_SUPABASE_READ_FAILED: ${error.message}`);
+        }
         if (!error && data) {
           return {
             ...data,
             confidence: parseFloat(data.confidence_score) || 0.5,
             latitude: parseFloat(data.latitude),
             longitude: parseFloat(data.longitude),
+            _data_source: 'SUPABASE_AUTHORITATIVE',
           };
         }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Event getById warning:', e.message);
       }
     }
@@ -473,8 +506,16 @@ class DatabaseEngine {
         const patch = { last_updated_at: new Date().toISOString() };
         if (updates.status) patch.status = updates.status;
         if (updates.confidence !== undefined) patch.confidence_score = updates.confidence;
-        await this.supabase.from('weather_events').update(patch).eq('id', id);
+        const { error } = await this.supabase.from('weather_events').update(patch).eq('id', id);
+        if (error) {
+          if (this.mode === 'AUTHORITATIVE') {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          } else {
+            console.warn('[SUPABASE] Event update warning:', error.message);
+          }
+        }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Event update warning:', e.message);
       }
     }
@@ -492,7 +533,7 @@ class DatabaseEngine {
     if (this.isSupabaseConnected && this.supabase) {
       const spatialRows = await findEventsNearbyPostGIS(latitude, longitude, radiusMeters);
       if (spatialRows && spatialRows.length > 0) {
-        return spatialRows;
+        return spatialRows.map((r) => ({ ...r, _spatial_engine: 'POSTGIS_RPC' }));
       }
     }
 
@@ -511,6 +552,7 @@ class DatabaseEngine {
       .map((ev) => ({
         ...ev,
         distance_meters: haversine(latitude, longitude, ev.latitude, ev.longitude),
+        _spatial_engine: 'SPATIAL_FALLBACK_HAVERSINE',
       }))
       .filter((ev) => ev.distance_meters <= radiusMeters && ['DETECTED', 'UNDER_REVIEW', 'VERIFIED', 'ACTIVE'].includes(ev.status));
   }
@@ -521,12 +563,10 @@ class DatabaseEngine {
   async insertEvidence(evidence) {
     const id = evidence.id || `ev_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const record = { ...evidence, id, created_at: evidence.created_at || new Date().toISOString() };
-    this.tables.event_evidence.set(id, record);
-    this.saveToDisk();
 
     if (this.isSupabaseConnected && this.supabase) {
       try {
-        await this.supabase.from('event_evidence').insert([{
+        const { error } = await this.supabase.from('event_evidence').insert([{
           id: record.id,
           event_id: record.event_id,
           signal_id: record.signal_id,
@@ -536,22 +576,31 @@ class DatabaseEngine {
           supporting_text: record.supporting_text || '',
           media_url: record.media_url || null,
         }]);
+        if (error) {
+          if (this.mode === 'AUTHORITATIVE') {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          } else {
+            console.warn('[SUPABASE] Evidence sync notice:', error.message);
+          }
+        }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Evidence sync failed:', e.message);
       }
     }
+
+    this.tables.event_evidence.set(id, record);
+    this.saveToDisk();
     return record;
   }
 
   async insertVerification(verification) {
     const id = verification.id || `vr_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const record = { ...verification, id, created_at: verification.created_at || new Date().toISOString() };
-    this.tables.verification_records.push(record);
-    this.saveToDisk();
 
     if (this.isSupabaseConnected && this.supabase) {
       try {
-        await this.supabase.from('verification_records').insert([{
+        const { error } = await this.supabase.from('verification_records').insert([{
           id: record.id,
           target_type: record.target_type || 'event',
           target_id: record.target_id,
@@ -564,44 +613,62 @@ class DatabaseEngine {
           confidence_before: record.confidence_before || null,
           confidence_after: record.confidence_after || null,
         }]);
+        if (error) {
+          if (this.mode === 'AUTHORITATIVE') {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          } else {
+            console.warn('[SUPABASE] Verification sync notice:', error.message);
+          }
+        }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Verification sync failed:', e.message);
       }
     }
+
+    this.tables.verification_records.push(record);
+    this.saveToDisk();
     return record;
   }
 
   async insertAuditAction(action) {
     const id = action.id || `act_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const record = { ...action, id, created_at: action.created_at || new Date().toISOString() };
-    this.tables.admin_actions.push(record);
-    this.saveToDisk();
 
     if (this.isSupabaseConnected && this.supabase) {
       try {
-        await this.supabase.from('admin_actions').insert([{
+        const { error } = await this.supabase.from('admin_actions').insert([{
           id: record.id,
-          admin_user: record.admin_user || 'admin@imd.gov.in',
+          admin_user: record.admin_user || 'system',
           action_type: record.action_type,
           target_id: record.target_id || null,
           details: record.details || {},
         }]);
+        if (error) {
+          if (this.mode === 'AUTHORITATIVE') {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          } else {
+            console.warn('[SUPABASE] Audit action sync notice:', error.message);
+          }
+        }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Audit action sync failed:', e.message);
       }
     }
+
+    this.tables.admin_actions.push(record);
+    this.saveToDisk();
     return record;
   }
 
   async insertMediaMetadata(media) {
     const id = media.media_id || `med_${Date.now()}`;
     const record = { ...media, id, created_at: media.created_at || new Date().toISOString() };
-    this.tables.media_metadata.set(id, record);
-    this.saveToDisk();
 
     if (this.isSupabaseConnected && this.supabase) {
       try {
-        await this.supabase.from('media_metadata').insert([{
+        const { error } = await this.supabase.from('media_metadata').insert([{
           id: record.id,
           media_id: record.media_id,
           event_id: record.event_id || null,
@@ -613,10 +680,21 @@ class DatabaseEngine {
           checksum: record.checksum,
           storage_provider: record.storage_provider || 'SUPABASE_STORAGE',
         }]);
+        if (error) {
+          if (this.mode === 'AUTHORITATIVE') {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          } else {
+            console.warn('[SUPABASE] Media metadata sync notice:', error.message);
+          }
+        }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] Media metadata sync failed:', e.message);
       }
     }
+
+    this.tables.media_metadata.set(id, record);
+    this.saveToDisk();
     return record;
   }
 
@@ -627,12 +705,10 @@ class DatabaseEngine {
       id,
       created_at: prediction.created_at || new Date().toISOString(),
     };
-    this.tables.ai_predictions.push(record);
-    this.saveToDisk();
 
     if (this.isSupabaseConnected && this.supabase) {
       try {
-        await this.supabase.from('ai_predictions').insert([{
+        const { error } = await this.supabase.from('ai_predictions').insert([{
           id: record.id,
           signal_id: record.signal_id || null,
           event_id: record.event_id || null,
@@ -642,10 +718,21 @@ class DatabaseEngine {
           confidence: record.confidence ?? null,
           latency_ms: record.latency_ms ?? 0,
         }]);
+        if (error) {
+          if (this.mode === 'AUTHORITATIVE') {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          } else {
+            console.warn('[SUPABASE] AI prediction sync notice:', error.message);
+          }
+        }
       } catch (e) {
+        if (this.mode === 'AUTHORITATIVE') throw e;
         console.warn('[SUPABASE] AI prediction sync failed:', e.message);
       }
     }
+
+    this.tables.ai_predictions.push(record);
+    this.saveToDisk();
     return record;
   }
 

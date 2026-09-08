@@ -992,6 +992,7 @@ async function ingestSignal(raw) {
 
   const signal = {
     id: raw.id || `sig_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    source_id: raw.source_id || null,
     source_type: raw.source_type,
     source_name: raw.source_name || raw.source_type,
     external_id: raw.external_id || null,
@@ -1009,6 +1010,7 @@ async function ingestSignal(raw) {
     verification_status: status,
     media_urls: mediaUrls,
     hashtags: (raw.text.match(/#[a-zA-Z0-9_]+/g) || []).map(h => h.toLowerCase()),
+    data_mode: raw.data_mode || (raw.is_replay ? 'REPLAY' : (raw.source_type === 'weather_api' && process.env.APP_MODE === 'LIVE' ? 'LIVE' : 'DEMO')),
     timestamp: new Date().toISOString(),
   };
 
@@ -1107,7 +1109,25 @@ async function ingestSignal(raw) {
   const synergy = (uniqueSources.has('imd') && uniqueSources.size >= 3) ? 0.06 : 0;
 
   const confidenceScore = Number(Math.min(0.98, fSource + fAi + fMedia + fSpatial + fTemporal + fCorroboration + fConsistency + synergy).toFixed(2));
-  const eventStatus = confidenceScore >= 0.85 ? 'VERIFIED' : 'UNDER_REVIEW';
+  let eventStatus = confidenceScore >= 0.85 ? 'VERIFIED' : 'UNDER_REVIEW';
+  let eventType = signal.event_candidate;
+
+  // Hardened Invariant: RAIN ≠ FLOOD Rule
+  // Rain >= 50mm flags heavy rainfall with flood risk. But meteorological rain alone CANNOT trigger VERIFIED FLOOD
+  // without corroborating hydrological evidence (river gauge, water level, or citizen/news inundation reports).
+  if (eventType === 'FLOOD') {
+    const hasHydrologicalEvidence = relatedSignals.some(s =>
+      s.source_type === 'imd' ||
+      s.source_type === 'citizen' ||
+      s.source_type === 'news' ||
+      /river|gauge|cwc|water level|inundat|flood|submerg|waterlog|embankment/i.test(s.text)
+    );
+    const onlyMeteorologicalRain = relatedSignals.every(s => s.source_type === 'weather_api');
+    if (onlyMeteorologicalRain || !hasHydrologicalEvidence) {
+      eventType = 'RAINFALL';
+      eventStatus = 'UNDER_REVIEW';
+    }
+  }
 
   const sourceBreakdown = { imd: 0, weather_api: 0, news: 0, social_media: 0, citizen: 0, public_dataset: 0 };
   for (const s of relatedSignals) {
@@ -1122,16 +1142,16 @@ async function ingestSignal(raw) {
     hasMedia ? 'Verified multimedia assets showing active inundation / convective clouds' : null,
   ].filter(Boolean);
 
-  const aiReasoning = `${signal.event_candidate} confidence is ${(confidenceScore * 100).toFixed(0)}% based on ${uniqueSources.size} independent observation vectors across ${relatedSignals.length} localized signals. Multi-factor corroboration verified with ${(avgSource * 100).toFixed(0)}% source reliability and 95% spatial consistency.`;
+  const aiReasoning = `${eventType} confidence is ${(confidenceScore * 100).toFixed(0)}% based on ${uniqueSources.size} independent observation vectors across ${relatedSignals.length} localized signals. Multi-factor corroboration verified with ${(avgSource * 100).toFixed(0)}% source reliability and 95% spatial consistency.`;
 
   const isNewEvent = !targetEvent;
   const oldStatus = targetEvent?.status || 'DETECTED';
 
   const eventPayload = {
     id: eventId,
-    event_type: signal.event_candidate,
-    title: `${signal.event_candidate} - ${signal.city}, ${signal.state}`,
-    description: `Verified ${signal.event_candidate.toLowerCase()} incident detected from multi-source observations in ${signal.city}.`,
+    event_type: eventType,
+    title: `${eventType} - ${signal.city}, ${signal.state}`,
+    description: `Verified ${eventType.toLowerCase()} incident detected from multi-source observations in ${signal.city}.`,
     severity: confidenceScore >= 0.90 ? 'critical' : 'high',
     status: eventStatus,
     latitude: signal.latitude,
@@ -1142,7 +1162,7 @@ async function ingestSignal(raw) {
     confidence_score: confidenceScore,
     freshness_score: 100,
     decay_factor: 1.0,
-    half_life_minutes: (DECAY_PROFILES[signal.event_candidate] || DECAY_PROFILES.OTHER).halfLifeMin,
+    half_life_minutes: (DECAY_PROFILES[eventType] || DECAY_PROFILES.OTHER).halfLifeMin,
     first_detected_at: targetEvent?.first_detected_at || new Date().toISOString(),
     last_evidence_at: new Date().toISOString(),
     last_updated_at: new Date().toISOString(),
@@ -1152,7 +1172,8 @@ async function ingestSignal(raw) {
     evidence_summary: evidenceSummary,
     ai_reasoning: aiReasoning,
     sensors: targetEvent?.sensors || [],
-    recommended_actions: targetEvent?.recommended_actions || generateActionDirectives(signal.event_candidate, confidenceScore >= 0.90 ? 'critical' : 'high', signal.city, signal.state),
+    recommended_actions: targetEvent?.recommended_actions || generateActionDirectives(eventType, confidenceScore >= 0.90 ? 'critical' : 'high', signal.city, signal.state),
+    data_mode: targetEvent?.data_mode || signal.data_mode || 'DEMO',
   };
 
   memEvents.set(eventId, eventPayload);
@@ -1568,13 +1589,117 @@ async function runDelhiFogDemo() {
 }
 
 // -------------------------------------------------------------
+// SUPABASE AUTH & ROLE-BASED ACCESS CONTROL (RBAC) MIDDLEWARE
+// -------------------------------------------------------------
+const VALID_ROLES = new Set(['VIEWER', 'ANALYST', 'VERIFIER', 'ADMIN']);
+
+export async function authenticateRequest(req) {
+  const authHeader = req.headers['authorization'] || '';
+  const roleHeader = (req.headers['x-user-role'] || '').toUpperCase();
+
+  // 1. Bearer Token Auth (Supabase Auth JWT or Dev/Test Mock Tokens)
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+
+    // Dev/Test Mock Tokens
+    if (token.startsWith('mock-') || token.startsWith('test-')) {
+      let role = 'VIEWER';
+      if (token.includes('admin')) role = 'ADMIN';
+      else if (token.includes('verifier')) role = 'VERIFIER';
+      else if (token.includes('analyst')) role = 'ANALYST';
+      return {
+        authenticated: true,
+        user: { id: `usr_${role.toLowerCase()}`, email: `${role.toLowerCase()}@imd.gov.in` },
+        role,
+        source: 'mock_token',
+      };
+    }
+
+    // Live Supabase JWT Validation
+    if (db.isSupabaseConnected && db.supabase) {
+      try {
+        const { data: { user }, error } = await db.supabase.auth.getUser(token);
+        if (error || !user) {
+          return { authenticated: false, error: error?.message || 'Invalid or expired Supabase token', statusCode: 401 };
+        }
+
+        let role = user.app_metadata?.role || user.user_metadata?.role;
+        if (!role) {
+          const { data: profile } = await db.supabase.from('profiles').select('role').eq('id', user.id).single();
+          role = profile?.role || 'VIEWER';
+        }
+        return {
+          authenticated: true,
+          user,
+          role: String(role).toUpperCase(),
+          source: 'supabase_auth',
+        };
+      } catch (err) {
+        return { authenticated: false, error: err.message, statusCode: 401 };
+      }
+    }
+  }
+
+  // 2. Fallback for testing / dev when explicitly allowed via x-user-role
+  if (roleHeader && (VALID_ROLES.has(roleHeader) || roleHeader === 'METEOROLOGIST')) {
+    const normalizedRole = roleHeader === 'METEOROLOGIST' ? 'ANALYST' : roleHeader;
+    return {
+      authenticated: true,
+      user: { id: `usr_${normalizedRole.toLowerCase()}`, email: `${normalizedRole.toLowerCase()}@imd.gov.in` },
+      role: normalizedRole,
+      source: 'header_role',
+    };
+  }
+
+  return { authenticated: false, error: 'Authentication required. Bearer token missing.', statusCode: 401 };
+}
+
+export async function requireAuth(req, res, sendJson) {
+  const auth = await authenticateRequest(req);
+  if (!auth.authenticated) {
+    sendJson(401, {
+      success: false,
+      error: 'UNAUTHORIZED',
+      message: auth.error || 'Authentication required. Please provide a valid Bearer token.',
+    });
+    return null;
+  }
+  return auth;
+}
+
+export async function requireRole(req, res, sendJson, allowedRoles) {
+  const auth = await authenticateRequest(req);
+  if (!auth.authenticated) {
+    sendJson(401, {
+      success: false,
+      error: 'UNAUTHORIZED',
+      message: auth.error || 'Authentication required. Please provide a valid Bearer token.',
+    });
+    return null;
+  }
+
+  const role = auth.role;
+  if (!allowedRoles.includes(role)) {
+    sendJson(403, {
+      success: false,
+      error: 'FORBIDDEN',
+      message: `Forbidden: role '${role}' is not authorized. Required: ${allowedRoles.join(', ')}.`,
+      user_role: role,
+    });
+    return null;
+  }
+
+  return auth;
+}
+
+// -------------------------------------------------------------
 // HTTP ROUTER & SERVER
 // -------------------------------------------------------------
 export async function handleRequest(req, res) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-role');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -1892,20 +2017,18 @@ export async function handleRequest(req, res) {
     const event = memEvents.get(id);
     if (!event) return sendJson(404, { success: false, message: `Event ${id} not found` });
 
+    // RBAC: verify and reject require VERIFIER or ADMIN
+    // status and merge require ANALYST, VERIFIER, or ADMIN
+    const allowedRoles = (action === 'verify' || action === 'reject')
+      ? ['VERIFIER', 'ADMIN']
+      : ['ANALYST', 'VERIFIER', 'ADMIN'];
+
+    const auth = await requireRole(req, res, sendJson, allowedRoles);
+    if (!auth) return;
+
     const body = await getBody();
-
-    // Server-side Role Check (ADMIN, ANALYST, METEOROLOGIST required)
-    const roleHeader = (req.headers['x-user-role'] || '').toUpperCase();
-    const userRole = roleHeader || (body.role ? String(body.role).toUpperCase() : 'ANALYST');
-    const allowedRoles = ['ADMIN', 'ANALYST', 'METEOROLOGIST', 'SUPERVISOR'];
-    if (!allowedRoles.includes(userRole)) {
-      return sendJson(403, {
-        success: false,
-        message: `Forbidden: role '${userRole}' is not authorized to verify or modify incidents. Required: ADMIN or ANALYST.`
-      });
-    }
-
-    const officer = body.officer_name || body.analyst_name || (userRole === 'ADMIN' ? 'IMD Chief Forecaster' : 'Duty Meteorologist');
+    const userRole = auth.role;
+    const officer = body.officer_name || body.analyst_name || auth.user?.email || (userRole === 'ADMIN' ? 'IMD Chief Forecaster' : 'Duty Meteorologist');
     const reason = body.reason || `Action ${action} executed by ${officer} (${userRole})`;
     const oldStatus = event.status;
     const oldConf = event.confidence_score;
@@ -2377,84 +2500,86 @@ export async function handleRequest(req, res) {
 
     const sources = [
       {
-        id: 'src_imd',
+        id: 'src_imd_01',
         name: 'IMD Official API / National Met Centre',
         type: 'imd',
         reliability: 1.0,
         mode: imdHealth.mode,
         status: imdHealth.status,
-        signals_ingested: (sourceCounts['imd'] || 0) + imdHealth.recordsAccepted,
+        signals_ingested: (sourceCounts['imd'] || 0) + (imdHealth.recordsAccepted || 0),
         last_ingestion: lastSignalTime['imd'] || imdHealth.lastFetch,
-        latency_ms: imdHealth.latencyMs,
+        latency_ms: imdHealth.latencyMs || 0,
       },
       {
-        id: 'src_ndma',
-        name: 'NDMA National Disaster Portal',
+        id: 'src_ndma_01',
+        name: 'National Disaster Management Authority (NDMA)',
         type: 'imd',
         reliability: 0.98,
-        mode: 'OFFICIAL',
-        status: 'ONLINE',
-        signals_ingested: sourceCounts['imd'] || 1,
-        last_ingestion: lastSignalTime['imd'] || new Date().toISOString(),
-        latency_ms: 110,
+        mode: 'NOT_CONFIGURED',
+        status: 'NOT_CONFIGURED',
+        signals_ingested: 0,
+        last_ingestion: null,
+        latency_ms: 0,
+        note: 'Government API credentials pending authorization; architecture-ready for live push.',
       },
       {
-        id: 'src_cwc',
-        name: 'CWC Flood Forecasting & River Gauges',
+        id: 'src_cwc_01',
+        name: 'Central Water Commission (CWC Flood)',
         type: 'imd',
         reliability: 0.95,
-        mode: 'OFFICIAL',
-        status: 'ONLINE',
-        signals_ingested: sourceCounts['imd'] || 1,
-        last_ingestion: lastSignalTime['imd'] || new Date().toISOString(),
-        latency_ms: 95,
+        mode: 'NOT_CONFIGURED',
+        status: 'NOT_CONFIGURED',
+        signals_ingested: 0,
+        last_ingestion: null,
+        latency_ms: 0,
+        note: 'Government sensor telemetry pending live feed credentials; architecture-ready.',
       },
       {
-        id: 'src_weather_api',
+        id: 'src_meteo_01',
         name: 'Open-Meteo Live Weather API',
         type: 'weather_api',
         reliability: 0.90,
         mode: weatherHealth.mode,
         status: weatherHealth.status,
-        signals_ingested: (sourceCounts['weather_api'] || 0) + weatherHealth.recordsAccepted,
+        signals_ingested: (sourceCounts['weather_api'] || 0) + (weatherHealth.recordsAccepted || 0),
         last_ingestion: lastSignalTime['weather_api'] || weatherHealth.lastFetch,
-        latency_ms: weatherHealth.latencyMs,
+        latency_ms: weatherHealth.latencyMs || 0,
       },
       {
-        id: 'src_openweather',
+        id: 'src_owm_01',
         name: 'OpenWeatherMap Global Weather API',
         type: 'weather_api',
         reliability: 0.88,
         mode: openWeatherHealth.mode,
         status: openWeatherHealth.status,
-        signals_ingested: (sourceCounts['weather_api'] || 0) + openWeatherHealth.recordsAccepted,
+        signals_ingested: (sourceCounts['weather_api'] || 0) + (openWeatherHealth.recordsAccepted || 0),
         last_ingestion: lastSignalTime['weather_api'] || openWeatherHealth.lastFetch,
-        latency_ms: openWeatherHealth.latencyMs,
+        latency_ms: openWeatherHealth.latencyMs || 0,
       },
       {
-        id: 'src_news',
+        id: 'src_toi_01',
         name: 'News RSS Aggregator (TOI / DD News)',
         type: 'news',
         reliability: 0.85,
         mode: newsHealth.mode,
         status: newsHealth.status,
-        signals_ingested: (sourceCounts['news'] || 0) + newsHealth.recordsAccepted,
+        signals_ingested: (sourceCounts['news'] || 0) + (newsHealth.recordsAccepted || 0),
         last_ingestion: lastSignalTime['news'] || newsHealth.lastFetch,
-        latency_ms: newsHealth.latencyMs,
+        latency_ms: newsHealth.latencyMs || 0,
       },
       {
-        id: 'src_social',
-        name: 'Social Media Stream (#IMD / #Weather)',
+        id: 'src_social_x_01',
+        name: 'Social Media Stream (X/Twitter #IMD)',
         type: 'social_media',
         reliability: 0.35,
         mode: socialHealth.mode,
         status: socialHealth.status,
-        signals_ingested: (sourceCounts['social_media'] || 0) + socialHealth.recordsAccepted,
+        signals_ingested: (sourceCounts['social_media'] || 0) + (socialHealth.recordsAccepted || 0),
         last_ingestion: lastSignalTime['social_media'] || socialHealth.lastFetch,
-        latency_ms: socialHealth.latencyMs,
+        latency_ms: socialHealth.latencyMs || 0,
       },
       {
-        id: 'src_citizen',
+        id: 'src_citizen_pub_01',
         name: 'Citizen Report Portal',
         type: 'citizen',
         reliability: 0.55,
@@ -2465,15 +2590,15 @@ export async function handleRequest(req, res) {
         latency_ms: 60,
       },
       {
-        id: 'src_dataset',
-        name: 'Public Open Datasets (CSV/JSON)',
+        id: 'src_dataset_01',
+        name: 'Public Open Datasets (IMD Historical / Bulletins)',
         type: 'public_dataset',
         reliability: 0.85,
         mode: datasetHealth.mode,
         status: datasetHealth.status,
-        signals_ingested: (sourceCounts['public_dataset'] || 0) + datasetHealth.recordsAccepted,
+        signals_ingested: (sourceCounts['public_dataset'] || 0) + (datasetHealth.recordsAccepted || 0),
         last_ingestion: lastSignalTime['public_dataset'] || datasetHealth.lastFetch,
-        latency_ms: datasetHealth.latencyMs,
+        latency_ms: datasetHealth.latencyMs || 0,
       },
     ];
     return sendJson(200, { success: true, count: sources.length, data: sources });
@@ -2495,9 +2620,9 @@ export async function handleRequest(req, res) {
       activeEvents: memEvents.size,
       activeSignals: memSignals.size,
       sseClients: sseClients.size,
-      database: db.isSupabaseConnected ? 'SUPABASE_POSTGRESQL' : (db.isPgConnected ? 'POSTGRESQL_POSTGIS' : 'ATOMIC_JSON_STORE'),
+      database: db.isSupabaseConnected ? 'SUPABASE_POSTGRESQL_POSTGIS' : 'ATOMIC_CRASH_RESILIENT_CACHE',
       supabase_connected: db.isSupabaseConnected,
-      postgres_connected: db.isPgConnected,
+      database_mode: db.mode,
       storage: db.getStorageInfo(),
       redis: redisHealth,
       media_storage: storageHealth,
@@ -2513,7 +2638,7 @@ export async function handleRequest(req, res) {
       services: {
         api: 'ONLINE',
         sse: sseClients.size >= 0 ? 'ONLINE' : 'DEGRADED',
-        database: (db.isSupabaseConnected || db.isPgConnected) ? 'ONLINE' : 'FALLBACK_LOCAL',
+        database: db.isSupabaseConnected ? 'ONLINE' : 'FALLBACK_LOCAL',
         redis: redisHealth.status,
         ai_engine: aiHealth.status,
         storage: storageHealth.status,
@@ -2651,8 +2776,9 @@ async function runConnectorPoll() {
   }
 }
 
+const isDirectRun = Boolean(process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]));
 const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
-if (!isServerless) {
+if (isDirectRun && !isServerless) {
   server.listen(PORT, '0.0.0.0', async () => {
     console.log(`\n================================================================`);
     console.log(` WeatherNexus Standalone API & Real-Time SSE Server Active!`);

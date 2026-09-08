@@ -30,8 +30,8 @@ const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
 
 export class MediaStorageService {
   constructor() {
-    this.supabaseUrl = process.env.SUPABASE_URL || 'https://huzfbxgwzzeqeosjisgi.supabase.co';
-    this.supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || null;
+    this.supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || null;
+    this.supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || null;
     this.supabase = null;
 
     this.accountId = process.env.R2_ACCOUNT_ID || null;
