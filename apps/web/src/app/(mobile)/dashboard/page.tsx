@@ -7,6 +7,7 @@ import GoogleIcon from '@/components/ui/GoogleIcon';
 import WeatherFilterBar from '@/components/dashboard/WeatherFilterBar';
 import DemoScenarioBar from '@/components/dashboard/DemoScenarioBar';
 import LiveTelemetryWidget from '@/components/dashboard/LiveTelemetryWidget';
+import LiveSurveillanceTicker from '@/components/dashboard/LiveSurveillanceTicker';
 import EventIntelligenceDrawer, { WeatherEventDetail } from '@/components/dashboard/EventIntelligenceDrawer';
 import CitizenReportModal from '@/components/modals/CitizenReportModal';
 import { getLocalEvents } from '@/lib/mockApiStore';
@@ -149,6 +150,9 @@ export default function DashboardPage() {
       <main className="flex-1 p-4 sm:p-6 lg:p-8 space-y-4 max-w-7xl w-full mx-auto">
         {/* Simulator Bar */}
         <DemoScenarioBar onScenarioTriggered={loadEvents} />
+
+        {/* Live Multi-Source Surveillance Ticker */}
+        <LiveSurveillanceTicker />
 
         {/* Real-time Meteorological Ground Telemetry */}
         <LiveTelemetryWidget />

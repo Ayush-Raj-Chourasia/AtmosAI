@@ -183,12 +183,16 @@ export default function IncidentMap({
                 boxZoom={interactive}
                 keyboard={interactive} 
                 className="w-full h-full"
-                attributionControl={false}
-                maxBounds={interactive ? [[-15, 90], [10, 145]] : undefined} // Indonesia bounds
+                maxBounds={interactive ? [[6.5, 68.0], [37.5, 97.5]] : undefined} // India bounds
                 minZoom={4}
             >
                 <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+                    attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+                />
+                <TileLayer
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
+                    attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
                 />
                 <MapUpdater zoomLevel={zoomLevel} />
                 
