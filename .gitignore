@@ -42,3 +42,5 @@ public/uploads/*
 !public/uploads/.gitkeep
 data/*.tmp.*
 
+.vercel
+.env*
