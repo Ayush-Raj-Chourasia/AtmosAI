@@ -2726,7 +2726,7 @@
         </div>
         <button onclick="loadAnalyticsPage()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition">↻ Refresh</button>
       </div>
-      <div id="analytics-error" class="hidden p-4 rounded-xl bg-rose-950/30 border border-rose-800 text-rose-400 text-sm">Failed to load analytics — ensure server is running at localhost:3001</div>
+      <div id="analytics-error" class="hidden p-4 rounded-xl bg-rose-950/30 border border-rose-800 text-rose-400 text-sm">Failed to load analytics — ensure server is running or API is reachable</div>
 
       <!-- KPI Summary Strip -->
       <div class="grid grid-cols-3 md:grid-cols-6 gap-3">
@@ -2991,7 +2991,7 @@
     }
 
     // Override fetchInitialData to honour date filter
-    const _baseAPI = window.API_BASE || 'http://localhost:3001';
+    const _baseAPI = window.API_BASE || (window.location.protocol.startsWith('http') ? '' : 'http://localhost:3001');
     async function fetchInitialData() {
       try {
         const cat = document.getElementById('cat-filter') ? '' : '';

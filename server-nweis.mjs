@@ -1568,7 +1568,7 @@ async function runDelhiFogDemo() {
 // -------------------------------------------------------------
 // HTTP ROUTER & SERVER
 // -------------------------------------------------------------
-const server = http.createServer(async (req, res) => {
+export async function handleRequest(req, res) {
   // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
@@ -2556,16 +2556,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   return sendJson(404, { success: false, message: `Route ${req.method} ${pathname} not found.` });
-});
+}
 
-server.listen(PORT, '0.0.0.0', async () => {
-  console.log(`\n================================================================`);
-  console.log(` N-WEIS Standalone API & Real-Time SSE Server Active!`);
-  console.log(` Endpoint: http://localhost:${PORT}`);
-  console.log(` SSE Stream: http://localhost:${PORT}/api/v1/events/stream`);
-  console.log(` Health Check: http://localhost:${PORT}/health`);
-  console.log(`================================================================\n`);
+export const server = http.createServer(handleRequest);
 
+export async function initializeNweis() {
   // Initialize Redis caching/pubsub engine
   try {
     await redisService.init();
@@ -2605,44 +2600,58 @@ server.listen(PORT, '0.0.0.0', async () => {
   } catch (err) {
     console.error('[DATABASE] Error initializing persistence:', err.message);
   }
+}
 
-  // Periodic Connector Ingestion Cycle (Every 60s, initial run in 5s)
-  async function runConnectorPoll() {
-    try {
-      const imdSignals = await imdAdapter.fetchSignals();
-      for (const s of imdSignals) await ingestSignal(s);
-    } catch (e) {
-      console.warn('[CONNECTOR] IMD poll error:', e.message);
-    }
-    try {
-      const weatherSignals = await weatherApiConnector.fetchSignals(3);
-      for (const s of weatherSignals) await ingestSignal(s);
-    } catch (e) {
-      console.warn('[CONNECTOR] Weather API poll error:', e.message);
-    }
-    try {
-      const owmSignals = await openWeatherConnector.fetchSignals(3);
-      for (const s of owmSignals) await ingestSignal(s);
-    } catch (e) {
-      console.warn('[CONNECTOR] OpenWeather poll error:', e.message);
-    }
-    try {
-      const newsSignals = await newsRssConnector.fetchSignals();
-      for (const s of newsSignals) await ingestSignal(s);
-    } catch (e) {
-      console.warn('[CONNECTOR] News RSS poll error:', e.message);
-    }
-    try {
-      const socialSignals = await socialStreamConnector.fetchSignals();
-      for (const s of socialSignals) await ingestSignal(s);
-    } catch (e) {
-      console.warn('[CONNECTOR] Social stream poll error:', e.message);
-    }
+// Periodic Connector Ingestion Cycle (Every 60s, initial run in 5s)
+async function runConnectorPoll() {
+  try {
+    const imdSignals = await imdAdapter.fetchSignals();
+    for (const s of imdSignals) await ingestSignal(s);
+  } catch (e) {
+    console.warn('[CONNECTOR] IMD poll error:', e.message);
   }
+  try {
+    const weatherSignals = await weatherApiConnector.fetchSignals(3);
+    for (const s of weatherSignals) await ingestSignal(s);
+  } catch (e) {
+    console.warn('[CONNECTOR] Weather API poll error:', e.message);
+  }
+  try {
+    const owmSignals = await openWeatherConnector.fetchSignals(3);
+    for (const s of owmSignals) await ingestSignal(s);
+  } catch (e) {
+    console.warn('[CONNECTOR] OpenWeather poll error:', e.message);
+  }
+  try {
+    const newsSignals = await newsRssConnector.fetchSignals();
+    for (const s of newsSignals) await ingestSignal(s);
+  } catch (e) {
+    console.warn('[CONNECTOR] News RSS poll error:', e.message);
+  }
+  try {
+    const socialSignals = await socialStreamConnector.fetchSignals();
+    for (const s of socialSignals) await ingestSignal(s);
+  } catch (e) {
+    console.warn('[CONNECTOR] Social stream poll error:', e.message);
+  }
+}
 
-  setTimeout(runConnectorPoll, 5000);
-  setInterval(runConnectorPoll, 60000);
-});
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+if (!isServerless) {
+  server.listen(PORT, '0.0.0.0', async () => {
+    console.log(`\n================================================================`);
+    console.log(` N-WEIS Standalone API & Real-Time SSE Server Active!`);
+    console.log(` Endpoint: http://localhost:${PORT}`);
+    console.log(` SSE Stream: http://localhost:${PORT}/api/v1/events/stream`);
+    console.log(` Health Check: http://localhost:${PORT}/health`);
+    console.log(`================================================================\n`);
+
+    await initializeNweis();
+
+    setTimeout(runConnectorPoll, 5000);
+    setInterval(runConnectorPoll, 60000);
+  });
+}
 
 // Graceful shutdown
 process.on('SIGINT', () => {
