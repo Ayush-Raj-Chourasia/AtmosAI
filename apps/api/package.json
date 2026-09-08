@@ -14,7 +14,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@n-weis/shared": "*",
+    "@n-weis/shared": "file:./n-weis-shared-1.0.0.tgz",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",

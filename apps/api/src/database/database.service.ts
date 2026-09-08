@@ -49,11 +49,16 @@ export class DatabaseService implements OnModuleInit {
         this.logger.log(' Connected to PostgreSQL. Applying AtmosAI schema.sql...');
 
         try {
-          const schemaPath = path.join(process.cwd(), 'apps/api/src/database/schema.sql');
-          if (fs.existsSync(schemaPath)) {
-            const sql = fs.readFileSync(schemaPath, 'utf8');
+          const candidates = [
+            path.join(process.cwd(), 'src/database/schema.sql'),
+            path.join(process.cwd(), 'apps/api/src/database/schema.sql'),
+            path.join(__dirname, 'schema.sql'),
+          ];
+          const found = candidates.find(p => fs.existsSync(p));
+          if (found) {
+            const sql = fs.readFileSync(found, 'utf8');
             await client.query(sql);
-            this.logger.log(' Schema migrations applied successfully.');
+            this.logger.log(` Schema migrations applied successfully from ${found}.`);
           }
         } catch (schemaErr) {
           this.logger.warn('Schema migration notice:', schemaErr.message);
