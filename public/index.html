@@ -136,81 +136,81 @@
 <body class="h-screen w-screen flex flex-col overflow-hidden select-none">
 
   <!-- TOP APP BAR -->
-  <header class="h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-6 z-30 shrink-0">
+  <header class="h-16 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 flex items-center justify-between px-4 lg:px-6 z-30 shrink-0 relative">
     <!-- Left: Identity & Badges -->
-    <div class="flex items-center space-x-4">
-      <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400/40">
-        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="flex items-center space-x-3 shrink-0">
+      <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400/40 shrink-0">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" />
         </svg>
       </div>
-      <div>
-        <div class="flex items-center space-x-2">
-          <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+      <div class="flex flex-col justify-center min-w-0">
+        <div class="flex items-center space-x-2 whitespace-nowrap">
+          <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-1.5 whitespace-nowrap">
             <span class="bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-400 bg-clip-text text-transparent font-extrabold">AtmosAI</span>
-            <span class="text-slate-400 text-sm font-normal">/ WeatherNexus</span>
-            <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono font-medium">SIH26069</span>
+            <span class="text-slate-400 text-xs font-normal">/ WeatherNexus</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono font-medium">SIH26069</span>
           </h1>
-          <span class="hidden md:inline-block text-xs text-slate-400">• National Weather Event Intelligence System</span>
+          <span class="hidden 2xl:inline-block text-xs text-slate-400 whitespace-nowrap">• National Weather Event Intelligence System</span>
         </div>
-        <div class="text-[11px] text-slate-400 font-medium flex items-center gap-2">
-          <span>Ministry of Earth Sciences / India Meteorological Department (IMD)</span>
-          <span class="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded bg-blue-950/80 text-blue-300 border border-blue-800/80 font-mono">12-City Live Observational Telemetry Matrix</span>
+        <div class="text-[10px] text-slate-400 font-medium flex items-center gap-2 whitespace-nowrap mt-0.5">
+          <span class="whitespace-nowrap">Ministry of Earth Sciences • IMD</span>
+          <span class="hidden xl:inline-block text-[9px] px-1.5 py-0.5 rounded bg-blue-950/80 text-blue-300 border border-blue-800/80 font-mono whitespace-nowrap">12-Station Network</span>
         </div>
       </div>
     </div>
 
-    <!-- Center: Live Meteorological Feed Badge & SSE Heartbeat -->
-    <div class="hidden lg:flex items-center space-x-4 bg-slate-950/60 px-3.5 py-1.5 rounded-lg border border-slate-800 text-xs">
-      <div id="live-global-badge" onclick="openLiveWeatherModal()" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-emerald-950/80 text-emerald-300 border-emerald-800 cursor-pointer hover:bg-emerald-900/60 transition shadow-sm" title="Live meteorological data feed status. Click to open 12-City Matrix.">
-        <span id="live-global-dot" class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
-        <span id="live-global-text">🟢 LIVE: OpenWeather</span>
+    <!-- Center: Live Meteorological Feed Badge & SSE Heartbeat (Centered) -->
+    <div class="hidden lg:flex items-center space-x-3 bg-slate-950/80 px-3.5 py-1.5 rounded-lg border border-slate-800/90 text-xs whitespace-nowrap shrink-0 shadow-inner absolute left-1/2 -translate-x-1/2 z-10">
+      <div id="live-global-badge" onclick="openLiveWeatherModal()" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-emerald-950/80 text-emerald-300 border-emerald-800 cursor-pointer hover:bg-emerald-900/60 transition shadow-sm whitespace-nowrap shrink-0" title="Live meteorological data feed status. Click to open 12-City Matrix.">
+        <span id="live-global-dot" class="h-2 w-2 rounded-full bg-emerald-400 animate-ping shrink-0 inline-block"></span>
+        <span id="live-global-text" class="whitespace-nowrap font-medium">🟢 LIVE: OpenWeather</span>
       </div>
-      <div class="h-3 w-px bg-slate-700"></div>
-      <div class="flex items-center space-x-2">
-        <span class="relative flex h-2.5 w-2.5">
+      <div class="h-3.5 w-px bg-slate-700 shrink-0"></div>
+      <div class="flex items-center space-x-1.5 whitespace-nowrap shrink-0">
+        <span class="relative flex h-2 w-2 shrink-0">
           <span id="sse-pulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span id="sse-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          <span id="sse-dot" class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         </span>
-        <span id="sse-status" class="font-mono text-emerald-400 font-semibold tracking-wide uppercase text-[10px]">STREAM</span>
+        <span id="sse-status" class="font-mono text-emerald-400 font-semibold tracking-wide uppercase text-[10px] whitespace-nowrap shrink-0">STREAM</span>
       </div>
-      <div class="h-3 w-px bg-slate-700"></div>
-      <div class="text-slate-300">Active: <span id="stat-events" class="font-mono font-bold text-white">0</span></div>
-      <div class="text-slate-300">Verified: <span id="stat-verified" class="font-mono font-bold text-emerald-400">0</span></div>
-      <div class="text-slate-300">Signals: <span id="stat-signals" class="font-mono font-bold text-cyan-400">0</span></div>
+      <div class="h-3.5 w-px bg-slate-700 shrink-0"></div>
+      <div class="text-slate-300 whitespace-nowrap flex items-center gap-1 text-[11px]">Active: <span id="stat-events" class="font-mono font-bold text-white">0</span></div>
+      <div class="text-slate-300 whitespace-nowrap flex items-center gap-1 text-[11px]">Verified: <span id="stat-verified" class="font-mono font-bold text-emerald-400">0</span></div>
+      <div class="text-slate-300 whitespace-nowrap flex items-center gap-1 text-[11px] hidden xl:flex">Signals: <span id="stat-signals" class="font-mono font-bold text-cyan-400">0</span></div>
     </div>
 
     <!-- Right: Actions -->
-    <div class="flex items-center space-x-2.5">
-      <button onclick="openLiveWeatherModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-cyan-700/60 flex items-center gap-1.5 transition shadow-sm" title="Live OpenWeather Observational Telemetry across 12 Indian Cities">
+    <div class="flex items-center space-x-2 shrink-0">
+      <button onclick="openLiveWeatherModal()" class="h-9 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-cyan-700/60 flex items-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0" title="Live OpenWeather Observational Telemetry across 12 Indian Cities">
         <span>🌤️</span>
-        <span>Live Weather (12 Cities)</span>
+        <span>Live Weather<span class="hidden 2xl:inline"> (12 Cities)</span></span>
       </button>
-      <button onclick="openSensorsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm" title="IMD Automatic Weather Stations & CWC Gauges">
+      <button onclick="openSensorsModal()" class="h-9 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0" title="IMD Automatic Weather Stations & CWC Gauges">
         <span>📡</span>
-        <span>Gauges / AWS</span>
+        <span>Gauges<span class="hidden 2xl:inline"> / AWS</span></span>
       </button>
-      <button onclick="openAnalyticsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm">
+      <button onclick="openAnalyticsModal()" class="h-9 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm whitespace-nowrap shrink-0" title="Real-time Analytics & Meteorological KPIs">
         <span>📊</span>
-        <span>Analytics & KPIs</span>
+        <span>Analytics<span class="hidden 2xl:inline"> &amp; KPIs</span></span>
       </button>
-      <button onclick="openCitizenModal()" class="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-sm transition shadow-cyan-600/30">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        <span>Citizen Report</span>
+      <button onclick="openCitizenModal()" class="h-9 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition shadow-cyan-600/30 whitespace-nowrap shrink-0" title="Submit Citizen Ground Report">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        <span><span class="hidden xl:inline">Citizen </span>Report</span>
       </button>
       <!-- Multi-Format GIS & Tabular Data Export -->
-      <div class="flex items-center space-x-0.5 bg-slate-900/90 p-0.5 rounded-lg border border-slate-700 shadow-sm">
-        <button onclick="exportGeoJson()" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs font-medium transition" title="Export RFC 7946 GeoJSON for QGIS, ArcGIS & ISRO Bhuvan">
-          🗺️ GeoJSON
+      <div class="h-9 flex items-center space-x-0.5 bg-slate-900/90 p-0.5 rounded-lg border border-slate-700 shadow-sm shrink-0">
+        <button onclick="exportGeoJson()" class="h-7 px-2 rounded-md bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[11px] font-medium transition whitespace-nowrap flex items-center gap-1" title="Export RFC 7946 GeoJSON for QGIS, ArcGIS & ISRO Bhuvan">
+          <span>🗺️</span> <span>GeoJSON</span>
         </button>
-        <button onclick="exportKml()" class="px-2 py-1 rounded-md hover:bg-slate-800 text-sky-300 text-xs font-medium transition" title="Export OGC KML 2.2 for Google Earth 3D Visualization">
-          🌐 KML
+        <button onclick="exportKml()" class="h-7 px-1.5 rounded-md hover:bg-slate-800 text-sky-300 text-[11px] font-medium transition whitespace-nowrap flex items-center gap-1" title="Export OGC KML 2.2 for Google Earth 3D Visualization">
+          <span>🌐</span> <span>KML</span>
         </button>
-        <button onclick="exportCsv()" class="px-2 py-1 rounded-md hover:bg-slate-800 text-amber-300 text-xs font-medium transition" title="Export Tabular CSV for Excel & District Disaster Management Authorities (DDMA)">
-          📑 CSV
+        <button onclick="exportCsv()" class="h-7 px-1.5 rounded-md hover:bg-slate-800 text-amber-300 text-[11px] font-medium transition whitespace-nowrap flex items-center gap-1" title="Export Tabular CSV for Excel & District Disaster Management Authorities (DDMA)">
+          <span>📑</span> <span>CSV</span>
         </button>
       </div>
-      <button onclick="triggerReset()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium border border-slate-700 transition" title="Reset All Data">
+      <button onclick="triggerReset()" class="h-9 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-medium border border-slate-700 transition whitespace-nowrap shrink-0" title="Reset All Data">
         Reset
       </button>
     </div>
@@ -242,19 +242,19 @@
       <div class="absolute top-3 left-3 right-3 z-[1000] pointer-events-none flex flex-wrap gap-2 items-center justify-between">
         <!-- Category Filter Pills -->
         <div class="pointer-events-auto bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-800 shadow-xl flex items-center space-x-1 overflow-x-auto max-w-full">
-          <button onclick="setCategoryFilter('ALL')" class="cat-pill active px-3 py-1 rounded-lg text-xs font-semibold bg-cyan-600 text-white transition">All Hazards</button>
-          <button onclick="setCategoryFilter('FLOOD')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">🌊 Flood</button>
-          <button onclick="setCategoryFilter('THUNDERSTORM')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">⛈️ Thunderstorm</button>
-          <button onclick="setCategoryFilter('RAINFALL')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">🌧️ Rainfall</button>
-          <button onclick="setCategoryFilter('HEATWAVE')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">🔥 Heatwave</button>
-          <button onclick="setCategoryFilter('FOG')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">🌫️ Fog</button>
-          <button onclick="setCategoryFilter('DUST_STORM')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">🌪️ Dust Storm</button>
-          <button onclick="setCategoryFilter('STRONG_WIND')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition">💨 Gale Wind</button>
+          <button onclick="setCategoryFilter('ALL')" class="cat-pill active px-3 py-1 rounded-lg text-xs font-semibold bg-cyan-600 text-white transition whitespace-nowrap shrink-0">All Hazards</button>
+          <button onclick="setCategoryFilter('FLOOD')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition whitespace-nowrap shrink-0">🌊 Flood</button>
+          <button onclick="setCategoryFilter('THUNDERSTORM')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition whitespace-nowrap shrink-0">⛈️ Thunderstorm</button>
+          <button onclick="setCategoryFilter('RAINFALL')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition whitespace-nowrap shrink-0">🌧️ Rainfall</button>
+          <button onclick="setCategoryFilter('HEATWAVE')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition whitespace-nowrap shrink-0">🔥 Heatwave</button>
+          <button onclick="setCategoryFilter('FOG')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition whitespace-nowrap shrink-0">🌫️ Fog</button>
+          <button onclick="setCategoryFilter('DUST_STORM')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition whitespace-nowrap shrink-0">🌪️ Dust Storm</button>
+          <button onclick="setCategoryFilter('STRONG_WIND')" class="cat-pill px-2.5 py-1 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition whitespace-nowrap shrink-0">💨 Gale Wind</button>
         </div>
 
         <!-- State & Confidence Selector -->
-        <div class="pointer-events-auto bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-800 shadow-xl flex items-center space-x-2 text-xs">
-          <select id="state-select" onchange="applyFilters()" class="bg-slate-800 text-slate-200 rounded-lg px-2.5 py-1 border border-slate-700 outline-none focus:border-cyan-500">
+        <div class="pointer-events-auto bg-slate-900/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-800 shadow-xl flex items-center space-x-2 text-xs whitespace-nowrap shrink-0">
+          <select id="state-select" onchange="applyFilters()" class="bg-slate-800 text-slate-200 rounded-lg px-2.5 py-1 border border-slate-700 outline-none focus:border-cyan-500 shrink-0">
             <option value="">All India</option>
             <option value="Assam">Assam</option>
             <option value="Delhi">Delhi NCR</option>
@@ -263,22 +263,22 @@
             <option value="West Bengal">West Bengal</option>
             <option value="Karnataka">Karnataka</option>
           </select>
-          <div class="flex items-center space-x-1.5 pl-2 border-l border-slate-700">
-            <span class="text-[11px] text-slate-400">Min Conf:</span>
-            <input type="range" id="conf-slider" min="0" max="100" value="0" oninput="updateSliderLabel(this.value)" class="w-16 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400">
-            <span id="slider-val" class="font-mono text-[11px] text-cyan-300 font-bold w-6">0%</span>
+          <div class="flex items-center space-x-1.5 pl-2 border-l border-slate-700 shrink-0">
+            <span class="text-[11px] text-slate-400 whitespace-nowrap">Min Conf:</span>
+            <input type="range" id="conf-slider" min="0" max="100" value="0" oninput="updateSliderLabel(this.value)" class="w-16 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400 shrink-0">
+            <span id="slider-val" class="font-mono text-[11px] text-cyan-300 font-bold w-6 shrink-0">0%</span>
           </div>
-          <button id="btn-radar-toggle" onclick="toggleRadarLayer()" class="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-mono text-[11px] flex items-center gap-1.5 transition ml-1">
-            <span class="inline-block w-2 h-2 rounded-full bg-slate-500" id="radar-indicator"></span>
-            <span>📡 Doppler Radar: <strong id="radar-status-text" class="text-slate-400">OFF</strong></span>
+          <button id="btn-radar-toggle" onclick="toggleRadarLayer()" class="px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-mono text-[11px] flex items-center gap-1.5 transition ml-1 shrink-0 whitespace-nowrap">
+            <span class="inline-block w-2 h-2 rounded-full bg-slate-500 shrink-0" id="radar-indicator"></span>
+            <span class="whitespace-nowrap">📡 Doppler Radar: <strong id="radar-status-text" class="text-slate-400">OFF</strong></span>
           </button>
           <!-- DATE RANGE FILTER -->
-          <div class="flex items-center gap-1 pl-2 border-l border-slate-700">
+          <div class="flex items-center gap-1 pl-2 border-l border-slate-700 shrink-0 whitespace-nowrap">
             <span class="text-[11px] text-slate-400 shrink-0">Date:</span>
-            <button onclick="setDateFilter('today')" id="df-today" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-cyan-600 text-white">Today</button>
-            <button onclick="setDateFilter('24h')" id="df-24h" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700">24h</button>
-            <button onclick="setDateFilter('7d')" id="df-7d" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700">7d</button>
-            <button onclick="setDateFilter('all')" id="df-all" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700">All</button>
+            <button onclick="setDateFilter('today')" id="df-today" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-cyan-600 text-white shrink-0">Today</button>
+            <button onclick="setDateFilter('24h')" id="df-24h" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 shrink-0">24h</button>
+            <button onclick="setDateFilter('7d')" id="df-7d" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 shrink-0">7d</button>
+            <button onclick="setDateFilter('all')" id="df-all" class="date-filter-btn px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-800 text-slate-300 hover:bg-slate-700 shrink-0">All</button>
           </div>
         </div>
       </div>
@@ -2209,16 +2209,16 @@
 
         if (globalBadge && globalText && globalDot) {
           if (s.status === 'ONLINE' || s.mode === 'LIVE') {
-            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-emerald-950/80 text-emerald-300 border-emerald-800 cursor-pointer hover:bg-emerald-900/60 transition shadow-sm';
-            globalDot.className = 'h-2 w-2 rounded-full bg-emerald-400 animate-ping';
+            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-emerald-950/80 text-emerald-300 border-emerald-800 cursor-pointer hover:bg-emerald-900/60 transition shadow-sm whitespace-nowrap shrink-0';
+            globalDot.className = 'h-2 w-2 rounded-full bg-emerald-400 animate-ping shrink-0 inline-block';
             globalText.innerText = `🟢 LIVE: OpenWeather`;
           } else if (s.status === 'DEGRADED') {
-            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-amber-950/80 text-amber-300 border-amber-800 cursor-pointer hover:bg-amber-900/60 transition shadow-sm';
-            globalDot.className = 'h-2 w-2 rounded-full bg-amber-400';
+            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-amber-950/80 text-amber-300 border-amber-800 cursor-pointer hover:bg-amber-900/60 transition shadow-sm whitespace-nowrap shrink-0';
+            globalDot.className = 'h-2 w-2 rounded-full bg-amber-400 shrink-0 inline-block';
             globalText.innerText = `🟡 DEGRADED (${s.tier || '2.5'})`;
           } else {
-            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-rose-950/80 text-rose-300 border-rose-800 cursor-pointer hover:bg-rose-900/60 transition shadow-sm';
-            globalDot.className = 'h-2 w-2 rounded-full bg-rose-500';
+            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-rose-950/80 text-rose-300 border-rose-800 cursor-pointer hover:bg-rose-900/60 transition shadow-sm whitespace-nowrap shrink-0';
+            globalDot.className = 'h-2 w-2 rounded-full bg-rose-500 shrink-0 inline-block';
             globalText.innerText = `🔴 LIVE DATA UNAVAILABLE: ${s.last_error || 'Offline'}`;
           }
         }
