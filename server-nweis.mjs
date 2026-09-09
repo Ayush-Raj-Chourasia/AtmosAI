@@ -311,7 +311,7 @@ function validateAndTransitionStatus(event, targetStatus, reason, officerName = 
   return { success: true, event, transition: logEntry };
 }
 
-function applyConfidenceDecay(event, now = Date.now()) {
+export function applyConfidenceDecay(event, now = Date.now()) {
   const profile = DECAY_PROFILES[event.event_type] || DECAY_PROFILES.OTHER;
   const lastEv = new Date(event.last_evidence_at || event.last_updated_at).getTime();
   const elapsedMin = Math.max(0, (now - lastEv) / 60000);
@@ -343,8 +343,13 @@ function applyConfidenceDecay(event, now = Date.now()) {
     );
   }
 
+  // Canonical Authoritative Confidence & Freshness Fields (Strictly Separated)
   event.confidence_score = decayedConf;
+  event.confidence = decayedConf;
   event.freshness_score = freshnessPct;
+  event.evidence_freshness = freshnessPct;
+  event.evidence_age_seconds = Math.round(elapsedMin * 60);
+  event.last_reinforced_at = event.last_evidence_at || event.last_updated_at;
   event.decay_factor = Number(decayFactor.toFixed(3));
   event.minutes_since_reinforcement = Math.round(elapsedMin);
   event.half_life_minutes = profile.halfLifeMin;
@@ -359,7 +364,6 @@ const WEATHER_TAXONOMY = [
   'FOG',
   'DUST_STORM',
   'STRONG_WIND',
-  'OTHER',
 ];
 
 const MAJOR_CITIES = [
@@ -423,8 +427,8 @@ function resolveLocation(text, lat, lng, cityHint, stateHint) {
 }
 
 export function classifyWeather(text) {
-  const lower = text.toLowerCase();
-  const scores = { RAINFALL: 0, THUNDERSTORM: 0, FLOOD: 0, HEATWAVE: 0, FOG: 0, DUST_STORM: 0, STRONG_WIND: 0, OTHER: 0.1 };
+  const lower = (text || '').toLowerCase();
+  const scores = { RAINFALL: 0, THUNDERSTORM: 0, FLOOD: 0, HEATWAVE: 0, FOG: 0, DUST_STORM: 0, STRONG_WIND: 0 };
 
   const hasHydrological = /flood|submerged|inundat|overflow|waterlogging|water entering|river.*above.*danger|breach|waist-deep|knee-deep/i.test(lower);
   const hasRain = /rain|downpour|cloudburst|precipitation|\b\d+(\.\d+)?\s*mm\b/i.test(lower);
@@ -450,7 +454,7 @@ export function classifyWeather(text) {
     scores.FLOOD = 0;
   }
 
-  let best = 'OTHER';
+  let best = 'NORMAL_WEATHER';
   let max = 0;
   for (const t of WEATHER_TAXONOMY) {
     if (scores[t] > max) {
@@ -458,9 +462,21 @@ export function classifyWeather(text) {
       best = t;
     }
   }
+
+  if (max === 0) {
+    return {
+      eventType: 'NORMAL_WEATHER',
+      probability: 0.95,
+      is_hazard: false,
+      flood_indicator: false,
+      rainfall_mm: rainfallMm
+    };
+  }
+
   return {
     eventType: best,
-    probability: max > 0 ? Math.min(0.96, 0.70 + (max * 0.06)) : 0.40,
+    probability: Math.min(0.96, 0.70 + (max * 0.06)),
+    is_hazard: true,
     flood_indicator: floodIndicator || hasHydrological,
     rainfall_mm: rainfallMm
   };
@@ -1159,6 +1175,55 @@ export async function ingestSignal(raw) {
     return { signal, isDuplicate: true, duplicateReason: dup.reason, associatedEvent: null };
   }
 
+  // METEOROLOGICAL OBSERVATION VS WEATHER HAZARD SEPARATION
+  // Normal meteorological observations (clear sky, moderate breeze, light rain below hazard thresholds)
+  // MUST NOT create weather hazard events in memEvents or database.
+  const isExplicitHazard = raw.isHazard === true || raw.is_hazard === true || raw.entity_type === 'WEATHER_EVENT';
+  const isExplicitNonHazard = raw.isHazard === false || raw.is_hazard === false || raw.entity_type === 'WEATHER_OBSERVATION';
+  const isHazardType = WEATHER_TAXONOMY.includes(signal.event_candidate) && signal.event_candidate !== 'NORMAL_WEATHER' && signal.event_candidate !== 'OTHER';
+
+  const isHazardCandidate = !isExplicitNonHazard && (isExplicitHazard || isHazardType);
+
+  if (!isHazardCandidate) {
+    // Normal baseline observation - not an active weather hazard
+    const obsRecord = {
+      id: `obs_${signal.id}`,
+      location_name: raw.city || signal.city,
+      city: raw.city || signal.city,
+      state: raw.state || signal.state,
+      latitude: signal.latitude,
+      longitude: signal.longitude,
+      temperature_c: raw.temperature_c ?? signal.temperature_c,
+      feels_like_c: raw.feels_like_c ?? signal.feels_like_c,
+      humidity_pct: raw.humidity_pct ?? signal.humidity_pct,
+      wind_speed_kmh: raw.wind_speed_kmh ?? signal.wind_speed_kmh,
+      pressure_hpa: raw.pressure_hpa ?? signal.pressure_hpa,
+      precipitation_mm: raw.precipitation_mm ?? signal.precipitation_mm ?? 0,
+      weather_condition: raw.weather_condition ?? signal.weather_condition,
+      weather_description: raw.weather_description ?? signal.weather_description,
+      observed_at: providerTs,
+      entity_type: 'WEATHER_OBSERVATION',
+      is_hazard: false,
+      classification_type: 'BASELINE_OBSERVATION',
+      classification_reason: raw.classification_reason || 'Normal meteorological baseline',
+      provider: raw.source_name || raw.provider || 'OpenWeather',
+      data_mode: signalDataMode,
+    };
+
+    broadcastSSE({
+      type: 'weather_observation_received',
+      observation: obsRecord,
+      signal
+    });
+
+    return {
+      signal,
+      isHazard: false,
+      isObservationOnly: true,
+      associatedEvent: null
+    };
+  }
+
   // Find or Create Weather Event
   const allEvents = Array.from(memEvents.values());
   let targetEvent = allEvents.find(e => {
@@ -1338,7 +1403,7 @@ export async function ingestSignal(raw) {
   broadcastSSE({ type: 'incident_update', event: eventPayload });
   broadcastSSE({ type: 'signal_processed', signal, event: eventPayload });
 
-  return { signal, isMisinformation: false, associatedEvent: eventPayload };
+  return { signal, isHazard: true, isMisinformation: false, associatedEvent: eventPayload };
 }
 
 // -------------------------------------------------------------
@@ -1895,9 +1960,11 @@ export async function handleRequest(req, res) {
   const filterEventsByMode = (list) => {
     const m = parsedUrl.searchParams.get('mode') || parsedUrl.searchParams.get('data_mode');
     const isLive = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
-    if (m) return list.filter(e => (e.data_mode || 'DEMO').toUpperCase() === m.toUpperCase());
-    if (isLive) return list.filter(e => (e.data_mode || 'DEMO').toUpperCase() === 'LIVE');
-    return list;
+    let filtered = list;
+    if (m) filtered = filtered.filter(e => (e.data_mode || 'DEMO').toUpperCase() === m.toUpperCase());
+    else if (isLive) filtered = filtered.filter(e => (e.data_mode || 'DEMO').toUpperCase() === 'LIVE');
+    // Meteorological Invariant: Normal baseline observations must never appear as hazard events
+    return filtered.filter(e => e.event_type !== 'NORMAL_WEATHER' && e.event_type !== 'OTHER');
   };
 
   // --- RFC 7946 GeoJSON / OGC WFS INTEROPERABILITY LAYER ---
@@ -2563,7 +2630,8 @@ export async function handleRequest(req, res) {
   if (pathname === '/api/v1/admin/analytics' || pathname === '/admin/stats' || pathname === '/api/v1/admin/stats') {
     const isLiveMode = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
     const allSignals = isLiveMode ? Array.from(memSignals.values()).filter(s => s.data_mode === 'LIVE') : Array.from(memSignals.values());
-    const allEvents = isLiveMode ? Array.from(memEvents.values()).filter(e => e.data_mode === 'LIVE') : Array.from(memEvents.values());
+    const allEvents = (isLiveMode ? Array.from(memEvents.values()).filter(e => e.data_mode === 'LIVE') : Array.from(memEvents.values()))
+      .filter(e => e.event_type !== 'NORMAL_WEATHER' && e.event_type !== 'OTHER');
     const totalSignals = allSignals.length;
     const totalEvents = allEvents.length;
     const verifiedEvents = allEvents.filter(e => e.status === 'VERIFIED').length;
@@ -2672,7 +2740,8 @@ export async function handleRequest(req, res) {
 
   // --- LIVE WEATHER OBSERVATIONS (12 INDIAN MONITORING STATIONS) ---
   if ((pathname === '/api/v1/live/weather' || pathname === '/live/weather') && req.method === 'GET') {
-    const latest = await db.getLatestObservations('LIVE');
+    const reqMode = parsedUrl.searchParams.get('mode') || parsedUrl.searchParams.get('data_mode') || ((process.env.APP_MODE || '').toUpperCase() === 'LIVE' ? 'LIVE' : null);
+    const latest = await db.getLatestObservations(reqMode);
     const now = Date.now();
     const stations = latest.map(obs => {
       const obsTime = new Date(obs.observed_at).getTime();

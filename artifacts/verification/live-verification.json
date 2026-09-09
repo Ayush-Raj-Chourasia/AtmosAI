@@ -1,9 +1,9 @@
 {
   "verification_title": "WeatherNexus / AtmosAI Live Meteorological Verification Suite",
   "sih_problem_statement": "SIH26069: National Weather Big Data Analytics Platform",
-  "generated_at": "2026-09-09T21:49:22.886Z",
+  "generated_at": "2026-09-09T22:29:19.730Z",
   "git": {
-    "commit": "5f596abc96d705e18e2e021962d8c73b697a1a40",
+    "commit": "7076bd2b113056ace07914a1899fe08a22b4fd7d",
     "branch": "master"
   },
   "environment": {
@@ -101,12 +101,12 @@
       "latitude": 26.1445,
       "longitude": 91.7362,
       "temperature_c": 27,
-      "humidity_pct": 94,
-      "pressure_hpa": 1006,
+      "humidity_pct": 100,
+      "pressure_hpa": 1005,
       "wind_speed_kmh": 0,
       "weather_condition": "Rain",
       "weather_description": "light rain",
-      "provider_timestamp": "2026-09-09T21:49:05.000Z",
+      "provider_timestamp": "2026-09-09T22:28:19.000Z",
       "data_mode": "LIVE"
     },
     {
@@ -114,13 +114,13 @@
       "state": "Delhi",
       "latitude": 28.6139,
       "longitude": 77.209,
-      "temperature_c": 28.99,
-      "humidity_pct": 89,
+      "temperature_c": 29.07,
+      "humidity_pct": 74,
       "pressure_hpa": 1006,
-      "wind_speed_kmh": 7.416,
+      "wind_speed_kmh": 5.5440000000000005,
       "weather_condition": "Clouds",
       "weather_description": "scattered clouds",
-      "provider_timestamp": "2026-09-09T21:49:05.000Z",
+      "provider_timestamp": "2026-09-09T22:28:25.000Z",
       "data_mode": "LIVE"
     },
     {
@@ -128,13 +128,13 @@
       "state": "Maharashtra",
       "latitude": 19.076,
       "longitude": 72.8777,
-      "temperature_c": 29,
-      "humidity_pct": 74,
+      "temperature_c": 28,
+      "humidity_pct": 78,
       "pressure_hpa": 1010,
       "wind_speed_kmh": 11.124,
       "weather_condition": "Clouds",
       "weather_description": "overcast clouds",
-      "provider_timestamp": "2026-09-09T21:49:05.000Z",
+      "provider_timestamp": "2026-09-09T22:28:25.000Z",
       "data_mode": "LIVE"
     }
   ],
@@ -143,13 +143,13 @@
       "gate": 1,
       "name": "OpenWeather API connectivity verified with genuine key",
       "status": "PASS",
-      "duration_ms": 163
+      "duration_ms": 148
     },
     {
       "gate": 2,
       "name": "Real meteorological observation fetched across Indian stations",
       "status": "PASS",
-      "duration_ms": 448
+      "duration_ms": 204
     },
     {
       "gate": 3,
@@ -167,7 +167,7 @@
       "gate": 5,
       "name": "Event derivation transparency verified (classification_type & confidence_reason)",
       "status": "PASS",
-      "duration_ms": 1307
+      "duration_ms": 663
     },
     {
       "gate": 6,
@@ -179,31 +179,31 @@
       "gate": 7,
       "name": "Real-time deduplication prevents duplicate signal for identical station + timestamp",
       "status": "PASS",
-      "duration_ms": 339
+      "duration_ms": 296
     },
     {
       "gate": 8,
       "name": "Meteorological safety invariants verified (RAIN != FLOOD & Wind != CYCLONE)",
       "status": "PASS",
-      "duration_ms": 912
+      "duration_ms": 512
     },
     {
       "gate": 9,
       "name": "Strict mode isolation verified: zero demo/seeded records in LIVE queries",
       "status": "PASS",
-      "duration_ms": 9
+      "duration_ms": 15
     },
     {
       "gate": 10,
       "name": "Quota tracking verified: 5 calls logged today (Limit: 1,000)",
       "status": "PASS",
-      "duration_ms": 37
+      "duration_ms": 40
     },
     {
       "gate": 11,
       "name": "HTTP endpoints verified: /live/weather, /live/status, /live/poll",
       "status": "PASS",
-      "duration_ms": 15674
+      "duration_ms": 10243
     },
     {
       "gate": 12,

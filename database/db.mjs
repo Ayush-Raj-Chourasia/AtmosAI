@@ -187,7 +187,13 @@ class DatabaseEngine {
         const data = JSON.parse(raw);
         if (data.sources) this.tables.sources = new Map(Object.entries(data.sources));
         if (data.signals) this.tables.signals = new Map(Object.entries(data.signals).map(([k, v]) => [k, { ...v, data_mode: v.data_mode || 'DEMO' }]));
-        if (data.weather_events) this.tables.weather_events = new Map(Object.entries(data.weather_events).map(([k, v]) => [k, { ...v, data_mode: v.data_mode || 'DEMO' }]));
+        if (data.weather_events) {
+          this.tables.weather_events = new Map(
+            Object.entries(data.weather_events)
+              .filter(([k, v]) => v.event_type !== 'OTHER' && v.event_type !== 'NORMAL_WEATHER')
+              .map(([k, v]) => [k, { ...v, data_mode: v.data_mode || 'DEMO' }])
+          );
+        }
         if (data.event_evidence) this.tables.event_evidence = new Map(Object.entries(data.event_evidence));
         if (data.verification_records) this.tables.verification_records = data.verification_records;
         if (data.admin_actions) this.tables.admin_actions = data.admin_actions;
@@ -501,13 +507,15 @@ class DatabaseEngine {
           throw new Error(`AUTHORITATIVE_SUPABASE_READ_FAILED: ${error.message}`);
         }
         if (!error && data && data.length > 0) {
-          return data.map((r) => ({
-            ...r,
-            confidence: parseFloat(r.confidence_score) || 0.5,
-            latitude: parseFloat(r.latitude),
-            longitude: parseFloat(r.longitude),
-            _data_source: 'SUPABASE_AUTHORITATIVE',
-          }));
+          return data
+            .filter((r) => r.event_type !== 'OTHER' && r.event_type !== 'NORMAL_WEATHER')
+            .map((r) => ({
+              ...r,
+              confidence: parseFloat(r.confidence_score) || 0.5,
+              latitude: parseFloat(r.latitude),
+              longitude: parseFloat(r.longitude),
+              _data_source: 'SUPABASE_AUTHORITATIVE',
+            }));
         }
       } catch (e) {
         if (this.isAuthoritative()) throw e;
@@ -515,7 +523,9 @@ class DatabaseEngine {
       }
     }
 
-    let events = Array.from(this.tables.weather_events.values()).map(e => ({ ...e, _data_source: this.mode }));
+    let events = Array.from(this.tables.weather_events.values())
+      .filter(e => e.event_type !== 'OTHER' && e.event_type !== 'NORMAL_WEATHER')
+      .map(e => ({ ...e, _data_source: this.mode }));
     if (filters.event_type && filters.event_type !== 'ALL') {
       events = events.filter((e) => e.event_type === filters.event_type);
     }

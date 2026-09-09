@@ -376,16 +376,19 @@ export class OpenWeatherConnector extends BaseWeatherConnector {
         const weatherMain = observation.weather.main;
         const weatherDesc = observation.weather.description;
 
-        // Derived Event Classification Rules
-        let candidate = 'OTHER';
+        // Derived Event Classification Rules (SIH26069 Hazard Taxonomy vs Normal Baseline)
+        let candidate = 'NORMAL_WEATHER';
+        let isHazard = false;
         let floodIndicator = false;
         let classificationReason = 'Normal meteorological baseline';
 
         if (weatherId >= 200 && weatherId <= 232) {
           candidate = 'THUNDERSTORM';
+          isHazard = true;
           classificationReason = `Live convective activity detected: ${weatherDesc} (Code: ${weatherId})`;
         } else if (rain >= 15.0) {
           candidate = 'RAINFALL';
+          isHazard = true;
           classificationReason = `Intense precipitation rate: ${rain.toFixed(1)} mm/h`;
           if (rain >= 50.0) {
             floodIndicator = true;
@@ -393,18 +396,23 @@ export class OpenWeatherConnector extends BaseWeatherConnector {
           }
         } else if (wind >= 50.0 || observation.wind_gust >= 60.0) {
           candidate = 'STRONG_WIND';
+          isHazard = true;
           classificationReason = `Sustained gale/squall: Wind ${wind.toFixed(0)} km/h, Gust ${observation.wind_gust.toFixed(0)} km/h`;
         } else if ((temp >= 42.0 && !loc.is_coastal) || (temp >= 40.0 && loc.is_coastal)) {
           candidate = 'HEATWAVE';
+          isHazard = true;
           classificationReason = `Extreme surface temperature: ${temp.toFixed(1)}°C (threshold: ${loc.is_coastal ? '40°C coastal' : '42°C plains'})`;
         } else if (weatherId === 741 || observation.visibility < 1000) {
           candidate = 'FOG';
+          isHazard = true;
           classificationReason = `Dense surface obscuration: Visibility ${observation.visibility}m, Fog code ${weatherId}`;
         } else if (weatherId === 751 || weatherId === 761 || weatherId === 731) {
           candidate = 'DUST_STORM';
+          isHazard = true;
           classificationReason = `Atmospheric lithometeor: Sand/dust condition (Code: ${weatherId})`;
         } else if (rain > 2.5) {
           candidate = 'RAINFALL';
+          isHazard = true;
           classificationReason = `Active light-to-moderate rain: ${rain.toFixed(1)} mm/h (${weatherDesc})`;
         }
 
@@ -425,10 +433,13 @@ export class OpenWeatherConnector extends BaseWeatherConnector {
           longitude: loc.lon,
           location_confidence: 0.98,
           location_method: 'native_gps',
+          entity_type: isHazard ? 'WEATHER_EVENT' : 'WEATHER_OBSERVATION',
+          observation_type: 'CURRENT_WEATHER',
+          is_hazard: isHazard,
           event_candidate: candidate,
           flood_indicator: floodIndicator,
           classification_reason: classificationReason,
-          classification_type: 'DERIVED',
+          classification_type: isHazard ? 'DERIVED' : 'BASELINE_OBSERVATION',
           precipitation_mm: rain,
           temperature_c: temp,
           feels_like_c: observation.feels_like,
