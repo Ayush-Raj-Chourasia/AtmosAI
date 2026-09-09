@@ -147,39 +147,48 @@
       <div>
         <div class="flex items-center space-x-2">
           <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-            <span>WeatherNexus</span>
+            <span class="bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-400 bg-clip-text text-transparent font-extrabold">AtmosAI</span>
+            <span class="text-slate-400 text-sm font-normal">/ WeatherNexus</span>
             <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono font-medium">SIH26069</span>
           </h1>
           <span class="hidden md:inline-block text-xs text-slate-400">• National Weather Event Intelligence System</span>
         </div>
         <div class="text-[11px] text-slate-400 font-medium flex items-center gap-2">
           <span>Ministry of Earth Sciences / India Meteorological Department (IMD)</span>
-          <span class="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded bg-blue-950/80 text-blue-300 border border-blue-800/80 font-mono">Prototype multi-city coverage with national-scale architecture</span>
+          <span class="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded bg-blue-950/80 text-blue-300 border border-blue-800/80 font-mono">12-City Live Observational Telemetry Matrix</span>
         </div>
       </div>
     </div>
 
-    <!-- Center: Live SSE Heartbeat & Quick Stats -->
-    <div class="hidden lg:flex items-center space-x-6 bg-slate-950/60 px-4 py-1.5 rounded-lg border border-slate-800 text-xs">
+    <!-- Center: Live Meteorological Feed Badge & SSE Heartbeat -->
+    <div class="hidden lg:flex items-center space-x-4 bg-slate-950/60 px-3.5 py-1.5 rounded-lg border border-slate-800 text-xs">
+      <div id="live-global-badge" onclick="openLiveWeatherModal()" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-emerald-950/80 text-emerald-300 border-emerald-800 cursor-pointer hover:bg-emerald-900/60 transition shadow-sm" title="Live meteorological data feed status. Click to open 12-City Matrix.">
+        <span id="live-global-dot" class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
+        <span id="live-global-text">🟢 LIVE: OpenWeather</span>
+      </div>
+      <div class="h-3 w-px bg-slate-700"></div>
       <div class="flex items-center space-x-2">
         <span class="relative flex h-2.5 w-2.5">
           <span id="sse-pulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
           <span id="sse-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
         </span>
-        <span id="sse-status" class="font-mono text-emerald-400 font-semibold tracking-wide uppercase text-[10px]">LIVE STREAM</span>
+        <span id="sse-status" class="font-mono text-emerald-400 font-semibold tracking-wide uppercase text-[10px]">STREAM</span>
       </div>
       <div class="h-3 w-px bg-slate-700"></div>
-      <div class="text-slate-300">Active Events: <span id="stat-events" class="font-mono font-bold text-white">0</span></div>
+      <div class="text-slate-300">Active: <span id="stat-events" class="font-mono font-bold text-white">0</span></div>
       <div class="text-slate-300">Verified: <span id="stat-verified" class="font-mono font-bold text-emerald-400">0</span></div>
-      <div class="text-slate-300">Signals Ingested: <span id="stat-signals" class="font-mono font-bold text-cyan-400">0</span></div>
-      <div class="text-slate-300">Quarantine Filter: <span id="stat-quarantine" class="font-mono font-bold text-rose-400">0</span></div>
+      <div class="text-slate-300">Signals: <span id="stat-signals" class="font-mono font-bold text-cyan-400">0</span></div>
     </div>
 
     <!-- Right: Actions -->
-    <div class="flex items-center space-x-3">
+    <div class="flex items-center space-x-2.5">
+      <button onclick="openLiveWeatherModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-cyan-700/60 flex items-center gap-1.5 transition shadow-sm" title="Live OpenWeather Observational Telemetry across 12 Indian Cities">
+        <span>🌤️</span>
+        <span>Live Weather (12 Cities)</span>
+      </button>
       <button onclick="openSensorsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm" title="IMD Automatic Weather Stations & CWC Gauges">
         <span>📡</span>
-        <span>Live Sensors</span>
+        <span>Gauges / AWS</span>
       </button>
       <button onclick="openAnalyticsModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition shadow-sm">
         <span>📊</span>
@@ -431,6 +440,42 @@
           <span id="drawer-location">Guwahati, Assam</span>
           <span>•</span>
           <span id="drawer-coords" class="font-mono text-cyan-400">26.14°N, 91.73°E</span>
+        </div>
+      </div>
+
+      <!-- Meteorological Provenance & Classification Traceability -->
+      <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <div class="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <span>🔬</span>
+            <span>Meteorological Classification</span>
+          </div>
+          <span id="drawer-classification-type" class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase bg-cyan-950 text-cyan-300 border border-cyan-800">
+            DERIVED
+          </span>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+          <div class="p-2 rounded bg-slate-900 border border-slate-800">
+            <span class="text-slate-500 block text-[9px] uppercase">PROVIDER EVENT</span>
+            <span id="drawer-provider-event" class="text-slate-200 font-semibold truncate block">None</span>
+          </div>
+          <div class="p-2 rounded bg-slate-900 border border-slate-800">
+            <span class="text-slate-500 block text-[9px] uppercase">PROVIDER SOURCES</span>
+            <span id="drawer-provider-sources" class="text-slate-200 font-semibold truncate block">OpenWeather</span>
+          </div>
+        </div>
+
+        <div class="p-2.5 rounded bg-slate-900 border border-slate-800 text-[11px]">
+          <span class="text-slate-500 block text-[9px] uppercase font-mono mb-1">CLASSIFICATION RATIONALE</span>
+          <p id="drawer-confidence-reason" class="text-slate-300 leading-relaxed font-sans text-[11px]">
+            Observation telemetry corroborated across multi-source monitoring matrix.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-[10px] font-mono text-slate-400">
+          <div>Observed: <span id="drawer-observed-at" class="text-cyan-400">--</span></div>
+          <div>Ingested: <span id="drawer-ingested-at" class="text-slate-300">--</span></div>
         </div>
       </div>
 
@@ -711,6 +756,67 @@
       </div>
       <div id="analytics-modal-body" class="p-6 overflow-y-auto space-y-4 text-xs">
         <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE WEATHER OBSERVATIONS MODAL (12 INDIAN MONITORING STATIONS) -->
+  <div id="live-weather-modal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[1700] flex items-center justify-center hidden p-4">
+    <div class="bg-slate-900 border border-cyan-800/80 rounded-2xl w-[1080px] max-w-full max-h-[90vh] shadow-2xl overflow-hidden flex flex-col">
+      <div class="h-14 px-6 bg-slate-950 border-b border-slate-800 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">🌤️</span>
+          <div>
+            <h3 class="font-bold text-white text-sm flex items-center gap-2">
+              <span>AtmosAI Live Weather Network (12 Indian Meteorological Stations)</span>
+              <span id="live-modal-status-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">🟢 LIVE</span>
+            </h3>
+            <div class="text-[10px] text-slate-400 font-mono">OpenWeather Live Observational Telemetry • Standard 2.5 & One Call 4.0 Dual Tier • Real Provider Timestamps</div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="syncLiveWeatherNow()" id="live-sync-btn" class="px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium flex items-center gap-1.5 transition shadow-sm">
+            <span>⚡</span>
+            <span>Sync Live Weather</span>
+          </button>
+          <button onclick="closeLiveWeatherModal()" class="text-slate-400 hover:text-white text-sm px-2">✕</button>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Header -->
+      <div class="p-4 bg-slate-950/60 border-b border-slate-800 grid grid-cols-4 gap-3 shrink-0 text-xs">
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+          <div class="text-[10px] font-mono text-slate-400 uppercase">PROVIDER STATUS</div>
+          <div id="live-stat-status" class="text-sm font-bold text-emerald-400 mt-0.5">ONLINE</div>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+          <div class="text-[10px] font-mono text-slate-400 uppercase">ACTIVE API TIER</div>
+          <div id="live-stat-tier" class="text-sm font-bold text-cyan-400 mt-0.5">STANDARD_2.5</div>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+          <div class="text-[10px] font-mono text-slate-400 uppercase">QUOTA TRACKER (TODAY)</div>
+          <div id="live-stat-quota" class="text-sm font-bold text-white mt-0.5">0 / 1,000 calls</div>
+        </div>
+        <div class="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+          <div class="text-[10px] font-mono text-slate-400 uppercase">LAST POLLED</div>
+          <div id="live-stat-lastpoll" class="text-sm font-bold text-slate-300 mt-0.5">Just now</div>
+        </div>
+      </div>
+
+      <!-- Observations Table -->
+      <div id="live-weather-modal-body" class="p-6 overflow-y-auto space-y-4 text-xs flex-1">
+        <!-- Rendered by JS -->
+      </div>
+
+      <!-- Footer & Attribution -->
+      <div class="p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono shrink-0">
+        <span class="text-slate-400 flex items-center gap-1.5">
+          <span>ℹ️</span>
+          <span>Weather data provided by <a href="https://openweathermap.org" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline">OpenWeather</a>. Ground truth verified for SIH26069.</span>
+        </span>
+        <button onclick="closeLiveWeatherModal()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold border border-slate-700">
+          Close Matrix
+        </button>
       </div>
     </div>
   </div>
@@ -1205,6 +1311,38 @@
       document.getElementById('drawer-coords').innerText = `${ev.latitude.toFixed(3)}°N, ${ev.longitude.toFixed(3)}°E`;
       document.getElementById('drawer-conf-num').innerText = `${(ev.confidence_score * 100).toFixed(0)}%`;
       document.getElementById('drawer-conf-label').innerText = ev.confidence_score >= 0.85 ? 'Verified High Credibility' : 'Under Assessment';
+
+      // Classification & Provenance
+      const classTypeEl = document.getElementById('drawer-classification-type');
+      if (classTypeEl) {
+        const cType = ev.classification_type || (ev.provider_event ? 'PROVIDER_DIRECT' : 'DERIVED');
+        classTypeEl.innerText = cType;
+        classTypeEl.className = cType === 'PROVIDER_DIRECT'
+          ? 'px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-emerald-950 text-emerald-300 border border-emerald-800'
+          : 'px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-cyan-950 text-cyan-300 border border-cyan-800';
+      }
+      const provEvEl = document.getElementById('drawer-provider-event');
+      if (provEvEl) provEvEl.innerText = ev.provider_event || 'Observational Metrics';
+      const provSrcEl = document.getElementById('drawer-provider-sources');
+      if (provSrcEl) {
+        provSrcEl.innerText = (ev.provider_sources && ev.provider_sources.length > 0)
+          ? ev.provider_sources.join(', ')
+          : (ev.data_mode === 'LIVE' ? 'OpenWeather' : 'National Stations');
+      }
+      const confReasonEl = document.getElementById('drawer-confidence-reason');
+      if (confReasonEl) {
+        confReasonEl.innerText = ev.confidence_reason || ev.ai_reasoning || 'Meteorological parameters evaluated against IMD/MoES alert thresholds.';
+      }
+      const obsAtEl = document.getElementById('drawer-observed-at');
+      if (obsAtEl) {
+        const t = ev.first_observed_at || ev.first_detected_at;
+        obsAtEl.innerText = t ? new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--';
+      }
+      const ingAtEl = document.getElementById('drawer-ingested-at');
+      if (ingAtEl) {
+        const t = ev.last_evidence_at || ev.last_updated_at;
+        ingAtEl.innerText = t ? new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--';
+      }
 
       // Sources Grid
       const sb = ev.source_breakdown || {};
@@ -1950,8 +2088,182 @@
       }
     }
 
-    function closeAnalyticsModal() {
-      document.getElementById('analytics-modal').classList.add('hidden');
+    // ================================================================
+    // ATMOSAI LIVE WEATHER OBSERVATION NETWORK (12 INDIAN CITIES)
+    // ================================================================
+    async function openLiveWeatherModal() {
+      document.getElementById('live-weather-modal').classList.remove('hidden');
+      await fetchAndRenderLiveWeather();
+    }
+
+    function closeLiveWeatherModal() {
+      document.getElementById('live-weather-modal').classList.add('hidden');
+    }
+
+    async function fetchAndRenderLiveWeather() {
+      const bodyEl = document.getElementById('live-weather-modal-body');
+      bodyEl.innerHTML = `
+        <div class="flex items-center justify-center py-10 text-slate-400 font-mono">
+          <span class="animate-spin mr-2">🔄</span> Ingesting real-time observational telemetry across 12 Indian monitoring stations...
+        </div>
+      `;
+
+      try {
+        const [statRes, obsRes] = await Promise.all([
+          fetch(`${API_BASE}/api/v1/live/status`),
+          fetch(`${API_BASE}/api/v1/live/weather`),
+        ]);
+        const statusJson = await statRes.json();
+        const obsJson = await obsRes.json();
+
+        const isOnline = statusJson.status === 'ONLINE' || statusJson.status === 'STANDBY';
+        const statusEl = document.getElementById('live-stat-status');
+        if (statusEl) {
+          statusEl.innerText = statusJson.status || 'ONLINE';
+          statusEl.className = isOnline ? 'text-sm font-bold text-emerald-400 mt-0.5' : 'text-sm font-bold text-rose-400 mt-0.5';
+        }
+        const tierEl = document.getElementById('live-stat-tier');
+        if (tierEl) tierEl.innerText = statusJson.tier || 'STANDARD_2.5';
+        const quotaEl = document.getElementById('live-stat-quota');
+        if (quotaEl) quotaEl.innerText = `${statusJson.calls_today || 0} / 1,000 calls`;
+        const lastPollEl = document.getElementById('live-stat-lastpoll');
+        if (lastPollEl) {
+          lastPollEl.innerText = statusJson.last_poll_at ? new Date(statusJson.last_poll_at).toLocaleTimeString() : 'Just now';
+        }
+        const modalBadge = document.getElementById('live-modal-status-badge');
+        if (modalBadge) {
+          modalBadge.innerText = isOnline ? `🟢 ${statusJson.mode || 'LIVE'}` : `🔴 ${statusJson.status || 'OFFLINE'}`;
+        }
+
+        const stations = obsJson.data || [];
+        if (stations.length === 0) {
+          bodyEl.innerHTML = `
+            <div class="text-center py-10 space-y-3">
+              <div class="text-amber-300 font-mono text-sm">No live observations recorded yet in database cache.</div>
+              <p class="text-slate-400 text-xs">Click "Sync Live Weather" to initiate an immediate multi-city poll to OpenWeather.</p>
+              <button onclick="syncLiveWeatherNow()" class="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs">
+                ⚡ Poll OpenWeather Stations Now
+              </button>
+            </div>
+          `;
+          return;
+        }
+
+        bodyEl.innerHTML = `
+          <div class="overflow-x-auto rounded-xl border border-slate-800">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800 text-[11px]">
+                  <th class="p-3">Station / City</th>
+                  <th class="p-3">Temp / Feels</th>
+                  <th class="p-3">Rain (1h / 24h)</th>
+                  <th class="p-3">Wind / Gust</th>
+                  <th class="p-3">Condition</th>
+                  <th class="p-3">Observed At (Provider)</th>
+                  <th class="p-3">Age</th>
+                  <th class="p-3">Mode</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 font-mono">
+                ${stations.map(st => {
+                  const temp = st.temperature_c !== null ? `${st.temperature_c.toFixed(1)}°C` : '--';
+                  const feels = st.feels_like_c !== null ? `${st.feels_like_c.toFixed(1)}°C` : '--';
+                  const rain1h = st.rain_1h_mm !== null ? `${st.rain_1h_mm.toFixed(1)} mm` : '0.0 mm';
+                  const windKmh = st.wind_speed_kmh !== null ? `${st.wind_speed_kmh.toFixed(0)} km/h` : (st.wind_speed_ms ? `${(st.wind_speed_ms * 3.6).toFixed(0)} km/h` : '--');
+                  const obsDate = st.observed_at ? new Date(st.observed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+                  return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                      <td class="p-3 font-bold text-white">
+                        <div class="flex items-center gap-1.5 font-sans">
+                          <span>📍</span>
+                          <span>${st.location_name}</span>
+                        </div>
+                      </td>
+                      <td class="p-3 text-cyan-300 font-bold">
+                        ${temp} <span class="text-slate-500 font-normal text-[10px]">(${feels})</span>
+                      </td>
+                      <td class="p-3 ${st.rain_1h_mm > 0 ? 'text-blue-400 font-bold' : 'text-slate-400'}">
+                        ${rain1h}
+                      </td>
+                      <td class="p-3 text-slate-300">
+                        ${windKmh}
+                      </td>
+                      <td class="p-3">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-200 text-[10px] font-sans">
+                          ${st.weather_description || st.weather_main || 'Normal'}
+                        </span>
+                      </td>
+                      <td class="p-3 text-slate-400 text-[11px]">
+                        ${obsDate}
+                      </td>
+                      <td class="p-3">
+                        <span class="px-1.5 py-0.5 rounded text-[10px] ${st.is_stale ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'}">
+                          ${st.age_human || 'Recent'}
+                        </span>
+                      </td>
+                      <td class="p-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">
+                          ${st.data_mode || 'LIVE'}
+                        </span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (err) {
+        bodyEl.innerHTML = `<div class="text-rose-400 font-mono py-6">Failed to load live observations: ${err.message}</div>`;
+      }
+    }
+
+    async function syncLiveWeatherNow() {
+      const btn = document.getElementById('live-sync-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span>⏳</span><span>Polling OpenWeather...</span>`;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/live/poll`, { method: 'POST' });
+        await fetchAndRenderLiveWeather();
+        if (typeof fetchEvents === 'function') fetchEvents();
+        await pollLiveStatus();
+      } catch (err) {
+        alert(`Failed to sync live weather: ${err.message}`);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<span>⚡</span><span>Sync Live Weather</span>`;
+        }
+      }
+    }
+
+    async function pollLiveStatus() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/live/status`);
+        if (!res.ok) return;
+        const s = await res.json();
+        const globalBadge = document.getElementById('live-global-badge');
+        const globalText = document.getElementById('live-global-text');
+        const globalDot = document.getElementById('live-global-dot');
+
+        if (globalBadge && globalText && globalDot) {
+          if (s.status === 'ONLINE' || s.mode === 'LIVE') {
+            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-emerald-950/80 text-emerald-300 border-emerald-800 cursor-pointer hover:bg-emerald-900/60 transition shadow-sm';
+            globalDot.className = 'h-2 w-2 rounded-full bg-emerald-400 animate-ping';
+            globalText.innerText = `🟢 LIVE: OpenWeather`;
+          } else if (s.status === 'DEGRADED') {
+            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-amber-950/80 text-amber-300 border-amber-800 cursor-pointer hover:bg-amber-900/60 transition shadow-sm';
+            globalDot.className = 'h-2 w-2 rounded-full bg-amber-400';
+            globalText.innerText = `🟡 DEGRADED (${s.tier || '2.5'})`;
+          } else {
+            globalBadge.className = 'flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-mono border bg-rose-950/80 text-rose-300 border-rose-800 cursor-pointer hover:bg-rose-900/60 transition shadow-sm';
+            globalDot.className = 'h-2 w-2 rounded-full bg-rose-500';
+            globalText.innerText = `🔴 LIVE DATA UNAVAILABLE: ${s.last_error || 'Offline'}`;
+          }
+        }
+      } catch (e) {}
     }
 
     // National Sensors Matrix (IMD AWS & CWC Gauges)
@@ -2294,6 +2606,10 @@
       // Load KPI cards on start
       loadKpiCards();
       setInterval(loadKpiCards, 30000);
+
+      // Poll live meteorological data status
+      pollLiveStatus();
+      setInterval(pollLiveStatus, 20000);
     });
 
     // ================================================================

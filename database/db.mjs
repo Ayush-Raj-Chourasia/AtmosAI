@@ -73,6 +73,7 @@ class DatabaseEngine {
       admin_actions: [],
       media_metadata: new Map(),
       source_health: new Map(),
+      weather_observations: new Map(),
     };
   }
 
@@ -169,6 +170,13 @@ class DatabaseEngine {
   }
 
   loadFromDisk() {
+    const appMode = (process.env.APP_MODE || process.env.NODE_ENV || '').toUpperCase();
+    if (appMode === 'LIVE') {
+      console.log('[DB] Mode is LIVE: Bypassing local demo/offline disk store hydration.');
+      this.seedDefaults();
+      return;
+    }
+
     try {
       let targetPath = STORE_PATH;
       if (!fs.existsSync(targetPath) && fs.existsSync(ORIGINAL_STORE_PATH)) {
@@ -178,8 +186,8 @@ class DatabaseEngine {
         const raw = fs.readFileSync(targetPath, 'utf8');
         const data = JSON.parse(raw);
         if (data.sources) this.tables.sources = new Map(Object.entries(data.sources));
-        if (data.signals) this.tables.signals = new Map(Object.entries(data.signals));
-        if (data.weather_events) this.tables.weather_events = new Map(Object.entries(data.weather_events));
+        if (data.signals) this.tables.signals = new Map(Object.entries(data.signals).map(([k, v]) => [k, { ...v, data_mode: v.data_mode || 'DEMO' }]));
+        if (data.weather_events) this.tables.weather_events = new Map(Object.entries(data.weather_events).map(([k, v]) => [k, { ...v, data_mode: v.data_mode || 'DEMO' }]));
         if (data.event_evidence) this.tables.event_evidence = new Map(Object.entries(data.event_evidence));
         if (data.verification_records) this.tables.verification_records = data.verification_records;
         if (data.admin_actions) this.tables.admin_actions = data.admin_actions;
@@ -299,6 +307,7 @@ class DatabaseEngine {
           media_urls: record.media_urls,
           media_types: record.media_types,
           hashtags: record.hashtags,
+          data_mode: record.data_mode || 'LIVE',
           raw_payload: record.raw_payload || {},
         }]);
         if (error) {
@@ -325,7 +334,6 @@ class DatabaseEngine {
   async updateSignal(id, updates) {
     const existing = this.tables.signals.get(id);
     if (!existing) return null;
-
     const updated = {
       ...existing,
       ...updates,
@@ -362,6 +370,9 @@ class DatabaseEngine {
         if (filters.verification_status && filters.verification_status !== 'ALL') {
           query = query.eq('verification_status', filters.verification_status);
         }
+        if (filters.data_mode) {
+          query = query.eq('data_mode', filters.data_mode);
+        }
         if (filters.from_date) {
           query = query.gte('timestamp', filters.from_date);
         }
@@ -384,6 +395,9 @@ class DatabaseEngine {
     }
     if (filters.verification_status && filters.verification_status !== 'ALL') {
       signals = signals.filter((s) => s.verification_status === filters.verification_status);
+    }
+    if (filters.data_mode) {
+      signals = signals.filter((s) => s.data_mode === filters.data_mode);
     }
     if (filters.from_date) {
       const from = new Date(filters.from_date).getTime();
@@ -439,6 +453,7 @@ class DatabaseEngine {
           signal_count: record.signal_count,
           source_breakdown: record.source_breakdown,
           ai_reasoning: record.ai_reasoning,
+          data_mode: record.data_mode || 'LIVE',
           evidence_summary: Array.isArray(record.evidence_summary) ? record.evidence_summary : [record.evidence_summary],
         }]);
         if (error) {
@@ -475,6 +490,9 @@ class DatabaseEngine {
         if (filters.state && filters.state !== 'All India') {
           query = query.ilike('state', `%${filters.state}%`);
         }
+        if (filters.data_mode) {
+          query = query.eq('data_mode', filters.data_mode);
+        }
         if (filters.from_date) {
           query = query.gte('last_updated_at', filters.from_date);
         }
@@ -507,12 +525,93 @@ class DatabaseEngine {
     if (filters.status && filters.status !== 'ALL') {
       events = events.filter((e) => e.status === filters.status);
     }
+    if (filters.data_mode) {
+      events = events.filter((e) => e.data_mode === filters.data_mode);
+    }
     if (filters.from_date) {
       const from = new Date(filters.from_date).getTime();
       events = events.filter((e) => new Date(e.last_updated_at || e.first_detected_at).getTime() >= from);
     }
     events.sort((a, b) => new Date(b.last_updated_at).getTime() - new Date(a.last_updated_at).getTime());
     return events;
+  }
+
+  async insertObservation(obs) {
+    const id = obs.id || `obs_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const cityName = obs.city || obs.location_name || 'Unknown';
+    const record = {
+      ...obs,
+      id,
+      city: cityName,
+      location_name: obs.location_name || cityName,
+      observed_at: obs.provider_timestamp || obs.observed_at || new Date().toISOString(),
+      provider_timestamp: obs.provider_timestamp || obs.observed_at || new Date().toISOString(),
+      ingested_at: obs.ingested_at || new Date().toISOString(),
+      data_mode: obs.data_mode || 'LIVE',
+    };
+
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const { error } = await this.supabase.from('weather_observations').insert([{
+          id: record.id,
+          city: record.city,
+          location_name: record.location_name,
+          state: record.state,
+          country: record.country || 'India',
+          latitude: record.latitude,
+          longitude: record.longitude,
+          temperature_c: record.temperature_c ?? record.temp ?? 0,
+          feels_like_c: record.feels_like_c ?? record.feels_like ?? null,
+          humidity_pct: record.humidity_pct ?? record.humidity ?? null,
+          pressure_hpa: record.pressure_hpa ?? record.pressure ?? null,
+          wind_speed_kmh: record.wind_speed_kmh ?? record.wind_speed ?? null,
+          wind_gust_kmh: record.wind_gust_kmh ?? record.wind_gust ?? null,
+          wind_deg: record.wind_deg ?? null,
+          precipitation_mm: record.precipitation_mm ?? record.rain ?? 0,
+          visibility_m: record.visibility_m ?? record.visibility ?? null,
+          cloud_cover_pct: record.cloud_cover_pct ?? record.clouds ?? null,
+          weather_condition: record.weather_condition ?? null,
+          weather_id: record.weather_id ?? null,
+          weather_description: record.weather_description ?? null,
+          provider: record.provider || 'OpenWeather',
+          provider_timestamp: record.provider_timestamp,
+          ingested_at: record.ingested_at,
+          data_mode: record.data_mode,
+          raw_payload: record.raw_payload || {},
+        }]);
+        if (error && this.isAuthoritative()) {
+          console.warn('[SUPABASE] Observation insert note:', error.message);
+        }
+      } catch (e) {
+        if (this.isAuthoritative()) console.warn('[SUPABASE] Observation sync notice:', e.message);
+      }
+    }
+
+    this.tables.weather_observations.set(id, record);
+    return record;
+  }
+
+  getLatestObservations(dataMode = 'LIVE') {
+    const latestByCity = new Map();
+    for (const obs of this.tables.weather_observations.values()) {
+      if (dataMode && obs.data_mode !== dataMode) continue;
+      const cityName = obs.city || obs.location_name || 'unknown';
+      const key = cityName.toLowerCase();
+      const existing = latestByCity.get(key);
+      const obsTime = new Date(obs.provider_timestamp || obs.observed_at || obs.ingested_at).getTime();
+      const existingTime = existing ? new Date(existing.provider_timestamp || existing.observed_at || existing.ingested_at).getTime() : 0;
+      if (!existing || obsTime > existingTime) {
+        const ageMin = Math.max(0, Math.round((Date.now() - obsTime) / 60000));
+        latestByCity.set(key, {
+          ...obs,
+          city: cityName,
+          location_name: obs.location_name || cityName,
+          age_minutes: ageMin,
+          is_stale: ageMin > 60,
+        });
+      }
+    }
+    return Array.from(latestByCity.values());
   }
 
   async getEventById(id) {

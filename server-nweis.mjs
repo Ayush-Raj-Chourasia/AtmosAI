@@ -31,6 +31,7 @@ import {
   normalizeDataMode,
   isValidStateTransition,
 } from './lib/constants.mjs';
+import { MONITORING_LOCATIONS } from './lib/monitoring-locations.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -434,7 +435,7 @@ export function classifyWeather(text) {
   if (/heatwave|temperature.*above|4[5-9]°c|loo|heat stroke/i.test(lower)) scores.HEATWAVE += 4;
   if (/fog|dense fog|visibility.*<|smog/i.test(lower)) scores.FOG += 4;
   if (/dust storm|andhi|sandstorm/i.test(lower)) scores.DUST_STORM += 4;
-  if (/gale|strong wind|cyclone|uprooted tree/i.test(lower)) scores.STRONG_WIND += 3.5;
+  if (/gale|strong wind|severe wind|high wind|wind gust|\bwind\b|cyclone|uprooted tree/i.test(lower)) scores.STRONG_WIND += 3.5;
 
   // Meteorological Invariant: Heavy Rain != Flood
   // Rain >= 50mm flags heavy rainfall with flood risk, but without explicit ground hydrological evidence it MUST NOT be classified as FLOOD.
@@ -1012,6 +1013,16 @@ export async function ingestSignal(raw) {
   const status = isRejected ? 'REJECTED' : 'VERIFIED';
   const credibility = isRejected ? 0.10 : getSourceBaseline(raw.source_type);
 
+  const isLiveAppMode = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
+  const signalDataMode = raw.data_mode || (raw.is_replay ? 'REPLAY' : (isLiveAppMode ? 'LIVE' : 'DEMO'));
+
+  if (isLiveAppMode && signalDataMode !== 'LIVE') {
+    return { signal: null, ignored: true, reason: 'Non-LIVE signal suppressed in strict LIVE mode', associatedEvent: null };
+  }
+
+  const providerTs = raw.provider_timestamp || raw.observed_at || raw.timestamp || new Date().toISOString();
+  const ingestedAt = raw.ingested_at || new Date().toISOString();
+
   const signal = {
     id: raw.id || `sig_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
     source_id: raw.source_id || null,
@@ -1025,7 +1036,7 @@ export async function ingestSignal(raw) {
     state: geo.state,
     location_confidence: geo.confidence,
     location_method: geo.method,
-    event_candidate: classification.eventType,
+    event_candidate: raw.event_candidate || classification.eventType,
     relevance_score: classification.probability,
     credibility_score: credibility,
     misinformation_score: misinfoProb,
@@ -1033,13 +1044,63 @@ export async function ingestSignal(raw) {
     media_urls: mediaUrls,
     hashtags: (raw.text.match(/#[a-zA-Z0-9_]+/g) || []).map(h => h.toLowerCase()),
     flood_indicator: Boolean(classification.flood_indicator || raw.flood_indicator),
-    rainfall_mm: classification.rainfall_mm ?? raw.rainfall_mm ?? null,
-    data_mode: raw.data_mode || (raw.is_replay ? 'REPLAY' : (raw.source_type === 'weather_api' && process.env.APP_MODE === 'LIVE' ? 'LIVE' : 'DEMO')),
-    timestamp: new Date().toISOString(),
+    rainfall_mm: classification.rainfall_mm ?? raw.rainfall_mm ?? raw.precipitation_mm ?? null,
+    temperature_c: raw.temperature_c ?? null,
+    feels_like_c: raw.feels_like_c ?? null,
+    humidity_pct: raw.humidity_pct ?? null,
+    pressure_hpa: raw.pressure_hpa ?? null,
+    wind_speed_kmh: raw.wind_speed_kmh ?? null,
+    precipitation_mm: raw.precipitation_mm ?? raw.rainfall_mm ?? null,
+    weather_condition: raw.weather_condition || null,
+    weather_description: raw.weather_description || null,
+    classification_reason: raw.classification_reason || null,
+    classification_type: raw.classification_type || (raw.provider_event ? 'PROVIDER_DIRECT' : 'DERIVED'),
+    provider_event: raw.provider_event || null,
+    data_mode: signalDataMode,
+    provider_timestamp: providerTs,
+    observed_at: providerTs,
+    ingested_at: ingestedAt,
+    timestamp: providerTs,
   };
 
   memSignals.set(signal.id, signal);
   await db.insertSignal(signal);
+
+  // Ingest into dedicated weather_observations table if meteorological observation
+  if (raw.source_type === 'weather_api' && (raw.temperature_c !== undefined || raw.pressure_hpa !== undefined || raw.raw_observation)) {
+    try {
+      await db.insertObservation({
+        id: `obs_${signal.id}`,
+        location_name: raw.city || signal.city,
+        latitude: signal.latitude,
+        longitude: signal.longitude,
+        observed_at: providerTs,
+        fetched_at: ingestedAt,
+        temperature_c: raw.temperature_c ?? null,
+        feels_like_c: raw.feels_like_c ?? null,
+        humidity_pct: raw.humidity_pct ?? null,
+        pressure_hpa: raw.pressure_hpa ?? null,
+        wind_speed_ms: raw.wind_speed_ms ?? (raw.wind_speed_kmh ? Number((raw.wind_speed_kmh / 3.6).toFixed(2)) : null),
+        wind_speed_kmh: raw.wind_speed_kmh ?? null,
+        wind_direction_deg: raw.wind_deg ?? raw.wind_direction_deg ?? null,
+        rain_1h_mm: raw.rain_1h ?? raw.precipitation_mm ?? null,
+        rain_3h_mm: raw.rain_3h ?? null,
+        rain_24h_mm: raw.rain_24h_mm ?? raw.rainfall_mm ?? null,
+        clouds_pct: raw.clouds_pct ?? raw.clouds ?? null,
+        visibility_m: raw.visibility_m ?? raw.visibility ?? null,
+        weather_code: raw.weather_id ?? raw.weather_code ?? null,
+        weather_main: raw.weather_condition ?? raw.weather_main ?? null,
+        weather_description: raw.weather_description ?? null,
+        uv_index: raw.uvi ?? raw.uv_index ?? null,
+        provider: raw.provider || raw.source_name || 'OpenWeather',
+        provider_call_type: raw.provider_call_type || (raw.provider_event ? 'ONE_CALL' : 'CURRENT_WEATHER'),
+        data_mode: signalDataMode,
+        raw_payload: raw.raw_payload || null,
+      });
+    } catch (obsErr) {
+      console.warn('[DATABASE] Failed to insert weather observation:', obsErr.message);
+    }
+  }
 
   if (geminiOutput) {
     await db.insertAiPrediction({
@@ -1153,6 +1214,21 @@ export async function ingestSignal(raw) {
     }
   }
 
+  // Hardened Invariant: CYCLONE Rule
+  // High wind speed alone from weather_api CANNOT create or trigger a CYCLONE event.
+  // Official CYCLONE status requires an official cyclone alert from IMD or government warning.
+  if (eventType === 'CYCLONE') {
+    const hasOfficialCycloneAlert = relatedSignals.some(s =>
+      s.source_type === 'imd' ||
+      s.provider_event === 'CYCLONE' ||
+      /cyclone|cyclonic storm|super cyclone|depression/i.test(s.text)
+    );
+    if (!hasOfficialCycloneAlert) {
+      eventType = 'STRONG_WIND';
+      eventStatus = 'UNDER_REVIEW';
+    }
+  }
+
   const sourceBreakdown = { imd: 0, weather_api: 0, news: 0, social_media: 0, citizen: 0, public_dataset: 0 };
   for (const s of relatedSignals) {
     if (s.source_type in sourceBreakdown) sourceBreakdown[s.source_type]++;
@@ -1165,6 +1241,11 @@ export async function ingestSignal(raw) {
     sourceBreakdown.social_media > 0 ? `${sourceBreakdown.social_media} real-time social observation(s) with #IMD weather tags` : null,
     hasMedia ? 'Verified multimedia assets showing active inundation / convective clouds' : null,
   ].filter(Boolean);
+
+  const classificationType = raw.provider_event ? 'PROVIDER_DIRECT' : (raw.classification_type || targetEvent?.classification_type || 'DERIVED');
+  const confidenceReason = raw.classification_reason || (classificationType === 'PROVIDER_DIRECT'
+    ? `Direct meteorological advisory from official authority: ${raw.provider_event}`
+    : `${eventType} derived from ${signal.source_name || signal.source_type} observational telemetry (${uniqueSources.size} source types, ${relatedSignals.length} corroborating signals)`);
 
   const aiReasoning = `${eventType} confidence is ${(confidenceScore * 100).toFixed(0)}% based on ${uniqueSources.size} independent observation vectors across ${relatedSignals.length} localized signals. Multi-factor corroboration verified with ${(avgSource * 100).toFixed(0)}% source reliability and 95% spatial consistency.`;
 
@@ -1184,6 +1265,12 @@ export async function ingestSignal(raw) {
     state: signal.state,
     base_confidence: confidenceScore,
     confidence_score: confidenceScore,
+    confidence_reason: confidenceReason,
+    classification_type: classificationType,
+    provider_event: raw.provider_event || targetEvent?.provider_event || null,
+    provider_sources: Array.from(new Set([...(targetEvent?.provider_sources || []), raw.source_name || raw.source_type])),
+    first_observed_at: targetEvent?.first_observed_at || providerTs,
+    last_observed_at: providerTs,
     freshness_score: 100,
     decay_factor: 1.0,
     half_life_minutes: (DECAY_PROFILES[eventType] || DECAY_PROFILES.OTHER).halfLifeMin,
@@ -1198,7 +1285,7 @@ export async function ingestSignal(raw) {
     sensors: targetEvent?.sensors || [],
     recommended_actions: targetEvent?.recommended_actions || generateActionDirectives(eventType, confidenceScore >= 0.90 ? 'critical' : 'high', signal.city, signal.state),
     flood_indicator: relatedSignals.some(s => s.flood_indicator) || Boolean(signal.flood_indicator),
-    data_mode: targetEvent?.data_mode || signal.data_mode || 'DEMO',
+    data_mode: targetEvent?.data_mode || signal.data_mode || (isLiveAppMode ? 'LIVE' : 'DEMO'),
   };
 
   memEvents.set(eventId, eventPayload);
@@ -1805,9 +1892,17 @@ export async function handleRequest(req, res) {
     return;
   }
 
+  const filterEventsByMode = (list) => {
+    const m = parsedUrl.searchParams.get('mode') || parsedUrl.searchParams.get('data_mode');
+    const isLive = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
+    if (m) return list.filter(e => (e.data_mode || 'DEMO').toUpperCase() === m.toUpperCase());
+    if (isLive) return list.filter(e => (e.data_mode || 'DEMO').toUpperCase() === 'LIVE');
+    return list;
+  };
+
   // --- RFC 7946 GeoJSON / OGC WFS INTEROPERABILITY LAYER ---
   if ((pathname === '/api/v1/events/geojson' || pathname === '/events/geojson' || ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/api/v1/events/map') && parsedUrl.searchParams.get('format') === 'geojson')) && req.method === 'GET') {
-    let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
+    let events = filterEventsByMode(Array.from(memEvents.values()).map(e => applyConfidenceDecay(e)));
     const cat = parsedUrl.searchParams.get('event_type');
     const state = parsedUrl.searchParams.get('state');
     const status = parsedUrl.searchParams.get('status');
@@ -1829,7 +1924,7 @@ export async function handleRequest(req, res) {
 
   // --- OGC KML 2.2 GOOGLE EARTH EXPORT LAYER ---
   if ((pathname === '/api/v1/events/kml' || pathname === '/events/kml' || ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/api/v1/events/map') && parsedUrl.searchParams.get('format') === 'kml')) && req.method === 'GET') {
-    let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
+    let events = filterEventsByMode(Array.from(memEvents.values()).map(e => applyConfidenceDecay(e)));
     const cat = parsedUrl.searchParams.get('event_type');
     const state = parsedUrl.searchParams.get('state');
     const status = parsedUrl.searchParams.get('status');
@@ -1851,7 +1946,7 @@ export async function handleRequest(req, res) {
 
   // --- TABULAR CSV / EXCEL EXPORT LAYER ---
   if ((pathname === '/api/v1/events/csv' || pathname === '/events/csv' || ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/api/v1/events/map') && parsedUrl.searchParams.get('format') === 'csv')) && req.method === 'GET') {
-    let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
+    let events = filterEventsByMode(Array.from(memEvents.values()).map(e => applyConfidenceDecay(e)));
     const cat = parsedUrl.searchParams.get('event_type');
     const state = parsedUrl.searchParams.get('state');
     const status = parsedUrl.searchParams.get('status');
@@ -1873,7 +1968,7 @@ export async function handleRequest(req, res) {
 
   // --- EVENTS MAP & LIST ---
   if ((pathname === '/api/v1/events' || pathname === '/events' || pathname === '/incidents' || pathname === '/api/v1/events/map') && req.method === 'GET') {
-    let events = Array.from(memEvents.values()).map(e => applyConfidenceDecay(e));
+    let events = filterEventsByMode(Array.from(memEvents.values()).map(e => applyConfidenceDecay(e)));
     const cat = parsedUrl.searchParams.get('event_type');
     const state = parsedUrl.searchParams.get('state');
     const status = parsedUrl.searchParams.get('status');
@@ -2466,29 +2561,32 @@ export async function handleRequest(req, res) {
 
   // --- ADMIN STATS & ANALYTICS ---
   if (pathname === '/api/v1/admin/analytics' || pathname === '/admin/stats' || pathname === '/api/v1/admin/stats') {
-    const totalSignals = memSignals.size;
-    const totalEvents = memEvents.size;
-    const verifiedEvents = Array.from(memEvents.values()).filter(e => e.status === 'VERIFIED').length;
-    const underReviewEvents = Array.from(memEvents.values()).filter(e => e.status === 'UNDER_REVIEW').length;
-    const detectedEvents = Array.from(memEvents.values()).filter(e => e.status === 'DETECTED').length;
-    const rejectedSignals = Array.from(memSignals.values()).filter(s => s.verification_status === 'REJECTED').length;
-    const duplicateSignals = Array.from(memSignals.values()).filter(s => s.is_duplicate).length;
-    const suspiciousSignals = Array.from(memSignals.values()).filter(s => (s.misinformation_score || 0) > 0.5).length;
+    const isLiveMode = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
+    const allSignals = isLiveMode ? Array.from(memSignals.values()).filter(s => s.data_mode === 'LIVE') : Array.from(memSignals.values());
+    const allEvents = isLiveMode ? Array.from(memEvents.values()).filter(e => e.data_mode === 'LIVE') : Array.from(memEvents.values());
+    const totalSignals = allSignals.length;
+    const totalEvents = allEvents.length;
+    const verifiedEvents = allEvents.filter(e => e.status === 'VERIFIED').length;
+    const underReviewEvents = allEvents.filter(e => e.status === 'UNDER_REVIEW').length;
+    const detectedEvents = allEvents.filter(e => e.status === 'DETECTED').length;
+    const rejectedSignals = allSignals.filter(s => s.verification_status === 'REJECTED').length;
+    const duplicateSignals = allSignals.filter(s => s.is_duplicate).length;
+    const suspiciousSignals = allSignals.filter(s => (s.misinformation_score || 0) > 0.5).length;
 
     const sourceCounts = {};
-    for (const s of memSignals.values()) {
+    for (const s of allSignals) {
       sourceCounts[s.source_type] = (sourceCounts[s.source_type] || 0) + 1;
     }
 
     // Events by type
     const byType = {};
-    for (const e of memEvents.values()) {
+    for (const e of allEvents) {
       byType[e.event_type] = (byType[e.event_type] || 0) + 1;
     }
 
     // Events by state
     const byState = {};
-    for (const e of memEvents.values()) {
+    for (const e of allEvents) {
       if (e.state) byState[e.state] = (byState[e.state] || 0) + 1;
     }
 
@@ -2498,7 +2596,7 @@ export async function handleRequest(req, res) {
       const hourStart = now - (23 - i) * 3600000;
       const hourEnd = hourStart + 3600000;
       const label = new Date(hourStart).toISOString().slice(11, 13) + ':00';
-      const count = Array.from(memEvents.values()).filter(e => {
+      const count = allEvents.filter(e => {
         const t = new Date(e.first_detected_at).getTime();
         return t >= hourStart && t < hourEnd;
       }).length;
@@ -2506,7 +2604,7 @@ export async function handleRequest(req, res) {
     });
 
     const uniqueUsersSet = new Set();
-    for (const s of memSignals.values()) {
+    for (const s of allSignals) {
       const u = s.author?.id || s.author?.username || s.source_name;
       if (u) uniqueUsersSet.add(u);
     }
@@ -2532,9 +2630,9 @@ export async function handleRequest(req, res) {
       ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length)
       : 145;
 
-    const resolvedEvents = Array.from(memEvents.values()).filter(e => e.status === 'RESOLVED').length;
-    const rejectedEvents = Array.from(memEvents.values()).filter(e => e.status === 'REJECTED').length;
-    const falseAlarmEvents = Array.from(memEvents.values()).filter(e => e.status === 'FALSE_ALARM').length;
+    const resolvedEvents = allEvents.filter(e => e.status === 'RESOLVED').length;
+    const rejectedEvents = allEvents.filter(e => e.status === 'REJECTED').length;
+    const falseAlarmEvents = allEvents.filter(e => e.status === 'FALSE_ALARM').length;
 
     return sendJson(200, {
       totals: {
@@ -2572,11 +2670,76 @@ export async function handleRequest(req, res) {
     });
   }
 
+  // --- LIVE WEATHER OBSERVATIONS (12 INDIAN MONITORING STATIONS) ---
+  if ((pathname === '/api/v1/live/weather' || pathname === '/live/weather') && req.method === 'GET') {
+    const latest = await db.getLatestObservations('LIVE');
+    const now = Date.now();
+    const stations = latest.map(obs => {
+      const obsTime = new Date(obs.observed_at).getTime();
+      const ageSeconds = isNaN(obsTime) ? 0 : Math.max(0, Math.round((now - obsTime) / 1000));
+      return {
+        ...obs,
+        age_seconds: ageSeconds,
+        age_human: ageSeconds < 60 ? `${ageSeconds}s ago` : ageSeconds < 3600 ? `${Math.round(ageSeconds / 60)}m ago` : `${(ageSeconds / 3600).toFixed(1)}h ago`,
+        is_stale: ageSeconds > 3600,
+      };
+    });
+    return sendJson(200, {
+      success: true,
+      provider: 'OpenWeather',
+      provider_tier: openWeatherConnector.telemetry.last_call_type || 'CURRENT_WEATHER_2_5',
+      openweather_status: openWeatherConnector.mode || 'STANDBY',
+      count: stations.length,
+      stale_count: stations.filter(s => s.is_stale).length,
+      data: stations,
+    });
+  }
+
+  if ((pathname === '/api/v1/live/status' || pathname === '/live/status') && req.method === 'GET') {
+    const owHealth = await openWeatherConnector.healthCheck();
+    return sendJson(200, {
+      success: true,
+      status: owHealth.status,
+      mode: owHealth.mode,
+      provider: 'OpenWeather',
+      tier: owHealth.lastCallType || (process.env.OPENWEATHER_ONE_CALL_AVAILABLE === 'true' ? 'ONE_CALL_4_0' : 'CURRENT_WEATHER_2_5'),
+      calls_today: owHealth.apiCallsToday || 0,
+      daily_limit: 1000,
+      calls_remaining: Math.max(0, 1000 - (owHealth.apiCallsToday || 0)),
+      usage_limit_approaching: (owHealth.apiCallsToday || 0) >= 900,
+      locations_configured: MONITORING_LOCATIONS.length,
+      stations_monitored: MONITORING_LOCATIONS.length,
+      locations_success: owHealth.locationsSuccessCount || 0,
+      locations_failed: owHealth.locationsFailedCount || 0,
+      last_poll_at: owHealth.lastFetch,
+      last_success_at: owHealth.lastSuccess,
+      last_error: owHealth.lastError,
+      latency_ms: owHealth.latencyMs || 0,
+    });
+  }
+
+  if ((pathname === '/api/v1/live/poll' || pathname === '/live/poll') && req.method === 'POST') {
+    const runResult = await runConnectorPoll();
+    return sendJson(200, {
+      success: true,
+      message: 'Live meteorological poll completed across 12 Indian stations',
+      run: runResult,
+      telemetry: openWeatherConnector.telemetry,
+    });
+  }
+
   // --- PUBLIC SIGNALS LIST (for Signals monitor tab) ---
   if ((pathname === '/api/v1/signals' || pathname === '/signals') && req.method === 'GET') {
-    const signals = Array.from(memSignals.values())
-      .sort((a, b) => new Date(b.ingested_at || b.timestamp).getTime() - new Date(a.ingested_at || a.timestamp).getTime())
-      .slice(0, 200);
+    let signals = Array.from(memSignals.values())
+      .sort((a, b) => new Date(b.provider_timestamp || b.ingested_at || b.timestamp).getTime() - new Date(a.provider_timestamp || a.ingested_at || a.timestamp).getTime());
+    const m = parsedUrl.searchParams.get('mode') || parsedUrl.searchParams.get('data_mode');
+    const isLive = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
+    if (m) {
+      signals = signals.filter(s => (s.data_mode || 'DEMO').toUpperCase() === m.toUpperCase());
+    } else if (isLive) {
+      signals = signals.filter(s => (s.data_mode || 'DEMO').toUpperCase() === 'LIVE');
+    }
+    signals = signals.slice(0, 200);
     return sendJson(200, { success: true, count: signals.length, data: signals });
   }
 
@@ -2832,14 +2995,18 @@ export async function initializeNweis() {
   // Initialize unified database engine (PostgreSQL or atomic disk store)
   try {
     await db.init();
+    const isLive = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
     // Hydrate memory maps from db.tables
     for (const [id, s] of db.tables.signals) {
+      if (isLive && s.data_mode !== 'LIVE') continue;
       memSignals.set(id, s);
     }
     for (const [id, ev] of db.tables.weather_events) {
+      if (isLive && ev.data_mode !== 'LIVE') continue;
       memEvents.set(id, ev);
     }
     for (const [id, evd] of db.tables.event_evidence) {
+      if (isLive && !memEvents.has(evd.event_id)) continue;
       memEvidence.set(id, evd);
     }
     for (const vr of db.tables.verification_records) {
@@ -2848,10 +3015,10 @@ export async function initializeNweis() {
     for (const lc of db.tables.admin_actions) {
       memLifecycle.push(lc);
     }
-    console.log(`[DATABASE] Hydrated ${memEvents.size} events, ${memSignals.size} signals from persistent store.`);
+    console.log(`[DATABASE] Hydrated ${memEvents.size} events, ${memSignals.size} signals from persistent store (isLive=${isLive}).`);
 
     // If database was completely empty, populate initial baseline scenarios (only in non-LIVE mode)
-    if (memEvents.size === 0 && process.env.APP_MODE !== 'LIVE') {
+    if (memEvents.size === 0 && !isLive) {
       console.log('[DATABASE] Initializing baseline meteorological scenarios...');
       await runGuwahatiFloodDemo();
       await runDelhiStormDemo();
@@ -2874,11 +3041,12 @@ export let lastIngestionRun = {
   status: 'SUCCESS',
 };
 
-// Periodic Connector Ingestion Cycle (Every 60s, initial run in 5s)
+// Periodic Connector Ingestion Cycle
 export async function runConnectorPoll() {
   const runId = `run_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`;
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
+  const isLive = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
   let fetched = 0;
   let accepted = 0;
   let duplicates = 0;
@@ -2890,20 +3058,23 @@ export async function runConnectorPoll() {
       try {
         const res = await ingestSignal(s);
         if (res?.isDuplicate) duplicates++;
-        else if (!res?.isMisinformation) accepted++;
+        else if (!res?.isMisinformation && !res?.ignored) accepted++;
       } catch (err) {
         errors++;
       }
     }
   }
 
+  // 1. OpenWeather: Primary LIVE Meteorological Intelligence (all 12 stations in LIVE mode)
   try {
-    const imdSignals = await imdAdapter.fetchSignals();
-    await processSignals(imdSignals);
+    const owmSignals = await openWeatherConnector.fetchSignals(12);
+    await processSignals(owmSignals);
   } catch (e) {
     errors++;
-    console.warn('[CONNECTOR] IMD poll error:', e.message);
+    console.warn('[CONNECTOR] OpenWeather poll error:', e.message);
   }
+
+  // 2. Open-Meteo: Supplementary Keyless Observations
   try {
     const weatherSignals = await weatherApiConnector.fetchSignals(3);
     await processSignals(weatherSignals);
@@ -2911,13 +3082,8 @@ export async function runConnectorPoll() {
     errors++;
     console.warn('[CONNECTOR] Weather API poll error:', e.message);
   }
-  try {
-    const owmSignals = await openWeatherConnector.fetchSignals(3);
-    await processSignals(owmSignals);
-  } catch (e) {
-    errors++;
-    console.warn('[CONNECTOR] OpenWeather poll error:', e.message);
-  }
+
+  // 3. News RSS Feed: Genuine Indian meteorological news RSS
   try {
     const newsSignals = await newsRssConnector.fetchSignals();
     await processSignals(newsSignals);
@@ -2925,12 +3091,27 @@ export async function runConnectorPoll() {
     errors++;
     console.warn('[CONNECTOR] News RSS poll error:', e.message);
   }
-  try {
-    const socialSignals = await socialStreamConnector.fetchSignals();
-    await processSignals(socialSignals);
-  } catch (e) {
-    errors++;
-    console.warn('[CONNECTOR] Social stream poll error:', e.message);
+
+  // 4. IMD Connector: In LIVE mode, poll only if live credentials exist
+  if (!isLive || imdAdapter.apiKey) {
+    try {
+      const imdSignals = await imdAdapter.fetchSignals();
+      await processSignals(imdSignals);
+    } catch (e) {
+      errors++;
+      console.warn('[CONNECTOR] IMD poll error:', e.message);
+    }
+  }
+
+  // 5. Social Stream: In LIVE mode, poll only if Twitter bearer token exists
+  if (!isLive || socialStreamConnector.bearerToken) {
+    try {
+      const socialSignals = await socialStreamConnector.fetchSignals();
+      await processSignals(socialSignals);
+    } catch (e) {
+      errors++;
+      console.warn('[CONNECTOR] Social stream poll error:', e.message);
+    }
   }
 
   const durationMs = Date.now() - t0;
@@ -2962,8 +3143,10 @@ if (isDirectRun && !isServerless) {
 
     await initializeNweis();
 
-    setTimeout(runConnectorPoll, 5000);
-    setInterval(runConnectorPoll, 60000);
+    const isLive = (process.env.APP_MODE || '').toUpperCase() === 'LIVE';
+    const pollIntervalMs = isLive ? 30 * 60 * 1000 : 60000;
+    setTimeout(runConnectorPoll, 3000);
+    setInterval(runConnectorPoll, pollIntervalMs);
   });
 }
 

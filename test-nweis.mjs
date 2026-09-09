@@ -13,6 +13,7 @@ import 'dotenv/config';
 import { BaseWeatherConnector } from './connectors/base-connector.mjs';
 import { weatherApiConnector } from './connectors/weather-api.mjs';
 import { openWeatherConnector } from './connectors/openweather.mjs';
+import { MONITORING_LOCATIONS, getMonitoringLocation } from './lib/monitoring-locations.mjs';
 import { newsRssConnector } from './connectors/news-rss.mjs';
 import { imdAdapter } from './connectors/imd-adapter.mjs';
 import { socialStreamConnector } from './connectors/social-stream.mjs';
@@ -1966,6 +1967,75 @@ for (const client of sseClients) {
 assert(sseDataReceived.startsWith('data: {"type":"test_ping"'), 'SSE broadcast sends valid JSON formatting');
 sseClients.delete(mockSseClient);
 assert(!sseClients.has(mockSseClient), 'SSE client removed on disconnect (no memory leak)');
+
+// -------------------------------------------------------------
+// TEST 36: OpenWeather Live Intelligence, 12 Indian Stations & Strict Mode Separation
+// -------------------------------------------------------------
+console.log('\nTEST 36: OpenWeather Live Intelligence, 12 Indian Stations & Strict Mode Separation');
+
+// Item 1: 12 Indian Monitoring Locations Network Validation
+assert(Array.isArray(MONITORING_LOCATIONS) && MONITORING_LOCATIONS.length === 12, '12 Indian monitoring stations configured');
+const sampleStation = getMonitoringLocation('Bhubaneswar');
+assert(sampleStation && sampleStation.state === 'Odisha' && sampleStation.is_coastal === true, 'Monitoring station lookup resolves metadata correctly');
+const caseInsensitiveStation = getMonitoringLocation('new delhi');
+assert(caseInsensitiveStation && caseInsensitiveStation.city === 'New Delhi', 'Monitoring station lookup is case-insensitive');
+
+// Item 2: OpenWeather Connector Configuration & Quota Tracking
+assert(openWeatherConnector.isConfigured === true, 'OpenWeather connector is configured with API key');
+assert(typeof openWeatherConnector.apiCallsToday === 'number', 'OpenWeather tracks daily API call count');
+assert(openWeatherConnector.dailyLimit === 1000, 'OpenWeather daily quota limit set to 1,000 calls');
+
+// Item 3: Live Meteorological Observation Fetch & Normalization
+const liveSignals = await openWeatherConnector.fetchCurrent('Guwahati');
+assert(Array.isArray(liveSignals) && liveSignals.length > 0, 'OpenWeather fetches live observation for Guwahati');
+const liveSignal = liveSignals[0];
+assert(liveSignal.data_mode === 'LIVE', 'Live signal data_mode is strictly LIVE');
+assert(typeof liveSignal.provider_timestamp === 'string', 'Live signal preserves provider_timestamp');
+assert(typeof liveSignal.temperature_c === 'number', 'Live signal contains valid temperature_c');
+assert(typeof liveSignal.humidity_pct === 'number', 'Live signal contains valid humidity_pct');
+assert(typeof liveSignal.pressure_hpa === 'number', 'Live signal contains valid pressure_hpa');
+
+// Item 4: Raw Observation Persistence in Database
+const testObsId = `obs_test_${Date.now()}`;
+await db.insertObservation({
+  id: testObsId,
+  city: 'Mumbai',
+  location_name: 'Mumbai Santacruz',
+  latitude: 19.076,
+  longitude: 72.877,
+  observed_at: new Date().toISOString(),
+  temperature_c: 29.5,
+  humidity_pct: 78,
+  pressure_hpa: 1010,
+  data_mode: 'LIVE',
+});
+const latestObs = await db.getLatestObservations('LIVE');
+const mumbaiObs = latestObs.find(o => o.city?.toLowerCase() === 'mumbai');
+assert(Boolean(mumbaiObs), 'Latest live observation for Mumbai retrieved from database');
+assert(typeof mumbaiObs.age_minutes === 'number', 'Observation contains calculated age_minutes');
+
+// Item 5: Strict Mode Isolation (LIVE Mode Query Integrity)
+const liveEventsStrict = await db.getEvents({ data_mode: 'LIVE' });
+for (const ev of liveEventsStrict) {
+  assert(ev.data_mode === 'LIVE', `Live event data_mode is LIVE (id: ${ev.id})`);
+  assert(!ev.title.includes('[DEMO]'), `Live event does not contain [DEMO] tag (title: ${ev.title})`);
+}
+
+// Item 6: Live Weather HTTP Endpoints
+const mockLiveWeather = createMockReqRes('GET', '/api/v1/live/weather', {});
+await handleRequest(mockLiveWeather.req, mockLiveWeather.res);
+assert(mockLiveWeather.getStatus() === 200, 'GET /api/v1/live/weather returns HTTP 200');
+const lwBody = mockLiveWeather.getBody();
+assert(Array.isArray(lwBody.data), 'Live weather returns data array of observations');
+assert(Boolean(lwBody.openweather_status), 'Live weather includes OpenWeather connection status');
+
+const mockLiveStatus = createMockReqRes('GET', '/api/v1/live/status', {});
+await handleRequest(mockLiveStatus.req, mockLiveStatus.res);
+assert(mockLiveStatus.getStatus() === 200, 'GET /api/v1/live/status returns HTTP 200');
+const lsBody = mockLiveStatus.getBody();
+assert(typeof lsBody.calls_today === 'number', 'Live status exposes calls_today');
+assert(lsBody.daily_limit === 1000, 'Live status exposes daily_limit (1,000)');
+assert(lsBody.stations_monitored === 12, 'Live status confirms 12 stations monitored');
 
 console.log('\n================================================================');
 console.log(` TEST SUMMARY: ${passedTests}/${totalTests} Tests Passed (100% Success)`);

@@ -19,6 +19,7 @@
     "serve": "node server-nweis.mjs",
     "test": "node test-nweis.mjs",
     "test:nweis": "node test-nweis.mjs",
+    "verify:live": "node scripts/verify-live.mjs",
     "simulate": "node simulate-stream.mjs",
     "simulate:once": "node simulate-stream.mjs --once",
     "demo": "node simulate-stream.mjs --once",
