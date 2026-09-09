@@ -5,13 +5,17 @@
  *
  * Authoritative Persistence Architecture:
  * - Supabase Cloud (PostgreSQL 16 + PostGIS + RLS + Storage)
- * - Atomic Crash-Resilient Cache (Reserved for explicit MODE=REPLAY or MODE=OFFLINE)
+ * - Atomic Crash-Resilient Cache (Reserved exclusively for explicit MODE=REPLAY, MODE=OFFLINE, or MODE=MOCK)
  *
- * Transaction Invariant:
- * 1. Validate incoming payload against canonical schema.
- * 2. Write to Supabase (if authoritative). If Supabase write fails in LIVE mode, throw error.
- * 3. Commit to memory cache.
- * 4. Persist to disk cache if in REPLAY/OFFLINE/MOCK mode.
+ * AUTHORITATIVE INVARIANTS:
+ * 1. Supabase is authoritative in LIVE mode.
+ * 2. Failed writes to Supabase MUST throw structured error (AUTHORITATIVE_SUPABASE_WRITE_FAILED)
+ *    and cannot silently fallback to local disk or cache.
+ * 3. Failed reads in AUTHORITATIVE mode MUST throw structured error (AUTHORITATIVE_SUPABASE_READ_FAILED)
+ *    and cannot silently return stale local data.
+ * 4. In-memory cache is updated ONLY upon confirmed Supabase success.
+ * 5. Local disk persistence is strictly gated behind REPLAY, OFFLINE, or MOCK modes.
+ * 6. Returned objects carry truthful _data_source tags.
  */
 
 import fs from 'node:fs';
@@ -20,10 +24,12 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
   getSupabaseClient,
+  getServerAdminClient,
   isSupabaseConfigured,
   checkSupabaseHealth,
   findEventsNearbyPostGIS,
 } from '../lib/supabase.mjs';
+import { DATA_MODES, normalizeDataMode } from '../lib/constants.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,6 +74,10 @@ class DatabaseEngine {
       media_metadata: new Map(),
       source_health: new Map(),
     };
+  }
+
+  isAuthoritative() {
+    return this.mode === 'AUTHORITATIVE' || this.mode === 'SUPABASE_AUTHORITATIVE';
   }
 
   async init() {
@@ -132,13 +142,14 @@ class DatabaseEngine {
             confidence: parseFloat(r.confidence_score) || 0.5,
             latitude: parseFloat(r.latitude),
             longitude: parseFloat(r.longitude),
+            _data_source: 'SUPABASE_AUTHORITATIVE',
           });
         }
       }
 
       const { data: sigRows } = await this.supabase.from('signals').select('*').order('timestamp', { ascending: false }).limit(500);
       if (sigRows && sigRows.length > 0) {
-        for (const r of sigRows) this.tables.signals.set(r.id, r);
+        for (const r of sigRows) this.tables.signals.set(r.id, { ...r, _data_source: 'SUPABASE_AUTHORITATIVE' });
       }
 
       const { data: evdRows } = await this.supabase.from('event_evidence').select('*').limit(500);
@@ -190,7 +201,7 @@ class DatabaseEngine {
     // Disk persistence is strictly gated behind REPLAY / OFFLINE / MOCK mode
     const appMode = (process.env.APP_MODE || process.env.NODE_ENV || '').toUpperCase();
     const isAllowedMode = appMode === 'REPLAY' || appMode === 'OFFLINE' || appMode === 'MOCK' || this.mode === 'OFFLINE_FALLBACK';
-    if (this.mode === 'AUTHORITATIVE' && !isAllowedMode) {
+    if (this.isAuthoritative() && !isAllowedMode) {
       return;
     }
 
@@ -221,12 +232,20 @@ class DatabaseEngine {
     if (this.isSupabaseConnected && this.supabase) {
       try {
         const { data, error } = await this.supabase.from('sources').select('*').eq('is_active', true).order('base_reliability', { ascending: false });
-        if (!error && data && data.length > 0) return data;
+        if (error && this.isAuthoritative()) {
+          throw new Error(`AUTHORITATIVE_SUPABASE_READ_FAILED: ${error.message}`);
+        }
+        if (!error && data && data.length > 0) {
+          return data.map((s) => ({ ...s, _data_source: 'SUPABASE_AUTHORITATIVE' }));
+        }
       } catch (e) {
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Sources fallback:', e.message);
       }
     }
-    return Array.from(this.tables.sources.values()).filter((s) => s.is_active);
+    return Array.from(this.tables.sources.values())
+      .filter((s) => s.is_active)
+      .map((s) => ({ ...s, _data_source: this.mode }));
   }
 
   // ============================================================
@@ -241,6 +260,7 @@ class DatabaseEngine {
       timestamp: signal.timestamp || now,
       ingested_at: signal.ingested_at || now,
       created_at: signal.created_at || now,
+      data_mode: normalizeDataMode(signal.data_mode),
       location_confidence: signal.location_confidence ?? 0.8,
       relevance_score: signal.relevance_score ?? 0.5,
       credibility_score: signal.credibility_score ?? 0.5,
@@ -251,7 +271,7 @@ class DatabaseEngine {
       hashtags: signal.hashtags || [],
     };
 
-    // Transaction Step 1 & 2: Authoritative Supabase Write
+    // Authoritative Supabase Write
     if (this.isSupabaseConnected && this.supabase) {
       try {
         const { error } = await this.supabase.from('signals').insert([{
@@ -282,24 +302,54 @@ class DatabaseEngine {
           raw_payload: record.raw_payload || {},
         }]);
         if (error) {
-          if (this.mode === 'AUTHORITATIVE') {
+          if (this.isAuthoritative()) {
             throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
           } else {
             console.warn('[SUPABASE] Signal insert notice:', error.message);
           }
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Signal sync warning:', e.message);
       }
     }
 
-    // Transaction Step 3: Commit to Memory Cache (Only reached upon Supabase success in authoritative mode)
+    // Commit to Memory Cache only upon confirmed success
     this.tables.signals.set(id, record);
 
-    // Transaction Step 4: Atomic Disk Save (Gated to offline/replay modes)
+    // Gated disk save
     this.saveToDisk();
     return record;
+  }
+
+  async updateSignal(id, updates) {
+    const existing = this.tables.signals.get(id);
+    if (!existing) return null;
+
+    const updated = {
+      ...existing,
+      ...updates,
+      last_updated_at: new Date().toISOString(),
+    };
+
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const { error } = await this.supabase.from('signals').update(updates).eq('id', id);
+        if (error) {
+          if (this.isAuthoritative()) {
+            throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+          }
+          console.warn('[SUPABASE] Signal update warning:', error.message);
+        }
+      } catch (e) {
+        if (this.isAuthoritative()) throw e;
+        console.warn('[SUPABASE] Signal update error:', e.message);
+      }
+    }
+
+    this.tables.signals.set(id, updated);
+    this.saveToDisk();
+    return updated;
   }
 
   async getSignals(filters = {}) {
@@ -316,19 +366,19 @@ class DatabaseEngine {
           query = query.gte('timestamp', filters.from_date);
         }
         const { data, error } = await query.order('timestamp', { ascending: false }).limit(200);
-        if (error && this.mode === 'AUTHORITATIVE') {
+        if (error && this.isAuthoritative()) {
           throw new Error(`AUTHORITATIVE_SUPABASE_READ_FAILED: ${error.message}`);
         }
         if (!error && data && data.length > 0) {
           return data.map((s) => ({ ...s, _data_source: 'SUPABASE_AUTHORITATIVE' }));
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Signal query warning:', e.message);
       }
     }
 
-    let signals = Array.from(this.tables.signals.values());
+    let signals = Array.from(this.tables.signals.values()).map(s => ({ ...s, _data_source: this.mode }));
     if (filters.source_type && filters.source_type !== 'ALL') {
       signals = signals.filter((s) => s.source_type === filters.source_type);
     }
@@ -352,6 +402,7 @@ class DatabaseEngine {
     const record = {
       ...event,
       id,
+      data_mode: normalizeDataMode(event.data_mode),
       first_detected_at: event.first_detected_at || now,
       last_updated_at: event.last_updated_at || now,
       last_evidence_at: event.last_evidence_at || now,
@@ -366,7 +417,7 @@ class DatabaseEngine {
       ai_reasoning: event.ai_reasoning || '',
     };
 
-    // Transaction Step 1 & 2: Authoritative Supabase Write
+    // Authoritative Supabase Write
     if (this.isSupabaseConnected && this.supabase) {
       try {
         const { error } = await this.supabase.from('weather_events').upsert([{
@@ -391,22 +442,22 @@ class DatabaseEngine {
           evidence_summary: Array.isArray(record.evidence_summary) ? record.evidence_summary : [record.evidence_summary],
         }]);
         if (error) {
-          if (this.mode === 'AUTHORITATIVE') {
+          if (this.isAuthoritative()) {
             throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
           } else {
             console.warn('[SUPABASE] Event upsert notice:', error.message);
           }
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Event upsert warning:', e.message);
       }
     }
 
-    // Transaction Step 3: Commit to Memory Cache
+    // Commit to Memory Cache only upon confirmed success
     this.tables.weather_events.set(id, record);
 
-    // Transaction Step 4: Atomic Disk Save
+    // Gated disk save
     this.saveToDisk();
     return record;
   }
@@ -428,7 +479,7 @@ class DatabaseEngine {
           query = query.gte('last_updated_at', filters.from_date);
         }
         const { data, error } = await query.order('last_updated_at', { ascending: false });
-        if (error && this.mode === 'AUTHORITATIVE') {
+        if (error && this.isAuthoritative()) {
           throw new Error(`AUTHORITATIVE_SUPABASE_READ_FAILED: ${error.message}`);
         }
         if (!error && data && data.length > 0) {
@@ -441,12 +492,12 @@ class DatabaseEngine {
           }));
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Event query warning:', e.message);
       }
     }
 
-    let events = Array.from(this.tables.weather_events.values());
+    let events = Array.from(this.tables.weather_events.values()).map(e => ({ ...e, _data_source: this.mode }));
     if (filters.event_type && filters.event_type !== 'ALL') {
       events = events.filter((e) => e.event_type === filters.event_type);
     }
@@ -468,7 +519,7 @@ class DatabaseEngine {
     if (this.isSupabaseConnected && this.supabase) {
       try {
         const { data, error } = await this.supabase.from('weather_events').select('*').eq('id', id).single();
-        if (error && this.mode === 'AUTHORITATIVE') {
+        if (error && error.code !== 'PGRST116' && this.isAuthoritative()) {
           throw new Error(`AUTHORITATIVE_SUPABASE_READ_FAILED: ${error.message}`);
         }
         if (!error && data) {
@@ -481,11 +532,12 @@ class DatabaseEngine {
           };
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Event getById warning:', e.message);
       }
     }
-    return this.tables.weather_events.get(id) || null;
+    const ev = this.tables.weather_events.get(id);
+    return ev ? { ...ev, _data_source: this.mode } : null;
   }
 
   async updateEvent(id, updates) {
@@ -506,16 +558,18 @@ class DatabaseEngine {
         const patch = { last_updated_at: new Date().toISOString() };
         if (updates.status) patch.status = updates.status;
         if (updates.confidence !== undefined) patch.confidence_score = updates.confidence;
+        if (updates.signal_count !== undefined) patch.signal_count = updates.signal_count;
+        if (updates.source_breakdown) patch.source_breakdown = updates.source_breakdown;
         const { error } = await this.supabase.from('weather_events').update(patch).eq('id', id);
         if (error) {
-          if (this.mode === 'AUTHORITATIVE') {
+          if (this.isAuthoritative()) {
             throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
           } else {
             console.warn('[SUPABASE] Event update warning:', error.message);
           }
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Event update warning:', e.message);
       }
     }
@@ -529,15 +583,40 @@ class DatabaseEngine {
   // POSTGIS SPATIAL QUERIES
   // ============================================================
   async findEventsNearby(latitude, longitude, radiusMeters = 15000) {
-    // 1. PostGIS Spatial RPC
-    if (this.isSupabaseConnected && this.supabase) {
-      const spatialRows = await findEventsNearbyPostGIS(latitude, longitude, radiusMeters);
-      if (spatialRows && spatialRows.length > 0) {
-        return spatialRows.map((r) => ({ ...r, _spatial_engine: 'POSTGIS_RPC' }));
-      }
+    // 1. Validate spatial boundaries
+    if (
+      typeof latitude !== 'number' || isNaN(latitude) || latitude < -90 || latitude > 90 ||
+      typeof longitude !== 'number' || isNaN(longitude) || longitude < -180 || longitude > 180 ||
+      typeof radiusMeters !== 'number' || isNaN(radiusMeters) || radiusMeters <= 0 || radiusMeters > 500000
+    ) {
+      const err = new Error(`Invalid spatial parameters: lat=${latitude}, lon=${longitude}, radius=${radiusMeters}`);
+      err.code = 'INVALID_SPATIAL_PARAMETERS';
+      err.statusCode = 400;
+      throw err;
     }
 
-    // 2. Haversine Math Fallback for local cache & offline resilience
+    // 2. Authoritative PostGIS Spatial RPC
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const spatialRows = await findEventsNearbyPostGIS(latitude, longitude, radiusMeters);
+        if (Array.isArray(spatialRows)) {
+          return spatialRows.map((r) => ({ ...r, _spatial_engine: 'POSTGIS_RPC', _data_source: 'SUPABASE_AUTHORITATIVE' }));
+        }
+      } catch (postgisErr) {
+        if (this.isAuthoritative()) {
+          console.warn('[PostGIS] Spatial RPC failed in AUTHORITATIVE mode:', postgisErr.message);
+          throw postgisErr;
+        }
+        // In OFFLINE_FALLBACK, fall through to Haversine fallback
+      }
+    } else if (this.isAuthoritative()) {
+      const err = new Error('PostGIS is unavailable and system is in AUTHORITATIVE mode.');
+      err.code = 'SPATIAL_QUERY_DEGRADED';
+      err.statusCode = 503;
+      throw err;
+    }
+
+    // 3. Haversine Math Fallback strictly for local cache & offline resilience
     function haversine(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
       const φ1 = (lat1 * Math.PI) / 180;
@@ -553,6 +632,7 @@ class DatabaseEngine {
         ...ev,
         distance_meters: haversine(latitude, longitude, ev.latitude, ev.longitude),
         _spatial_engine: 'SPATIAL_FALLBACK_HAVERSINE',
+        _data_source: this.mode,
       }))
       .filter((ev) => ev.distance_meters <= radiusMeters && ['DETECTED', 'UNDER_REVIEW', 'VERIFIED', 'ACTIVE'].includes(ev.status));
   }
@@ -577,14 +657,14 @@ class DatabaseEngine {
           media_url: record.media_url || null,
         }]);
         if (error) {
-          if (this.mode === 'AUTHORITATIVE') {
+          if (this.isAuthoritative()) {
             throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
           } else {
             console.warn('[SUPABASE] Evidence sync notice:', error.message);
           }
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Evidence sync failed:', e.message);
       }
     }
@@ -592,6 +672,27 @@ class DatabaseEngine {
     this.tables.event_evidence.set(id, record);
     this.saveToDisk();
     return record;
+  }
+
+  async updateEvidence(id, updates) {
+    const existing = this.tables.event_evidence.get(id);
+    if (!existing) return null;
+
+    const updated = { ...existing, ...updates };
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const { error } = await this.supabase.from('event_evidence').update(updates).eq('id', id);
+        if (error && this.isAuthoritative()) {
+          throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+        }
+      } catch (e) {
+        if (this.isAuthoritative()) throw e;
+      }
+    }
+
+    this.tables.event_evidence.set(id, updated);
+    this.saveToDisk();
+    return updated;
   }
 
   async insertVerification(verification) {
@@ -614,14 +715,14 @@ class DatabaseEngine {
           confidence_after: record.confidence_after || null,
         }]);
         if (error) {
-          if (this.mode === 'AUTHORITATIVE') {
+          if (this.isAuthoritative()) {
             throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
           } else {
             console.warn('[SUPABASE] Verification sync notice:', error.message);
           }
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Verification sync failed:', e.message);
       }
     }
@@ -629,6 +730,27 @@ class DatabaseEngine {
     this.tables.verification_records.push(record);
     this.saveToDisk();
     return record;
+  }
+
+  async updateVerification(id, updates) {
+    const idx = this.tables.verification_records.findIndex(v => v.id === id);
+    if (idx === -1) return null;
+
+    const updated = { ...this.tables.verification_records[idx], ...updates };
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const { error } = await this.supabase.from('verification_records').update(updates).eq('id', id);
+        if (error && this.isAuthoritative()) {
+          throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+        }
+      } catch (e) {
+        if (this.isAuthoritative()) throw e;
+      }
+    }
+
+    this.tables.verification_records[idx] = updated;
+    this.saveToDisk();
+    return updated;
   }
 
   async insertAuditAction(action) {
@@ -645,14 +767,14 @@ class DatabaseEngine {
           details: record.details || {},
         }]);
         if (error) {
-          if (this.mode === 'AUTHORITATIVE') {
+          if (this.isAuthoritative()) {
             throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
           } else {
             console.warn('[SUPABASE] Audit action sync notice:', error.message);
           }
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Audit action sync failed:', e.message);
       }
     }
@@ -681,14 +803,14 @@ class DatabaseEngine {
           storage_provider: record.storage_provider || 'SUPABASE_STORAGE',
         }]);
         if (error) {
-          if (this.mode === 'AUTHORITATIVE') {
+          if (this.isAuthoritative()) {
             throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
           } else {
             console.warn('[SUPABASE] Media metadata sync notice:', error.message);
           }
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] Media metadata sync failed:', e.message);
       }
     }
@@ -719,20 +841,80 @@ class DatabaseEngine {
           latency_ms: record.latency_ms ?? 0,
         }]);
         if (error) {
-          if (this.mode === 'AUTHORITATIVE') {
+          if (this.isAuthoritative()) {
             throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
           } else {
             console.warn('[SUPABASE] AI prediction sync notice:', error.message);
           }
         }
       } catch (e) {
-        if (this.mode === 'AUTHORITATIVE') throw e;
+        if (this.isAuthoritative()) throw e;
         console.warn('[SUPABASE] AI prediction sync failed:', e.message);
       }
     }
 
     this.tables.ai_predictions.push(record);
     this.saveToDisk();
+    return record;
+  }
+
+  async insertEventSignal(eventId, signalId) {
+    const key = `${eventId}:${signalId}`;
+    const record = { event_id: eventId, signal_id: signalId, created_at: new Date().toISOString() };
+
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const { error } = await this.supabase.from('event_signals').insert([{
+          event_id: eventId,
+          signal_id: signalId,
+        }]);
+        if (error && this.isAuthoritative()) {
+          throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+        }
+      } catch (e) {
+        if (this.isAuthoritative()) throw e;
+      }
+    }
+
+    this.tables.event_signals.set(key, record);
+    return record;
+  }
+
+  async insertEventCluster(cluster) {
+    const id = cluster.id || `cl_${Date.now()}`;
+    const record = { ...cluster, id, created_at: cluster.created_at || new Date().toISOString() };
+
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const { error } = await this.supabase.from('event_clusters').insert([record]);
+        if (error && this.isAuthoritative()) {
+          throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+        }
+      } catch (e) {
+        if (this.isAuthoritative()) throw e;
+      }
+    }
+
+    this.tables.event_clusters.set(id, record);
+    return record;
+  }
+
+  async insertSourceHealth(health) {
+    const id = health.id || `sh_${Date.now()}`;
+    const record = { ...health, id, created_at: new Date().toISOString() };
+
+    if (this.isSupabaseConnected && this.supabase) {
+      try {
+        const { error } = await this.supabase.from('source_health').insert([record]);
+        if (error && this.isAuthoritative()) {
+          throw new Error(`AUTHORITATIVE_SUPABASE_WRITE_FAILED: ${error.message}`);
+        }
+      } catch (e) {
+        if (this.isAuthoritative()) throw e;
+      }
+    }
+
+    this.tables.source_health.set(health.source_id || id, record);
     return record;
   }
 

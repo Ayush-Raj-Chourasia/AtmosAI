@@ -5,12 +5,20 @@
  * Implements authoritative cloud storage for citizen media and weather evidence.
  * Primary: Supabase Storage (buckets: 'weather-evidence', 'citizen-media').
  * Secondary/Fallback: Cloudflare R2 / S3 or Local Cache.
+ *
+ * INVARIANTS:
+ * 1. 15MB maximum file size limit.
+ * 2. MIME type validation (JPEG, PNG, WEBP, GIF, MP4, MOV).
+ * 3. SHA-256 cryptographic checksum calculation.
+ * 4. In LIVE mode, failed cloud uploads throw MEDIA_UPLOAD_FAILED.
+ * 5. Media records explicitly carry data_mode ('LIVE' vs 'DEMO').
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { DATA_MODES, normalizeDataMode } from '../lib/constants.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,7 +102,7 @@ export class MediaStorageService {
   /**
    * Validates and saves media buffer or base64 payload.
    */
-  async storeMedia({ buffer, originalName, mimeType, eventId = null, signalId = null }) {
+  async storeMedia({ buffer, originalName, mimeType, eventId = null, signalId = null, dataMode = 'DEMO' }) {
     if (!buffer || buffer.length === 0) {
       throw new Error('Empty file buffer provided');
     }
@@ -123,6 +131,8 @@ export class MediaStorageService {
     fs.writeFileSync(localFilePath, buffer);
     publicUrl = `/uploads/${localFileName}`;
 
+    const isLive = process.env.APP_MODE === 'LIVE' || dataMode === 'LIVE' || this.mode === 'LIVE';
+
     const supa = await this.getSupabaseClient();
     if (supa) {
       try {
@@ -131,13 +141,24 @@ export class MediaStorageService {
           contentType: normMime,
           upsert: true,
         });
-        if (!error) {
+        if (error) {
+          if (isLive) {
+            const uploadErr = new Error(`MEDIA_UPLOAD_FAILED: Supabase Storage upload failed (${error.message})`);
+            uploadErr.code = 'MEDIA_UPLOAD_FAILED';
+            throw uploadErr;
+          }
+          console.warn('[MediaStorage] Supabase Storage upload warning:', error.message);
+        } else {
           const { data: pubData } = supa.storage.from(bucket).getPublicUrl(objectKey);
           if (pubData?.publicUrl) {
             publicUrl = pubData.publicUrl;
           }
         }
       } catch (err) {
+        if (isLive) {
+          if (!err.code) err.code = 'MEDIA_UPLOAD_FAILED';
+          throw err;
+        }
         console.warn('[MediaStorage] Supabase Storage upload error:', err.message);
       }
     } else if (this.isR2Configured) {
@@ -154,10 +175,58 @@ export class MediaStorageService {
       file_size: buffer.length,
       checksum,
       storage_provider: this.storageMode,
+      data_mode: normalizeDataMode(dataMode),
       created_at: new Date().toISOString(),
     };
 
     return record;
+  }
+
+  async uploadMedia(opts) {
+    const isLive = process.env.APP_MODE === 'LIVE' || opts.dataMode === 'LIVE' || opts.mode === 'LIVE' || this.mode === 'LIVE';
+    if (isLive) {
+      const supa = await this.getSupabaseClient();
+      if (!supa) {
+        const err = new Error('MEDIA_UPLOAD_FAILED: Supabase client not available in LIVE mode');
+        err.code = 'MEDIA_UPLOAD_FAILED';
+        throw err;
+      }
+      const checksum = crypto.createHash('sha256').update(opts.buffer).digest('hex');
+      const ext = path.extname(opts.filename || opts.originalName || '').toLowerCase() || '.jpg';
+      const objectKey = `disaster-media/${Date.now()}-${checksum.slice(0, 12)}${ext}`;
+      const bucket = opts.eventId ? 'weather-evidence' : 'citizen-media';
+      const { data, error } = await supa.storage.from(bucket).upload(objectKey, opts.buffer, {
+        contentType: opts.mimeType || 'image/jpeg',
+        upsert: true,
+      });
+      if (error) {
+        const err = new Error(`MEDIA_UPLOAD_FAILED: Supabase Storage upload failed (${error.message})`);
+        err.code = 'MEDIA_UPLOAD_FAILED';
+        throw err;
+      }
+      const { data: pubData } = supa.storage.from(bucket).getPublicUrl(objectKey);
+      return {
+        success: true,
+        media_id: `med_${Date.now()}_${checksum.slice(0, 8)}`,
+        url: pubData?.publicUrl || `/media/${objectKey}`,
+        checksum,
+        data_mode: 'LIVE',
+      };
+    }
+
+    const res = await this.storeMedia({
+      buffer: opts.buffer,
+      originalName: opts.filename || opts.originalName,
+      mimeType: opts.mimeType,
+      eventId: opts.eventId,
+      signalId: opts.signalId,
+      dataMode: opts.dataMode || 'DEMO',
+    });
+    return {
+      success: true,
+      ...res,
+      data_mode: 'DEMO',
+    };
   }
 }
 

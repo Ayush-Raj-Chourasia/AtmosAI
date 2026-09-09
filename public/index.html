@@ -411,6 +411,9 @@
         <span id="drawer-status-badge" class="px-2 py-0.5 rounded-md text-xs font-semibold uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">
           VERIFIED
         </span>
+        <span id="drawer-datamode-badge" class="px-2 py-0.5 rounded-md text-xs font-mono uppercase bg-amber-950 text-amber-300 border border-amber-800">
+          DEMO
+        </span>
       </div>
       <button onclick="closeDrawer()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -1105,13 +1108,24 @@
                 <span>${cfg.icon}</span>
                 <span>${ev.event_type}</span>
               </span>
-              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                isVerified 
-                  ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' 
-                  : 'bg-amber-950 text-amber-400 border border-amber-800'
-              }">
-                ${(ev.confidence_score * 100).toFixed(0)}% CONFIDENCE
-              </span>
+              <div class="flex items-center gap-1.5">
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold ${
+                  ev.data_mode === 'LIVE' 
+                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
+                    : ev.data_mode === 'REPLAY'
+                    ? 'bg-purple-950 text-purple-300 border border-purple-800'
+                    : 'bg-amber-950/70 text-amber-300 border border-amber-800/70'
+                }">
+                  ${ev.data_mode === 'LIVE' ? '● LIVE' : (ev.data_mode || 'DEMO')}
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                  isVerified 
+                    ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' 
+                    : 'bg-amber-950 text-amber-400 border border-amber-800'
+                }">
+                  ${(ev.confidence_score * 100).toFixed(0)}% CONFIDENCE
+                </span>
+              </div>
             </div>
             <div class="text-xs font-semibold text-slate-200 mb-1">${ev.title}</div>
             <p class="text-[11px] text-slate-400 line-clamp-2 mb-2">${ev.description}</p>
@@ -1162,6 +1176,17 @@
         : ev.status === 'FALSE_ALARM'
         ? 'px-2 py-0.5 rounded-md text-xs font-semibold uppercase bg-rose-950 text-rose-400 border border-rose-800'
         : 'px-2 py-0.5 rounded-md text-xs font-semibold uppercase bg-amber-950 text-amber-400 border border-amber-800';
+
+      const dmBadge = document.getElementById('drawer-datamode-badge');
+      if (dmBadge) {
+        const mode = ev.data_mode || 'DEMO';
+        dmBadge.innerText = mode === 'LIVE' ? '● LIVE' : mode;
+        dmBadge.className = mode === 'LIVE'
+          ? 'px-2 py-0.5 rounded-md text-xs font-mono uppercase bg-emerald-950 text-emerald-400 border border-emerald-800'
+          : mode === 'REPLAY'
+          ? 'px-2 py-0.5 rounded-md text-xs font-mono uppercase bg-purple-950 text-purple-300 border border-purple-800'
+          : 'px-2 py-0.5 rounded-md text-xs font-mono uppercase bg-amber-950 text-amber-300 border border-amber-800';
+      }
 
       const govBadge = document.getElementById('drawer-gov-status');
       if (govBadge) {
@@ -1894,24 +1919,24 @@
               </div>
             </div>
 
-            <!-- Live Sensor Infrastructure Health -->
+            <!-- Ground Sensor Telemetry Network Status -->
             <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
               <div class="text-[10px] font-mono text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>Live Ground Sensor Telemetry Network</span>
-                <span class="text-emerald-400 font-bold">100% OPERATIONAL</span>
+                <span>Ground Reference & Sensor Telemetry Network</span>
+                <span class="text-cyan-400 font-bold">Architecture-Ready / Ground Reference Network</span>
               </div>
               <div class="grid grid-cols-3 gap-2 text-[11px] font-mono">
                 <div class="p-2 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
                   <span class="text-slate-300">IMD DWR Radars</span>
-                  <span class="text-emerald-400 font-bold">6 Active</span>
+                  <span class="text-cyan-400 font-bold">Architecture-Ready</span>
                 </div>
                 <div class="p-2 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
                   <span class="text-slate-300">CWC River Gauges</span>
-                  <span class="text-emerald-400 font-bold">Online</span>
+                  <span class="text-cyan-400 font-bold">Reference Network</span>
                 </div>
                 <div class="p-2 rounded bg-slate-900 border border-slate-800 flex items-center justify-between">
                   <span class="text-slate-300">AWS Rain Gauges</span>
-                  <span class="text-emerald-400 font-bold">Streaming</span>
+                  <span class="text-emerald-400 font-bold">Calibrated Telemetry</span>
                 </div>
               </div>
             </div>

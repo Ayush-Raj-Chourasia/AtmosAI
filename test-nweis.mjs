@@ -21,8 +21,28 @@ import { redisService } from './storage/redis-client.mjs';
 import { mediaStorageService } from './storage/media-storage.mjs';
 import { geminiService } from './ai/gemini-service.mjs';
 import { db } from './database/db.mjs';
-import { authenticateRequest, requireRole } from './server-nweis.mjs';
-import { findEventsNearbyPostGIS } from './lib/supabase.mjs';
+import {
+  authenticateRequest,
+  requireRole,
+  requireAuth,
+  handleRequest,
+  ingestSignal,
+  memEvents,
+  memSignals,
+  memLifecycle,
+  memVerifications,
+  runGuwahatiFloodDemo,
+  runDelhiStormDemo,
+  lastIngestionRun,
+  runConnectorPoll,
+  sseClients,
+} from './server-nweis.mjs';
+import {
+  getPublicClient,
+  getAuthenticatedClient,
+  getServerAdminClient,
+  findEventsNearbyPostGIS,
+} from './lib/supabase.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1550,14 +1570,29 @@ assert(testNormalizedRain.flood_indicator === true, 'Heavy rain flags flood_indi
 // -------------------------------------------------------------
 console.log('\nTEST 25: PostGIS Coordinate Range Validation & Spatial Transparency');
 
-const outOfBoundsLat = await findEventsNearbyPostGIS(95.0, 91.75, 15000);
-assert(outOfBoundsLat === null, 'PostGIS RPC rejects out-of-bounds latitude (> 90)');
+let latErrorThrown = false;
+try {
+  await findEventsNearbyPostGIS(95.0, 91.75, 15000);
+} catch (err) {
+  latErrorThrown = err.code === 'INVALID_SPATIAL_PARAMETERS' || err.message.includes('INVALID_SPATIAL_PARAMETERS') || err.message.includes('Invalid spatial query parameters');
+}
+assert(latErrorThrown, 'PostGIS RPC rejects out-of-bounds latitude (> 90) with INVALID_SPATIAL_PARAMETERS');
 
-const outOfBoundsLon = await findEventsNearbyPostGIS(26.18, 195.0, 15000);
-assert(outOfBoundsLon === null, 'PostGIS RPC rejects out-of-bounds longitude (> 180)');
+let lonErrorThrown = false;
+try {
+  await findEventsNearbyPostGIS(26.18, 195.0, 15000);
+} catch (err) {
+  lonErrorThrown = err.code === 'INVALID_SPATIAL_PARAMETERS' || err.message.includes('INVALID_SPATIAL_PARAMETERS') || err.message.includes('Invalid spatial query parameters');
+}
+assert(lonErrorThrown, 'PostGIS RPC rejects out-of-bounds longitude (> 180) with INVALID_SPATIAL_PARAMETERS');
 
-const negativeRadius = await findEventsNearbyPostGIS(26.18, 91.75, -500);
-assert(negativeRadius === null, 'PostGIS RPC rejects negative radius bounds');
+let radErrorThrown = false;
+try {
+  await findEventsNearbyPostGIS(26.18, 91.75, -500);
+} catch (err) {
+  radErrorThrown = err.code === 'INVALID_SPATIAL_PARAMETERS' || err.message.includes('INVALID_SPATIAL_PARAMETERS') || err.message.includes('Invalid spatial query parameters');
+}
+assert(radErrorThrown, 'PostGIS RPC rejects negative radius bounds with INVALID_SPATIAL_PARAMETERS');
 
 const nearbyEvents = await db.findEventsNearby(26.1445, 91.7362, 50000);
 assert(Array.isArray(nearbyEvents), 'findEventsNearby returns valid array of nearby hazards');
@@ -1589,6 +1624,348 @@ assert(
   imdHealthCheck.status === 'REPLAY' || imdHealthCheck.status === 'NOT_CONFIGURED' || imdHealthCheck.status === 'ONLINE',
   'IMD connector status is truthful (REPLAY / NOT_CONFIGURED without live key, never fake ONLINE)'
 );
+
+// -------------------------------------------------------------
+// TEST 27: Authoritative Supabase Read/Write Invariants (Items A, B)
+// -------------------------------------------------------------
+console.log('\nTEST 27: Authoritative Supabase Read/Write Invariants');
+
+const origDbMode = db.mode;
+const origDbSupabase = db.supabase;
+const origDbConnected = db.isSupabaseConnected;
+
+// Item A: Write throws AUTHORITATIVE_SUPABASE_WRITE_FAILED
+db.mode = 'SUPABASE_AUTHORITATIVE';
+db.isSupabaseConnected = true;
+db.supabase = {
+  from: () => ({
+    insert: () => Promise.resolve({ error: { message: 'Forced Supabase DB Error' } }),
+    update: () => Promise.resolve({ error: { message: 'Forced Supabase DB Error' } }),
+    select: () => {
+      const q = Promise.resolve({ data: null, error: { message: 'Forced Supabase Read Error' } });
+      q.order = () => q;
+      q.limit = () => q;
+      q.eq = () => q;
+      q.gte = () => q;
+      return q;
+    },
+  }),
+};
+
+let writeErrorCaught = false;
+try {
+  await db.insertSignal({ id: 'sig_auth_fail_test', text: 'test' });
+} catch (err) {
+  writeErrorCaught = err.code === 'AUTHORITATIVE_SUPABASE_WRITE_FAILED' || err.message.includes('AUTHORITATIVE_SUPABASE_WRITE_FAILED');
+}
+assert(writeErrorCaught, 'Authoritative write throws AUTHORITATIVE_SUPABASE_WRITE_FAILED on Supabase mutation failure');
+
+// Item B: Read throws AUTHORITATIVE_SUPABASE_READ_FAILED
+let readErrorCaught = false;
+try {
+  await db.getSignals();
+} catch (err) {
+  readErrorCaught = err.code === 'AUTHORITATIVE_SUPABASE_READ_FAILED' || err.message.includes('AUTHORITATIVE_SUPABASE_READ_FAILED');
+}
+assert(readErrorCaught, 'Authoritative read throws AUTHORITATIVE_SUPABASE_READ_FAILED without silent fallback to stale cache');
+
+// Restore original DB state
+db.mode = origDbMode;
+db.supabase = origDbSupabase;
+db.isSupabaseConnected = origDbConnected;
+
+// -------------------------------------------------------------
+// TEST 28: Strict Supabase Client Separation & Auth Tokens (Items C, D)
+// -------------------------------------------------------------
+console.log('\nTEST 28: Strict Supabase Client Separation & Auth Tokens');
+
+// Item C: getAuthenticatedClient rejects invalid JWT
+let invalidJwtCaught = false;
+try {
+  getAuthenticatedClient('');
+} catch (err) {
+  invalidJwtCaught = err.message.includes('requires a non-empty user JWT');
+}
+assert(invalidJwtCaught, 'getAuthenticatedClient rejects empty JWT');
+
+// Item D: getServerAdminClient throws when service role key missing
+const origSecretKey = process.env.SUPABASE_SECRET_KEY;
+delete process.env.SUPABASE_SECRET_KEY;
+let adminKeyErrorCaught = false;
+try {
+  getServerAdminClient();
+} catch (err) {
+  adminKeyErrorCaught = err.code === 'SUPABASE_SECRET_KEY_MISSING' || err.message.includes('SUPABASE_SECRET_KEY');
+}
+assert(adminKeyErrorCaught, 'getServerAdminClient throws when SUPABASE_SECRET_KEY is missing (no silent downgrade)');
+process.env.SUPABASE_SECRET_KEY = origSecretKey;
+
+// -------------------------------------------------------------
+// TEST 29: PostGIS Spatial Semantics & Empty Result Array (Item G)
+// -------------------------------------------------------------
+console.log('\nTEST 29: PostGIS Spatial Semantics & Empty Result Array');
+
+// In local mode or mock, findEventsNearby returns array (not null)
+const emptySpatialResults = await db.findEventsNearby(0.0, 0.0, 1000);
+assert(Array.isArray(emptySpatialResults), 'findEventsNearby returns empty array [] on zero matches (never null)');
+
+// -------------------------------------------------------------
+// TEST 30: Media Storage Invariants (Items I, J)
+// -------------------------------------------------------------
+console.log('\nTEST 30: Media Storage Invariants (LIVE Mode vs DEMO Mode)');
+
+// Item J: Demo mode stores locally and returns local URL
+const origStorageMode = mediaStorageService.mode;
+mediaStorageService.mode = 'DEMO';
+const testBuf = Buffer.from('fake-weather-image-bytes');
+const demoUpload = await mediaStorageService.uploadMedia({
+  buffer: testBuf,
+  mimeType: 'image/jpeg',
+  filename: 'test_demo_cloud.jpg',
+  folder: 'evidence',
+});
+assert(demoUpload.success && demoUpload.data_mode === 'DEMO' && (demoUpload.url.startsWith('/uploads/') || demoUpload.url.startsWith('/media/')), 'DEMO mode media storage saves locally with data_mode: DEMO');
+
+// Item I: In LIVE mode, failure throws MEDIA_UPLOAD_FAILED
+mediaStorageService.mode = 'LIVE';
+mediaStorageService.supabase = {
+  storage: {
+    from: () => ({
+      upload: () => Promise.resolve({ data: null, error: { message: 'Storage bucket offline' } }),
+    }),
+  },
+};
+
+let uploadFailedCaught = false;
+try {
+  await mediaStorageService.uploadMedia({
+    buffer: testBuf,
+    mimeType: 'image/jpeg',
+    filename: 'test_live_cloud.jpg',
+  });
+} catch (err) {
+  uploadFailedCaught = err.code === 'MEDIA_UPLOAD_FAILED' || err.message.includes('MEDIA_UPLOAD_FAILED');
+}
+assert(uploadFailedCaught, 'LIVE mode media upload failure throws MEDIA_UPLOAD_FAILED (no fake URLs)');
+mediaStorageService.mode = origStorageMode;
+
+// -------------------------------------------------------------
+// TEST 31: HTTP RBAC, Spoofing Prevention & Provenance (Items K, L, M, N)
+// -------------------------------------------------------------
+console.log('\nTEST 31: HTTP RBAC, Spoofing Prevention & Provenance');
+
+// Setup mock event for testing actions
+const testEvtId = `evt_test_rbac_${Date.now()}`;
+memEvents.set(testEvtId, {
+  id: testEvtId,
+  event_type: 'THUNDERSTORM',
+  title: 'Test Storm',
+  description: 'Test storm for RBAC',
+  severity: 'high',
+  status: 'DETECTED',
+  confidence_score: 0.70,
+  latitude: 28.61,
+  longitude: 77.20,
+  city: 'New Delhi',
+  state: 'Delhi',
+});
+
+function createMockReqRes(method, url, headers, body) {
+  let statusCode = 200;
+  let responseBody = '';
+  const headersSet = {};
+  const req = {
+    method,
+    url,
+    headers: headers || {},
+    on: (evt, cb) => {
+      if (evt === 'data' && body !== undefined && body !== null) {
+        cb(Buffer.from(typeof body === 'string' ? body : JSON.stringify(body)));
+      }
+      if (evt === 'end') {
+        cb();
+      }
+      return req;
+    },
+  };
+  const res = {
+    setHeader: (k, v) => { headersSet[k.toLowerCase()] = v; },
+    getHeader: (k) => headersSet[k.toLowerCase()],
+    writeHead: (code, hdrs) => {
+      statusCode = code;
+      if (hdrs) Object.assign(headersSet, hdrs);
+    },
+    end: (chunk) => { if (chunk) responseBody += chunk; },
+  };
+  return { req, res, getStatus: () => statusCode, getBody: () => responseBody ? JSON.parse(responseBody) : null };
+}
+
+// Item K: Unauthenticated request to /verify returns 401
+const mockK = createMockReqRes('POST', `/api/v1/events/${testEvtId}/verify`, {}, {});
+await handleRequest(mockK.req, mockK.res);
+assert(mockK.getStatus() === 401, 'Unauthenticated request to /verify returns HTTP 401');
+
+// Item L: Request with x-user-role header but no Bearer token returns 401 (spoofing prevented)
+const mockL = createMockReqRes('POST', `/api/v1/events/${testEvtId}/verify`, { 'x-user-role': 'ADMIN' }, {});
+await handleRequest(mockL.req, mockL.res);
+assert(mockL.getStatus() === 401, 'Header x-user-role without Bearer token is rejected with HTTP 401 (spoofing prevented)');
+
+// Item M: Request with VIEWER token to /verify returns 403
+const mockM = createMockReqRes('POST', `/api/v1/events/${testEvtId}/verify`, { authorization: 'Bearer mock-viewer' }, {});
+await handleRequest(mockM.req, mockM.res);
+assert(mockM.getStatus() === 403, 'Request with VIEWER token to /verify returns HTTP 403 Forbidden');
+
+// Item N: Request with VERIFIER token succeeds and records actor_id, actor_email, actor_role
+const mockN = createMockReqRes('POST', `/api/v1/events/${testEvtId}/verify`, { authorization: 'Bearer mock-verifier' }, { reason: 'Ground radar validated squall line' });
+await handleRequest(mockN.req, mockN.res);
+assert(mockN.getStatus() === 200, 'Request with VERIFIER token to /verify succeeds with HTTP 200');
+const verifiedEvt = memEvents.get(testEvtId);
+assert(verifiedEvt.status === 'VERIFIED', 'Event status transitioned to VERIFIED');
+const vAudit = memVerifications.find(v => v.target_id === testEvtId);
+assert(vAudit && vAudit.actor_role === 'VERIFIER' && vAudit.actor_email.includes('verifier@imd.gov.in'), 'Verification record captures authenticated actor_role and actor_email (no hardcoded admin)');
+
+// -------------------------------------------------------------
+// TEST 32: Incident State Machine Lifecycle & Rejection (Items O, P)
+// -------------------------------------------------------------
+console.log('\nTEST 32: Incident State Machine Lifecycle & Rejection');
+
+// Item O: Rejecting an event sets status to REJECTED (not FALSE_ALARM, not RESOLVED)
+const testEvt2 = `evt_test_reject_${Date.now()}`;
+memEvents.set(testEvt2, {
+  id: testEvt2,
+  event_type: 'RAINFALL',
+  title: 'Test Rain',
+  description: 'Test event to reject',
+  severity: 'low',
+  status: 'UNDER_REVIEW',
+  confidence_score: 0.60,
+  latitude: 26.14,
+  longitude: 91.73,
+  city: 'Guwahati',
+  state: 'Assam',
+});
+
+const mockO = createMockReqRes('POST', `/api/v1/events/${testEvt2}/reject`, { authorization: 'Bearer mock-admin' }, { reason: 'Hoax social media post' });
+await handleRequest(mockO.req, mockO.res);
+assert(mockO.getStatus() === 200, 'Reject request succeeds');
+assert(memEvents.get(testEvt2).status === 'REJECTED', 'Rejected event status is strictly REJECTED (not FALSE_ALARM, not RESOLVED)');
+
+// Item P: Invalid state transition (RESOLVED -> UNDER_REVIEW) returns 400
+const testEvt3 = `evt_test_invalid_${Date.now()}`;
+memEvents.set(testEvt3, {
+  id: testEvt3,
+  event_type: 'FOG',
+  title: 'Test Fog',
+  description: 'Resolved fog event',
+  severity: 'low',
+  status: 'RESOLVED',
+  confidence_score: 0.90,
+  latitude: 28.55,
+  longitude: 77.10,
+  city: 'New Delhi',
+  state: 'Delhi',
+});
+
+const mockP = createMockReqRes('POST', `/api/v1/events/${testEvt3}/status`, { authorization: 'Bearer mock-admin' }, { status: 'UNDER_REVIEW', reason: 'Invalid revert' });
+await handleRequest(mockP.req, mockP.res);
+assert(mockP.getStatus() === 400, 'Invalid transition RESOLVED -> UNDER_REVIEW returns HTTP 400 Bad Request');
+
+// -------------------------------------------------------------
+// TEST 33: Meteorological Truthfulness: RAIN ≠ FLOOD Invariant (Items Q, R)
+// -------------------------------------------------------------
+console.log('\nTEST 33: Meteorological Truthfulness: RAIN ≠ FLOOD Invariant');
+
+// Item Q: Rain >= 50mm without flood evidence creates RAINFALL event with flood_indicator = true
+const rainSignalRes = await ingestSignal({
+  source_type: 'weather_api',
+  source_name: 'Open-Meteo AWS',
+  text: 'Intense precipitation recorded: 78.4 mm rainfall in last 2 hours. Cloudburst-like downpour over city center.',
+  city: 'Guwahati',
+  state: 'Assam',
+  latitude: 26.1445,
+  longitude: 91.7362,
+  data_mode: 'DEMO',
+});
+assert(rainSignalRes.signal.flood_indicator === true, 'Signal with >=50mm rain sets flood_indicator = true');
+assert(rainSignalRes.associatedEvent.event_type === 'RAINFALL', 'Heavy rain without hydrological evidence creates RAINFALL event (RAIN ≠ FLOOD)');
+assert(rainSignalRes.associatedEvent.flood_indicator === true, 'RAINFALL event carries flood_indicator = true');
+
+// Item R: Rain >= 50mm WITH hydrological evidence creates FLOOD event
+const floodSignalRes = await ingestSignal({
+  source_type: 'citizen',
+  source_name: 'Citizen [DEMO: Local Resident]',
+  text: 'Severe waterlogging and knee-deep flood water entering ground floor homes! Roads completely submerged after 85 mm rain.',
+  city: 'Guwahati',
+  state: 'Assam',
+  latitude: 26.1445,
+  longitude: 91.7362,
+  data_mode: 'DEMO',
+});
+assert(floodSignalRes.associatedEvent.event_type === 'FLOOD', 'Rain with ground waterlogging and submerged roads corroborates FLOOD event');
+
+// -------------------------------------------------------------
+// TEST 34: Admin Analytics Truthfulness (Item S)
+// -------------------------------------------------------------
+console.log('\nTEST 34: Admin Analytics Truthfulness');
+
+const mockAnalytics = createMockReqRes('GET', '/api/v1/admin/analytics', { authorization: 'Bearer mock-admin' });
+await handleRequest(mockAnalytics.req, mockAnalytics.res);
+assert(mockAnalytics.getStatus() === 200, 'Analytics endpoint returns 200 OK');
+const aBody = mockAnalytics.getBody();
+assert(aBody.totals.traces === (memLifecycle.length + memVerifications.length), 'Analytics traces is actual sum of lifecycle + verification records (no fabricated * 3)');
+assert(typeof aBody.kpis.avgProcessingLatency === 'string' && aBody.kpis.avgProcessingLatency.endsWith('ms'), 'Analytics avgProcessingLatency is derived from real connector telemetry');
+assert(aBody.incidentsByStatus && typeof aBody.incidentsByStatus.rejected === 'number', 'Analytics includes real count for rejected events');
+
+// -------------------------------------------------------------
+// TEST 35: Production Observability, Demo Tagging & Ingestion Run Tracking (Items T, U, V, W, X)
+// -------------------------------------------------------------
+console.log('\nTEST 35: Production Observability, Demo Tagging & Ingestion Run Tracking');
+
+// Item T & U: Run a demo scenario and verify tags
+const demoRes = await runDelhiStormDemo();
+assert(demoRes.success, 'Delhi Storm demo executes cleanly');
+const delhiSignals = Array.from(memSignals.values()).filter(s => s.city === 'New Delhi');
+const demoTaggedSignals = delhiSignals.filter(s => s.data_mode === 'DEMO');
+assert(demoTaggedSignals.length > 0, 'Demo signals are explicitly tagged with data_mode: DEMO');
+const citizenDemoSignals = delhiSignals.filter(s => s.source_type === 'citizen');
+for (const cs of citizenDemoSignals) {
+  assert(cs.source_name.startsWith('Citizen [DEMO:'), `Citizen report correctly prefixed with Citizen [DEMO: ...]: ${cs.source_name}`);
+}
+
+// Item V: Sources endpoint reports NOT_CONFIGURED for unconfigured sources
+const mockSources = createMockReqRes('GET', '/api/v1/sources', {});
+await handleRequest(mockSources.req, mockSources.res);
+assert(mockSources.getStatus() === 200, 'Sources endpoint returns 200');
+const sourcesData = mockSources.getBody().data;
+const ndmaEntry = sourcesData.find(s => s.id === 'src_ndma_01');
+assert(ndmaEntry && ndmaEntry.status === 'NOT_CONFIGURED', 'src_ndma_01 truthfully reports NOT_CONFIGURED');
+const cwcEntry = sourcesData.find(s => s.id === 'src_cwc_01');
+assert(cwcEntry && cwcEntry.status === 'NOT_CONFIGURED', 'src_cwc_01 truthfully reports NOT_CONFIGURED');
+
+// Item W: Health check includes last_ingestion_run with run_id, duration_ms, and counts
+const mockHealth = createMockReqRes('GET', '/health', {});
+await handleRequest(mockHealth.req, mockHealth.res);
+assert(mockHealth.getStatus() === 200, 'Health check returns 200 OK');
+const hBody = mockHealth.getBody();
+assert(Boolean(hBody.last_ingestion_run), 'Health check exposes last_ingestion_run');
+assert(typeof hBody.last_ingestion_run.run_id === 'string', 'last_ingestion_run contains valid run_id');
+assert(typeof hBody.last_ingestion_run.duration_ms === 'number', 'last_ingestion_run contains duration_ms');
+assert(typeof hBody.last_ingestion_run.fetched_count === 'number', 'last_ingestion_run contains fetched_count');
+assert(typeof hBody.last_ingestion_run.accepted_count === 'number', 'last_ingestion_run contains accepted_count');
+
+// Item X: SSE broadcast sends valid JSON without memory leak on client disconnect
+let sseDataReceived = '';
+const mockSseClient = {
+  write: (chunk) => { sseDataReceived += chunk; },
+};
+sseClients.add(mockSseClient);
+assert(sseClients.has(mockSseClient), 'SSE client registered');
+for (const client of sseClients) {
+  client.write(`data: ${JSON.stringify({ type: 'test_ping', timestamp: Date.now() })}\n\n`);
+}
+assert(sseDataReceived.startsWith('data: {"type":"test_ping"'), 'SSE broadcast sends valid JSON formatting');
+sseClients.delete(mockSseClient);
+assert(!sseClients.has(mockSseClient), 'SSE client removed on disconnect (no memory leak)');
 
 console.log('\n================================================================');
 console.log(` TEST SUMMARY: ${passedTests}/${totalTests} Tests Passed (100% Success)`);

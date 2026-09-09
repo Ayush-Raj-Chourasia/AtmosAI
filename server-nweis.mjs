@@ -23,6 +23,14 @@ import { publicDatasetConnector } from './connectors/public-dataset.mjs';
 import { redisService } from './storage/redis-client.mjs';
 import { mediaStorageService } from './storage/media-storage.mjs';
 import { geminiService } from './ai/gemini-service.mjs';
+import {
+  DATA_MODES,
+  USER_ROLES,
+  EVENT_STATUSES,
+  SOURCE_STATUSES,
+  normalizeDataMode,
+  isValidStateTransition,
+} from './lib/constants.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -33,12 +41,12 @@ const PORT = process.env.PORT || 3001;
 // -------------------------------------------------------------
 // STATE STORE (BACKED BY UNIFIED DATABASE & ATOMIC DISK ENGINE)
 // -------------------------------------------------------------
-const memSignals = new Map();
-const memEvents = new Map();
-const memEvidence = new Map();
-const memVerifications = [];
-const memLifecycle = [];
-const sseClients = new Set();
+export const memSignals = new Map();
+export const memEvents = new Map();
+export const memEvidence = new Map();
+export const memVerifications = [];
+export const memLifecycle = [];
+export const sseClients = new Set();
 
 const DECAY_PROFILES = {
   FLOOD: { halfLifeMin: 180, stalenessCutoffHours: 6, decaySpeed: 'medium' },
@@ -260,12 +268,11 @@ function logLifecycleTransition(eventId, fromStatus, toStatus, reason, triggered
 }
 
 function validateAndTransitionStatus(event, targetStatus, reason, officerName = 'IMD Duty Meteorologist') {
-  const VALID_STATUSES = ['DETECTED', 'UNDER_REVIEW', 'VERIFIED', 'RESOLVED', 'FALSE_ALARM'];
-  const fromStatus = event.status;
-
-  if (!VALID_STATUSES.includes(targetStatus)) {
-    return { success: false, error: `Invalid target status: ${targetStatus}` };
+  const transitionCheck = isValidStateTransition(event.status, targetStatus);
+  if (!transitionCheck.valid) {
+    return { success: false, error: transitionCheck.error };
   }
+  const fromStatus = event.status;
 
   if (fromStatus === targetStatus) {
     if (targetStatus === 'VERIFIED') {
@@ -283,20 +290,12 @@ function validateAndTransitionStatus(event, targetStatus, reason, officerName = 
     return { success: false, error: `Incident is already in status ${targetStatus}` };
   }
 
-  // Forbidden: Cannot jump directly from FALSE_ALARM to VERIFIED without UNDER_REVIEW
-  if (fromStatus === 'FALSE_ALARM' && targetStatus === 'VERIFIED') {
-    return { success: false, error: 'Forbidden transition: FALSE_ALARM cannot directly become VERIFIED. Re-open to UNDER_REVIEW first.' };
-  }
-
-  // Forbidden: Once RESOLVED, cannot transition to FALSE_ALARM
-  if (fromStatus === 'RESOLVED' && targetStatus === 'FALSE_ALARM') {
-    return { success: false, error: 'Forbidden transition: Historical RESOLVED incident cannot be reclassified as FALSE_ALARM' };
-  }
-
   event.status = targetStatus;
   event.last_updated_at = new Date().toISOString();
   if (targetStatus === 'VERIFIED') {
     event.verified_at = event.last_updated_at;
+  } else if (targetStatus === 'RESOLVED') {
+    event.resolved_at = event.last_updated_at;
   }
 
   const logEntry = logLifecycleTransition(
@@ -422,17 +421,33 @@ function resolveLocation(text, lat, lng, cityHint, stateHint) {
   return { lat: null, lng: null, city: cityHint || null, state: stateHint || null, method: 'unresolved', confidence: 0 };
 }
 
-function classifyWeather(text) {
+export function classifyWeather(text) {
   const lower = text.toLowerCase();
   const scores = { RAINFALL: 0, THUNDERSTORM: 0, FLOOD: 0, HEATWAVE: 0, FOG: 0, DUST_STORM: 0, STRONG_WIND: 0, OTHER: 0.1 };
 
-  if (/flood|submerged|inundat|overflow|waterlogging|water entering/i.test(lower)) scores.FLOOD += 4;
-  if (/rain|downpour|cloudburst|precipitation/i.test(lower)) scores.RAINFALL += 3;
+  const hasHydrological = /flood|submerged|inundat|overflow|waterlogging|water entering|river.*above.*danger|breach|waist-deep|knee-deep/i.test(lower);
+  const hasRain = /rain|downpour|cloudburst|precipitation|\b\d+(\.\d+)?\s*mm\b/i.test(lower);
+
+  if (hasHydrological) scores.FLOOD += 4;
+  if (hasRain) scores.RAINFALL += 3;
   if (/thunder|lightning|squall|storm|thunderstorm/i.test(lower)) scores.THUNDERSTORM += 3.5;
   if (/heatwave|temperature.*above|4[5-9]°c|loo|heat stroke/i.test(lower)) scores.HEATWAVE += 4;
   if (/fog|dense fog|visibility.*<|smog/i.test(lower)) scores.FOG += 4;
   if (/dust storm|andhi|sandstorm/i.test(lower)) scores.DUST_STORM += 4;
   if (/gale|strong wind|cyclone|uprooted tree/i.test(lower)) scores.STRONG_WIND += 3.5;
+
+  // Meteorological Invariant: Heavy Rain != Flood
+  // Rain >= 50mm flags heavy rainfall with flood risk, but without explicit ground hydrological evidence it MUST NOT be classified as FLOOD.
+  let floodIndicator = false;
+  const mmMatch = lower.match(/(\d+(?:\.\d+)?)\s*mm/);
+  const rainfallMm = mmMatch ? parseFloat(mmMatch[1]) : null;
+  if (rainfallMm && rainfallMm >= 50) {
+    floodIndicator = true;
+    scores.RAINFALL += 2;
+  }
+  if (!hasHydrological && scores.FLOOD > 0) {
+    scores.FLOOD = 0;
+  }
 
   let best = 'OTHER';
   let max = 0;
@@ -442,7 +457,12 @@ function classifyWeather(text) {
       best = t;
     }
   }
-  return { eventType: best, probability: max > 0 ? Math.min(0.96, 0.70 + (max * 0.06)) : 0.40 };
+  return {
+    eventType: best,
+    probability: max > 0 ? Math.min(0.96, 0.70 + (max * 0.06)) : 0.40,
+    flood_indicator: floodIndicator || hasHydrological,
+    rainfall_mm: rainfallMm
+  };
 }
 
 function broadcastSSE(data) {
@@ -956,7 +976,7 @@ function generateVolunteerDispatch(event) {
 // -------------------------------------------------------------
 // CORE INGESTION & FUSION PIPELINE
 // -------------------------------------------------------------
-async function ingestSignal(raw) {
+export async function ingestSignal(raw) {
   const geo = resolveLocation(raw.text, raw.latitude, raw.longitude, raw.city, raw.state);
   let classification = classifyWeather(raw.text);
 
@@ -970,6 +990,8 @@ async function ingestSignal(raw) {
           eventType: gRes.event_category,
           probability: gRes.confidence || 0.90,
           keywordsMatched: gRes.key_hazards || [],
+          flood_indicator: classification.flood_indicator,
+          rainfall_mm: classification.rainfall_mm,
         };
       }
     } catch (e) {
@@ -1010,6 +1032,8 @@ async function ingestSignal(raw) {
     verification_status: status,
     media_urls: mediaUrls,
     hashtags: (raw.text.match(/#[a-zA-Z0-9_]+/g) || []).map(h => h.toLowerCase()),
+    flood_indicator: Boolean(classification.flood_indicator || raw.flood_indicator),
+    rainfall_mm: classification.rainfall_mm ?? raw.rainfall_mm ?? null,
     data_mode: raw.data_mode || (raw.is_replay ? 'REPLAY' : (raw.source_type === 'weather_api' && process.env.APP_MODE === 'LIVE' ? 'LIVE' : 'DEMO')),
     timestamp: new Date().toISOString(),
   };
@@ -1173,6 +1197,7 @@ async function ingestSignal(raw) {
     ai_reasoning: aiReasoning,
     sensors: targetEvent?.sensors || [],
     recommended_actions: targetEvent?.recommended_actions || generateActionDirectives(eventType, confidenceScore >= 0.90 ? 'critical' : 'high', signal.city, signal.state),
+    flood_indicator: relatedSignals.some(s => s.flood_indicator) || Boolean(signal.flood_indicator),
     data_mode: targetEvent?.data_mode || signal.data_mode || 'DEMO',
   };
 
@@ -1232,7 +1257,7 @@ async function ingestSignal(raw) {
 // -------------------------------------------------------------
 // DEMO SCENARIOS GENERATOR (SECTION 38 JUDGE STORY)
 // -------------------------------------------------------------
-async function runGuwahatiFloodDemo() {
+export async function runGuwahatiFloodDemo() {
   await ingestSignal({
     source_type: 'imd',
     source_name: 'IMD Guwahati Regional Met Centre',
@@ -1242,6 +1267,7 @@ async function runGuwahatiFloodDemo() {
     latitude: 26.1445,
     longitude: 91.7362,
     hashtags: ['#IMD', '#AssamFloods'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1253,17 +1279,19 @@ async function runGuwahatiFloodDemo() {
     latitude: 26.155,
     longitude: 91.662,
     media_urls: ['https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=800&q=80'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
     source_type: 'citizen',
-    source_name: 'Citizen (Anupam Sarma)',
+    source_name: 'Citizen [DEMO: Anupam Sarma]',
     text: 'Knee-deep water entering homes near Jalukbari rotary, Guwahati. Drains overflowing into main road. Cars stuck.',
     latitude: 26.148,
     longitude: 91.665,
     city: 'Guwahati',
     state: 'Assam',
     media_urls: ['https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?auto=format&fit=crop&w=800&q=80'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1274,6 +1302,7 @@ async function runGuwahatiFloodDemo() {
     state: 'Assam',
     latitude: 26.1878,
     longitude: 91.6916,
+    data_mode: 'DEMO',
   });
 
   // Duplicate report
@@ -1285,6 +1314,7 @@ async function runGuwahatiFloodDemo() {
     state: 'Assam',
     latitude: 26.188,
     longitude: 91.692,
+    data_mode: 'DEMO',
   });
 
   // Fake report
@@ -1295,6 +1325,7 @@ async function runGuwahatiFloodDemo() {
     city: 'Guwahati',
     state: 'Assam',
     media_urls: ['recycled_flood_2018.jpg'],
+    data_mode: 'DEMO',
   });
 
   const events = Array.from(memEvents.values());
@@ -1315,7 +1346,7 @@ async function runGuwahatiFloodDemo() {
   };
 }
 
-async function runDelhiStormDemo() {
+export async function runDelhiStormDemo() {
   await ingestSignal({
     source_type: 'imd',
     source_name: 'IMD National Met Centre',
@@ -1325,6 +1356,7 @@ async function runDelhiStormDemo() {
     latitude: 28.6139,
     longitude: 77.209,
     hashtags: ['#IMD', '#DelhiStorm', '#Thunderstorm'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1335,16 +1367,18 @@ async function runDelhiStormDemo() {
     state: 'Delhi',
     latitude: 28.627,
     longitude: 77.215,
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
     source_type: 'citizen',
-    source_name: 'Citizen (Rohit Verma)',
+    source_name: 'Citizen [DEMO: Rohit Verma]',
     text: 'Huge tree fell on road near Dhaula Kuan flyover due to heavy squall winds. Intense lightning strikes visible.',
     latitude: 28.5921,
     longitude: 77.1565,
     city: 'New Delhi',
     state: 'Delhi',
+    data_mode: 'DEMO',
   });
 
   const events = Array.from(memEvents.values());
@@ -1363,7 +1397,7 @@ async function runDelhiStormDemo() {
   };
 }
 
-async function runMumbaiRainDemo() {
+export async function runMumbaiRainDemo() {
   await ingestSignal({
     source_type: 'imd',
     source_name: 'IMD Mumbai Regional Centre',
@@ -1373,6 +1407,7 @@ async function runMumbaiRainDemo() {
     latitude: 19.076,
     longitude: 72.8777,
     hashtags: ['#IMD', '#MumbaiRains'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1383,6 +1418,7 @@ async function runMumbaiRainDemo() {
     state: 'Maharashtra',
     latitude: 19.065,
     longitude: 72.88,
+    data_mode: 'DEMO',
   });
 
   const events = Array.from(memEvents.values());
@@ -1401,7 +1437,7 @@ async function runMumbaiRainDemo() {
   };
 }
 
-async function runRajasthanHeatwaveDemo() {
+export async function runRajasthanHeatwaveDemo() {
   await ingestSignal({
     source_type: 'imd',
     source_name: 'IMD Jaipur Met Centre',
@@ -1411,6 +1447,7 @@ async function runRajasthanHeatwaveDemo() {
     latitude: 26.9124,
     longitude: 75.7873,
     hashtags: ['#IMD', '#Heatwave', '#Rajasthan'],
+    data_mode: 'DEMO',
   });
 
   const events = Array.from(memEvents.values());
@@ -1429,7 +1466,7 @@ async function runRajasthanHeatwaveDemo() {
   };
 }
 
-async function runKolkataCycloneDemo() {
+export async function runKolkataCycloneDemo() {
   await ingestSignal({
     source_type: 'imd',
     source_name: 'IMD Kolkata Cyclone Warning Centre',
@@ -1439,6 +1476,7 @@ async function runKolkataCycloneDemo() {
     latitude: 22.5726,
     longitude: 88.3639,
     hashtags: ['#IMD', '#CycloneRemal', '#WestBengal'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1450,16 +1488,18 @@ async function runKolkataCycloneDemo() {
     latitude: 22.55,
     longitude: 88.35,
     media_urls: ['https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=800&q=80'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
     source_type: 'citizen',
-    source_name: 'Citizen (Supriyo Das)',
+    source_name: 'Citizen [DEMO: Supriyo Das]',
     text: 'Trees uprooted near Salt Lake Sector V IT hub. Power lines down in Bidhannagar. Strong sustained winds from 6 PM. Rain coming horizontally. Very scary.',
     latitude: 22.5764,
     longitude: 88.4345,
     city: 'Kolkata',
     state: 'West Bengal',
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1470,6 +1510,7 @@ async function runKolkataCycloneDemo() {
     state: 'West Bengal',
     latitude: 22.19,
     longitude: 88.19,
+    data_mode: 'DEMO',
   });
 
   const events = Array.from(memEvents.values());
@@ -1489,7 +1530,7 @@ async function runKolkataCycloneDemo() {
   };
 }
 
-async function runBengaluruCloudburstDemo() {
+export async function runBengaluruCloudburstDemo() {
   await ingestSignal({
     source_type: 'imd',
     source_name: 'IMD Bengaluru Centre',
@@ -1499,6 +1540,7 @@ async function runBengaluruCloudburstDemo() {
     latitude: 12.9716,
     longitude: 77.5946,
     hashtags: ['#IMD', '#BengaluruRains', '#Cloudburst'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1510,17 +1552,19 @@ async function runBengaluruCloudburstDemo() {
     latitude: 12.937,
     longitude: 77.681,
     media_urls: ['https://images.unsplash.com/photo-1446034295857-c899f4c6fbbe?auto=format&fit=crop&w=800&q=80'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
     source_type: 'citizen',
-    source_name: 'Citizen (Priya Nair)',
+    source_name: 'Citizen [DEMO: Priya Nair]',
     text: 'Waist-deep water in Bellandur underpass. Cars floating near ORR-Sarjapur junction. 3 IT parks have water entering basement parking. Fire department rescuing office workers.',
     latitude: 12.926,
     longitude: 77.674,
     city: 'Bengaluru',
     state: 'Karnataka',
     media_urls: ['https://images.unsplash.com/photo-1583245177254-75a6269f7cbe?auto=format&fit=crop&w=800&q=80'],
+    data_mode: 'DEMO',
   });
 
   const events = Array.from(memEvents.values());
@@ -1540,7 +1584,7 @@ async function runBengaluruCloudburstDemo() {
   };
 }
 
-async function runDelhiFogDemo() {
+export async function runDelhiFogDemo() {
   await ingestSignal({
     source_type: 'imd',
     source_name: 'IMD National Met Centre',
@@ -1550,6 +1594,7 @@ async function runDelhiFogDemo() {
     latitude: 28.5562,
     longitude: 77.1,
     hashtags: ['#IMD', '#DelhiFog', '#ColdWave'],
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1560,6 +1605,7 @@ async function runDelhiFogDemo() {
     state: 'Delhi',
     latitude: 28.5562,
     longitude: 77.1,
+    data_mode: 'DEMO',
   });
 
   await ingestSignal({
@@ -1570,6 +1616,7 @@ async function runDelhiFogDemo() {
     state: 'Delhi',
     latitude: 28.594,
     longitude: 77.22,
+    data_mode: 'DEMO',
   });
 
   const events = Array.from(memEvents.values());
@@ -1591,17 +1638,16 @@ async function runDelhiFogDemo() {
 // -------------------------------------------------------------
 // SUPABASE AUTH & ROLE-BASED ACCESS CONTROL (RBAC) MIDDLEWARE
 // -------------------------------------------------------------
-const VALID_ROLES = new Set(['VIEWER', 'ANALYST', 'VERIFIER', 'ADMIN']);
+const VALID_ROLES = new Set(Object.values(USER_ROLES));
 
 export async function authenticateRequest(req) {
   const authHeader = req.headers['authorization'] || '';
-  const roleHeader = (req.headers['x-user-role'] || '').toUpperCase();
 
   // 1. Bearer Token Auth (Supabase Auth JWT or Dev/Test Mock Tokens)
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.slice(7).trim();
 
-    // Dev/Test Mock Tokens
+    // Dev/Test Mock Tokens (strictly for test runner and isolated demo verification)
     if (token.startsWith('mock-') || token.startsWith('test-')) {
       let role = 'VIEWER';
       if (token.includes('admin')) role = 'ADMIN';
@@ -1640,28 +1686,27 @@ export async function authenticateRequest(req) {
     }
   }
 
-  // 2. Fallback for testing / dev when explicitly allowed via x-user-role
-  if (roleHeader && (VALID_ROLES.has(roleHeader) || roleHeader === 'METEOROLOGIST')) {
-    const normalizedRole = roleHeader === 'METEOROLOGIST' ? 'ANALYST' : roleHeader;
-    return {
-      authenticated: true,
-      user: { id: `usr_${normalizedRole.toLowerCase()}`, email: `${normalizedRole.toLowerCase()}@imd.gov.in` },
-      role: normalizedRole,
-      source: 'header_role',
-    };
-  }
-
-  return { authenticated: false, error: 'Authentication required. Bearer token missing.', statusCode: 401 };
+  // Reject unauthenticated requests; role headers without valid tokens are strictly ignored
+  return { authenticated: false, error: 'Authentication required. Bearer token missing or invalid.', statusCode: 401 };
 }
 
 export async function requireAuth(req, res, sendJson) {
   const auth = await authenticateRequest(req);
   if (!auth.authenticated) {
-    sendJson(401, {
+    const statusCode = auth.statusCode || 401;
+    const errPayload = {
       success: false,
       error: 'UNAUTHORIZED',
+      code: 'UNAUTHORIZED',
       message: auth.error || 'Authentication required. Please provide a valid Bearer token.',
-    });
+      request_id: `req_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`,
+    };
+    if (typeof sendJson === 'function') {
+      sendJson(statusCode, errPayload);
+    } else if (res && typeof res.writeHead === 'function') {
+      res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(errPayload));
+    }
     return null;
   }
   return auth;
@@ -1670,27 +1715,46 @@ export async function requireAuth(req, res, sendJson) {
 export async function requireRole(req, res, sendJson, allowedRoles) {
   const auth = await authenticateRequest(req);
   if (!auth.authenticated) {
-    sendJson(401, {
+    const statusCode = auth.statusCode || 401;
+    const errPayload = {
       success: false,
       error: 'UNAUTHORIZED',
+      code: 'UNAUTHORIZED',
       message: auth.error || 'Authentication required. Please provide a valid Bearer token.',
-    });
+      request_id: `req_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`,
+    };
+    if (typeof sendJson === 'function') {
+      sendJson(statusCode, errPayload);
+    } else if (res && typeof res.writeHead === 'function') {
+      res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(errPayload));
+    }
     return null;
   }
 
   const role = auth.role;
   if (!allowedRoles.includes(role)) {
-    sendJson(403, {
+    const errPayload = {
       success: false,
       error: 'FORBIDDEN',
+      code: 'FORBIDDEN',
       message: `Forbidden: role '${role}' is not authorized. Required: ${allowedRoles.join(', ')}.`,
       user_role: role,
-    });
+      request_id: `req_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`,
+    };
+    if (typeof sendJson === 'function') {
+      sendJson(403, errPayload);
+    } else if (res && typeof res.writeHead === 'function') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(errPayload));
+    }
     return null;
   }
 
   return auth;
 }
+
+export const requireAnyRole = requireRole;
 
 // -------------------------------------------------------------
 // HTTP ROUTER & SERVER
@@ -2015,7 +2079,15 @@ export async function handleRequest(req, res) {
     const id = eventActionMatch[1];
     const action = eventActionMatch[2];
     const event = memEvents.get(id);
-    if (!event) return sendJson(404, { success: false, message: `Event ${id} not found` });
+    if (!event) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: false,
+        error: 'NOT_FOUND',
+        code: 'NOT_FOUND',
+        message: `Event ${id} not found.`,
+      }));
+    }
 
     // RBAC: verify and reject require VERIFIER or ADMIN
     // status and merge require ANALYST, VERIFIER, or ADMIN
@@ -2028,14 +2100,18 @@ export async function handleRequest(req, res) {
 
     const body = await getBody();
     const userRole = auth.role;
-    const officer = body.officer_name || body.analyst_name || auth.user?.email || (userRole === 'ADMIN' ? 'IMD Chief Forecaster' : 'Duty Meteorologist');
-    const reason = body.reason || `Action ${action} executed by ${officer} (${userRole})`;
+    const actorId = auth.user?.id || `usr_${userRole.toLowerCase()}`;
+    const actorEmail = auth.user?.email || `${userRole.toLowerCase()}@imd.gov.in`;
+    const officer = actorEmail;
+    const reason = body.reason || `Action ${action} executed by ${actorEmail} (${userRole})`;
     const oldStatus = event.status;
     const oldConf = event.confidence_score;
 
     if (action === 'verify') {
       const result = validateAndTransitionStatus(event, 'VERIFIED', reason, officer);
-      if (!result.success) return sendJson(400, { success: false, message: result.error });
+      if (!result.success) {
+        return sendJson(400, { success: false, error: 'BAD_REQUEST', code: 'BAD_REQUEST', message: result.error });
+      }
 
       event.confidence_score = Math.max(0.92, event.confidence_score);
       event.verified_at = new Date().toISOString();
@@ -2047,19 +2123,23 @@ export async function handleRequest(req, res) {
         target_id: id,
         action: 'VERIFY',
         verified_by: userRole,
-        actor_id: officer,
+        actor_id: actorId,
+        actor_email: actorEmail,
+        actor_role: userRole,
         reason,
         previous_status: oldStatus,
         new_status: 'VERIFIED',
         confidence_before: oldConf,
         confidence_after: event.confidence_score,
+        evidence_considered: event.evidence_summary || [],
       });
+      memVerifications.push(vRec);
 
       await db.insertAuditAction({
         admin_user: officer,
         action_type: 'EVENT_VERIFIED',
         target_id: id,
-        details: { reason, previous_status: oldStatus, new_status: 'VERIFIED', confidence: event.confidence_score },
+        details: { reason, previous_status: oldStatus, new_status: 'VERIFIED', confidence: event.confidence_score, actor_id: actorId, actor_role: userRole },
       });
 
       return sendJson(200, {
@@ -2071,8 +2151,10 @@ export async function handleRequest(req, res) {
     }
 
     if (action === 'reject') {
-      const result = validateAndTransitionStatus(event, 'FALSE_ALARM', reason, officer);
-      if (!result.success) return sendJson(400, { success: false, message: result.error });
+      const result = validateAndTransitionStatus(event, 'REJECTED', reason, officer);
+      if (!result.success) {
+        return sendJson(400, { success: false, error: 'BAD_REQUEST', code: 'BAD_REQUEST', message: result.error });
+      }
 
       event.confidence_score = 0.10;
       memEvents.set(id, event);
@@ -2083,24 +2165,28 @@ export async function handleRequest(req, res) {
         target_id: id,
         action: 'REJECT',
         verified_by: userRole,
-        actor_id: officer,
-        reason: reason || 'Classified as FALSE_ALARM by human analyst',
+        actor_id: actorId,
+        actor_email: actorEmail,
+        actor_role: userRole,
+        reason: reason || 'Classified as REJECTED by human verifier',
         previous_status: oldStatus,
-        new_status: 'FALSE_ALARM',
+        new_status: 'REJECTED',
         confidence_before: oldConf,
         confidence_after: 0.10,
+        evidence_considered: event.evidence_summary || [],
       });
+      memVerifications.push(vRec);
 
       await db.insertAuditAction({
         admin_user: officer,
         action_type: 'EVENT_REJECTED',
         target_id: id,
-        details: { reason, previous_status: oldStatus, new_status: 'FALSE_ALARM' },
+        details: { reason, previous_status: oldStatus, new_status: 'REJECTED', actor_id: actorId, actor_role: userRole },
       });
 
       return sendJson(200, {
         success: true,
-        message: `Event ${id} rejected as FALSE_ALARM by ${officer}`,
+        message: `Event ${id} rejected by ${officer}`,
         data: event,
         verification: vRec,
       });
@@ -2109,11 +2195,11 @@ export async function handleRequest(req, res) {
     if (action === 'merge') {
       const sourceId = body.source_event_id || body.merge_with_id;
       if (!sourceId) {
-        return sendJson(400, { success: false, message: 'source_event_id is required for merge operation.' });
+        return sendJson(400, { success: false, error: 'BAD_REQUEST', code: 'BAD_REQUEST', message: 'source_event_id is required for merge operation.' });
       }
       const sourceEvent = memEvents.get(sourceId);
       if (!sourceEvent) {
-        return sendJson(404, { success: false, message: `Source event ${sourceId} to merge from not found.` });
+        return sendJson(404, { success: false, error: 'NOT_FOUND', code: 'NOT_FOUND', message: `Source event ${sourceId} to merge from not found.` });
       }
 
       event.signal_count = (event.signal_count || 1) + (sourceEvent.signal_count || 1);
@@ -2137,7 +2223,7 @@ export async function handleRequest(req, res) {
         admin_user: officer,
         action_type: 'EVENT_MERGED',
         target_id: id,
-        details: { source_event_id: sourceId, new_confidence: event.confidence_score, reason },
+        details: { source_event_id: sourceId, new_confidence: event.confidence_score, reason, actor_id: actorId },
       });
 
       broadcastSSE({ type: 'event_merged', target_event: event, source_event_id: sourceId });
@@ -2152,7 +2238,7 @@ export async function handleRequest(req, res) {
     const targetStatus = body.status || 'VERIFIED';
     const result = validateAndTransitionStatus(event, targetStatus, reason, officer);
     if (!result.success) {
-      return sendJson(400, { success: false, message: result.error });
+      return sendJson(400, { success: false, error: 'BAD_REQUEST', code: 'BAD_REQUEST', message: result.error });
     }
 
     await db.insertEvent(event);
@@ -2160,7 +2246,7 @@ export async function handleRequest(req, res) {
       admin_user: officer,
       action_type: `STATUS_CHANGE_TO_${targetStatus}`,
       target_id: id,
-      details: { reason, previous_status: oldStatus, new_status: targetStatus },
+      details: { reason, previous_status: oldStatus, new_status: targetStatus, actor_id: actorId, actor_role: userRole },
     });
 
     return sendJson(200, {
@@ -2419,11 +2505,36 @@ export async function handleRequest(req, res) {
       return { hour: label, count };
     });
 
-    const uniqueUsersCount = new Set(
-      Array.from(memSignals.values()).map(s => s.author?.id || s.author?.username || s.source_name || s.id)
-    ).size || Math.max(1, Math.round(totalSignals * 0.4));
+    const uniqueUsersSet = new Set();
+    for (const s of memSignals.values()) {
+      const u = s.author?.id || s.author?.username || s.source_name;
+      if (u) uniqueUsersSet.add(u);
+    }
+    for (const l of memLifecycle) {
+      if (l.admin_user) uniqueUsersSet.add(l.admin_user);
+    }
+    for (const v of memVerifications) {
+      if (v.actor_id) uniqueUsersSet.add(v.actor_id);
+      else if (v.actor_email) uniqueUsersSet.add(v.actor_email);
+    }
+    const uniqueUsersCount = uniqueUsersSet.size;
+
     const computedDuplicateRate = totalSignals > 0 ? `${((duplicateSignals / totalSignals) * 100).toFixed(1)}%` : '0.0%';
-    const computedLatencyMs = Math.max(120, Math.min(650, Math.round(180 + (totalSignals % 25) * 8)));
+
+    const latencies = [
+      weatherApiConnector?.telemetry?.latency_ms,
+      openWeatherConnector?.telemetry?.latency_ms,
+      imdAdapter?.telemetry?.latency_ms,
+      newsRssConnector?.telemetry?.latency_ms,
+      socialStreamConnector?.telemetry?.latency_ms,
+    ].filter(l => typeof l === 'number' && l > 0);
+    const computedLatencyMs = latencies.length > 0
+      ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length)
+      : 145;
+
+    const resolvedEvents = Array.from(memEvents.values()).filter(e => e.status === 'RESOLVED').length;
+    const rejectedEvents = Array.from(memEvents.values()).filter(e => e.status === 'REJECTED').length;
+    const falseAlarmEvents = Array.from(memEvents.values()).filter(e => e.status === 'FALSE_ALARM').length;
 
     return sendJson(200, {
       totals: {
@@ -2434,7 +2545,7 @@ export async function handleRequest(req, res) {
         detected: detectedEvents,
         users: uniqueUsersCount,
         evaluations: totalSignals,
-        traces: totalEvents * 3,
+        traces: memLifecycle.length + memVerifications.length,
         duplicates_removed: duplicateSignals,
         suspicious: suspiciousSignals,
       },
@@ -2442,7 +2553,14 @@ export async function handleRequest(req, res) {
       eventsByType: byType,
       eventsByState: byState,
       eventsByHour: hourBuckets,
-      incidentsByStatus: { verified: verifiedEvents, under_review: underReviewEvents, detected: detectedEvents, resolved: 0 },
+      incidentsByStatus: {
+        verified: verifiedEvents,
+        under_review: underReviewEvents,
+        detected: detectedEvents,
+        resolved: resolvedEvents,
+        rejected: rejectedEvents,
+        false_alarm: falseAlarmEvents,
+      },
       last24h: { signals: totalSignals, incidents: totalEvents },
       kpis: {
         falsePositiveRate: totalSignals > 0 ? `${((rejectedSignals / totalSignals) * 100).toFixed(1)}%` : '0%',
@@ -2504,11 +2622,12 @@ export async function handleRequest(req, res) {
         name: 'IMD Official API / National Met Centre',
         type: 'imd',
         reliability: 1.0,
-        mode: imdHealth.mode,
-        status: imdHealth.status,
+        mode: process.env.IMD_API_KEY ? imdHealth.mode : 'NOT_CONFIGURED',
+        status: process.env.IMD_API_KEY ? imdHealth.status : 'NOT_CONFIGURED',
         signals_ingested: (sourceCounts['imd'] || 0) + (imdHealth.recordsAccepted || 0),
         last_ingestion: lastSignalTime['imd'] || imdHealth.lastFetch,
         latency_ms: imdHealth.latencyMs || 0,
+        note: process.env.IMD_API_KEY ? undefined : 'Government API credentials pending authorization; architecture-ready for live push.',
       },
       {
         id: 'src_ndma_01',
@@ -2572,11 +2691,12 @@ export async function handleRequest(req, res) {
         name: 'Social Media Stream (X/Twitter #IMD)',
         type: 'social_media',
         reliability: 0.35,
-        mode: socialHealth.mode,
-        status: socialHealth.status,
+        mode: process.env.TWITTER_BEARER_TOKEN ? socialHealth.mode : 'NOT_CONFIGURED',
+        status: process.env.TWITTER_BEARER_TOKEN ? socialHealth.status : 'NOT_CONFIGURED',
         signals_ingested: (sourceCounts['social_media'] || 0) + (socialHealth.recordsAccepted || 0),
         last_ingestion: lastSignalTime['social_media'] || socialHealth.lastFetch,
         latency_ms: socialHealth.latencyMs || 0,
+        note: process.env.TWITTER_BEARER_TOKEN ? undefined : 'Social stream credentials pending authorization; architecture-ready for live push.',
       },
       {
         id: 'src_citizen_pub_01',
@@ -2623,6 +2743,7 @@ export async function handleRequest(req, res) {
       database: db.isSupabaseConnected ? 'SUPABASE_POSTGRESQL_POSTGIS' : 'ATOMIC_CRASH_RESILIENT_CACHE',
       supabase_connected: db.isSupabaseConnected,
       database_mode: db.mode,
+      last_ingestion_run: lastIngestionRun,
       storage: db.getStorageInfo(),
       redis: redisHealth,
       media_storage: storageHealth,
@@ -2729,8 +2850,8 @@ export async function initializeNweis() {
     }
     console.log(`[DATABASE] Hydrated ${memEvents.size} events, ${memSignals.size} signals from persistent store.`);
 
-    // If database was completely empty, populate initial baseline scenarios
-    if (memEvents.size === 0) {
+    // If database was completely empty, populate initial baseline scenarios (only in non-LIVE mode)
+    if (memEvents.size === 0 && process.env.APP_MODE !== 'LIVE') {
       console.log('[DATABASE] Initializing baseline meteorological scenarios...');
       await runGuwahatiFloodDemo();
       await runDelhiStormDemo();
@@ -2742,38 +2863,90 @@ export async function initializeNweis() {
   }
 }
 
+export let lastIngestionRun = {
+  run_id: `run_${Date.now()}`,
+  started_at: new Date().toISOString(),
+  duration_ms: 0,
+  fetched_count: 0,
+  accepted_count: 0,
+  duplicate_count: 0,
+  error_count: 0,
+  status: 'SUCCESS',
+};
+
 // Periodic Connector Ingestion Cycle (Every 60s, initial run in 5s)
-async function runConnectorPoll() {
+export async function runConnectorPoll() {
+  const runId = `run_${Date.now()}_${crypto.randomBytes(2).toString('hex')}`;
+  const startedAt = new Date().toISOString();
+  const t0 = Date.now();
+  let fetched = 0;
+  let accepted = 0;
+  let duplicates = 0;
+  let errors = 0;
+
+  async function processSignals(signals) {
+    for (const s of (signals || [])) {
+      fetched++;
+      try {
+        const res = await ingestSignal(s);
+        if (res?.isDuplicate) duplicates++;
+        else if (!res?.isMisinformation) accepted++;
+      } catch (err) {
+        errors++;
+      }
+    }
+  }
+
   try {
     const imdSignals = await imdAdapter.fetchSignals();
-    for (const s of imdSignals) await ingestSignal(s);
+    await processSignals(imdSignals);
   } catch (e) {
+    errors++;
     console.warn('[CONNECTOR] IMD poll error:', e.message);
   }
   try {
     const weatherSignals = await weatherApiConnector.fetchSignals(3);
-    for (const s of weatherSignals) await ingestSignal(s);
+    await processSignals(weatherSignals);
   } catch (e) {
+    errors++;
     console.warn('[CONNECTOR] Weather API poll error:', e.message);
   }
   try {
     const owmSignals = await openWeatherConnector.fetchSignals(3);
-    for (const s of owmSignals) await ingestSignal(s);
+    await processSignals(owmSignals);
   } catch (e) {
+    errors++;
     console.warn('[CONNECTOR] OpenWeather poll error:', e.message);
   }
   try {
     const newsSignals = await newsRssConnector.fetchSignals();
-    for (const s of newsSignals) await ingestSignal(s);
+    await processSignals(newsSignals);
   } catch (e) {
+    errors++;
     console.warn('[CONNECTOR] News RSS poll error:', e.message);
   }
   try {
     const socialSignals = await socialStreamConnector.fetchSignals();
-    for (const s of socialSignals) await ingestSignal(s);
+    await processSignals(socialSignals);
   } catch (e) {
+    errors++;
     console.warn('[CONNECTOR] Social stream poll error:', e.message);
   }
+
+  const durationMs = Date.now() - t0;
+  const status = errors === 0 ? 'SUCCESS' : (accepted > 0 ? 'PARTIAL' : 'FAILED');
+
+  lastIngestionRun = {
+    run_id: runId,
+    started_at: startedAt,
+    duration_ms: durationMs,
+    fetched_count: fetched,
+    accepted_count: accepted,
+    duplicate_count: duplicates,
+    error_count: errors,
+    status,
+  };
+  return lastIngestionRun;
 }
 
 const isDirectRun = Boolean(process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]));
