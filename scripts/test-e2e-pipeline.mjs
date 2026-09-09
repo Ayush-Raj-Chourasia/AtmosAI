@@ -13,6 +13,10 @@
  */
 
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
 
 import { db } from '../database/db.mjs';
@@ -22,6 +26,10 @@ import { weatherApiConnector } from '../connectors/weather-api.mjs';
 import { imdAdapter } from '../connectors/imd-adapter.mjs';
 import { socialStreamConnector } from '../connectors/social-stream.mjs';
 import { mediaStorageService } from '../storage/media-storage.mjs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const repoRoot = path.resolve(__dirname, '..');
 
 function banner(title) {
   console.log('\n' + '='.repeat(70));
@@ -237,6 +245,42 @@ async function run() {
 
   banner('PIPELINE VERIFICATION COMPLETE: ALL 7 STAGES PASSED (100%)');
   console.log(' System is operational, truth-aligned, and ready for SIH26069 demonstration.\n');
+
+  // Emit Machine-Verifiable E2E Pipeline Artifact
+  const verificationArtifactDir = path.join(repoRoot, 'artifacts', 'verification');
+  fs.mkdirSync(verificationArtifactDir, { recursive: true });
+
+  let gitCommit = 'unknown';
+  let gitBranch = 'master';
+  try {
+    gitCommit = execSync('git rev-parse HEAD', { cwd: repoRoot, encoding: 'utf8' }).trim();
+    gitBranch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoRoot, encoding: 'utf8' }).trim();
+  } catch {}
+
+  const pipelineArtifact = {
+    verification_title: 'WeatherNexus Deterministic End-to-End Pipeline Verification',
+    sih_problem_statement: 'SIH26069: National Weather Big Data Analytics Platform',
+    generated_at: new Date().toISOString(),
+    git: { commit: gitCommit, branch: gitBranch },
+    environment: { node: process.version, platform: process.platform, arch: process.arch },
+    stages_verified: [
+      { stage: 1, name: 'Multi-Source Meteorological Ingestion', status: 'PASS' },
+      { stage: 2, name: 'Canonical Normalization & Geolocation Integrity', status: 'PASS' },
+      { stage: 3, name: 'Gemini AI Reasoning & Entity Extraction', status: 'PASS' },
+      { stage: 4, name: '5-Layer Deduplication Engine', status: 'PASS' },
+      { stage: 5, name: '7-Factor Evidence Fusion Engine', status: 'PASS' },
+      { stage: 6, name: 'Authoritative Storage & PostGIS Proximity Search', status: 'PASS' },
+      { stage: 7, name: 'Duty Forecaster Sign-Off & OASIS CAP 1.2 XML Generation', status: 'PASS' },
+    ],
+    composite_confidence: compositeConfidence,
+    postgis_nearby_matches: nearby.length,
+    overall_status: 'PASSED',
+    exit_code: 0,
+  };
+
+  const artifactPath = path.join(verificationArtifactDir, 'e2e-pipeline-results.json');
+  fs.writeFileSync(artifactPath, JSON.stringify(pipelineArtifact, null, 2), 'utf8');
+  console.log(`[ARTIFACT] Machine-verifiable E2E pipeline artifact saved to: ${artifactPath}\n`);
 }
 
 run().catch((err) => {

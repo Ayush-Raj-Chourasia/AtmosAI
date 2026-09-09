@@ -20,6 +20,7 @@ export class GeminiService {
     this.fallbackModel = 'gemini-2.5-flash';
     this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
     this.isConfigured = Boolean(this.apiKey && this.apiKey.trim().length > 0);
+    this.rateLimitedUntil = 0;
   }
 
   healthCheck() {
@@ -45,7 +46,7 @@ export class GeminiService {
    * Classify text and extract structured meteorological entities.
    */
   async classifyWeatherText(text) {
-    if (!this.isConfigured) {
+    if (!this.isConfigured || Date.now() < this.rateLimitedUntil) {
       return this.heuristicTextClassification(text);
     }
 
@@ -92,6 +93,9 @@ Report Text: "${text.replace(/"/g, '\\"')}"`;
         timestamp: new Date().toISOString(),
       };
     } catch (err) {
+      if (err.message && (err.message.includes('429') || err.message.includes('Too Many Requests'))) {
+        this.rateLimitedUntil = Date.now() + 60000;
+      }
       console.warn(`[GeminiService] Text classification fallback (${err.message}).`);
       return this.heuristicTextClassification(text);
     }
@@ -101,7 +105,7 @@ Report Text: "${text.replace(/"/g, '\\"')}"`;
    * Multimodal Image Understanding & Visual Disaster Verification
    */
   async analyzeDisasterImage({ base64Image, mimeType, claimText }) {
-    if (!this.isConfigured || !base64Image) {
+    if (!this.isConfigured || !base64Image || Date.now() < this.rateLimitedUntil) {
       return {
         model: 'LOCAL_RULE_ENGINE',
         model_version: 'v1.0 (GEMINI_API_KEY_UNCONFIGURED)',
@@ -174,6 +178,9 @@ Return a STRICT JSON object:
         timestamp: new Date().toISOString(),
       };
     } catch (err) {
+      if (err.message && (err.message.includes('429') || err.message.includes('Too Many Requests'))) {
+        this.rateLimitedUntil = Date.now() + 60000;
+      }
       console.warn(`[GeminiService] Vision analysis fallback: ${err.message}`);
       return {
         model: 'LOCAL_RULE_ENGINE',

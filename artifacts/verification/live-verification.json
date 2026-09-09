@@ -1,0 +1,234 @@
+{
+  "verification_title": "WeatherNexus / AtmosAI Live Meteorological Verification Suite",
+  "sih_problem_statement": "SIH26069: National Weather Big Data Analytics Platform",
+  "generated_at": "2026-09-09T20:37:37.901Z",
+  "git": {
+    "commit": "029c4c283abdb658d1119a8863dd921140bbdc90",
+    "branch": "master"
+  },
+  "environment": {
+    "node": "v22.5.1",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "openweather_provider": {
+    "configured": true,
+    "active_api_tier": "ONECALL_4.0",
+    "daily_quota_limit": 1000,
+    "api_calls_today": 18,
+    "usage_limit_approaching": false,
+    "monitoring_stations_count": 12,
+    "onecall_subscription_active": true
+  },
+  "monitoring_stations": [
+    {
+      "city": "Guwahati",
+      "state": "Assam",
+      "latitude": 26.1445,
+      "longitude": 91.7362
+    },
+    {
+      "city": "New Delhi",
+      "state": "Delhi",
+      "latitude": 28.6139,
+      "longitude": 77.209
+    },
+    {
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "latitude": 19.076,
+      "longitude": 72.8777
+    },
+    {
+      "city": "Kolkata",
+      "state": "West Bengal",
+      "latitude": 22.5726,
+      "longitude": 88.3639
+    },
+    {
+      "city": "Chennai",
+      "state": "Tamil Nadu",
+      "latitude": 13.0827,
+      "longitude": 80.2707
+    },
+    {
+      "city": "Bengaluru",
+      "state": "Karnataka",
+      "latitude": 12.9716,
+      "longitude": 77.5946
+    },
+    {
+      "city": "Hyderabad",
+      "state": "Telangana",
+      "latitude": 17.385,
+      "longitude": 78.4867
+    },
+    {
+      "city": "Ahmedabad",
+      "state": "Gujarat",
+      "latitude": 23.0225,
+      "longitude": 72.5714
+    },
+    {
+      "city": "Bhubaneswar",
+      "state": "Odisha",
+      "latitude": 20.2961,
+      "longitude": 85.8245
+    },
+    {
+      "city": "Patna",
+      "state": "Bihar",
+      "latitude": 25.5941,
+      "longitude": 85.1376
+    },
+    {
+      "city": "Jaipur",
+      "state": "Rajasthan",
+      "latitude": 26.9124,
+      "longitude": 75.7873
+    },
+    {
+      "city": "Lucknow",
+      "state": "Uttar Pradesh",
+      "latitude": 26.8467,
+      "longitude": 80.9462
+    }
+  ],
+  "sampled_live_observations": [
+    {
+      "city": "Guwahati",
+      "state": "Assam",
+      "latitude": 26.1445,
+      "longitude": 91.7362,
+      "temperature_c": 27,
+      "humidity_pct": 100,
+      "pressure_hpa": 1006,
+      "wind_speed_kmh": 0,
+      "weather_condition": "Clouds",
+      "weather_description": "overcast clouds",
+      "provider_timestamp": "2026-09-09T20:37:24.000Z",
+      "data_mode": "LIVE"
+    },
+    {
+      "city": "New Delhi",
+      "state": "Delhi",
+      "latitude": 28.6139,
+      "longitude": 77.209,
+      "temperature_c": 30.07,
+      "humidity_pct": 70,
+      "pressure_hpa": 1005,
+      "wind_speed_kmh": 9.251999999999999,
+      "weather_condition": "Clouds",
+      "weather_description": "scattered clouds",
+      "provider_timestamp": "2026-09-09T20:37:24.000Z",
+      "data_mode": "LIVE"
+    },
+    {
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "latitude": 19.076,
+      "longitude": 72.8777,
+      "temperature_c": 29,
+      "humidity_pct": 74,
+      "pressure_hpa": 1010,
+      "wind_speed_kmh": 11.124,
+      "weather_condition": "Clouds",
+      "weather_description": "overcast clouds",
+      "provider_timestamp": "2026-09-09T20:37:24.000Z",
+      "data_mode": "LIVE"
+    }
+  ],
+  "gates": [
+    {
+      "gate": 1,
+      "name": "OpenWeather API connectivity verified with genuine key",
+      "status": "PASS",
+      "duration_ms": 129
+    },
+    {
+      "gate": 2,
+      "name": "Real meteorological observation fetched across Indian stations",
+      "status": "PASS",
+      "duration_ms": 449
+    },
+    {
+      "gate": 3,
+      "name": "Signal normalization preserves genuine provider timestamp (dt)",
+      "status": "PASS",
+      "duration_ms": 0
+    },
+    {
+      "gate": 4,
+      "name": "Database persistence of raw observations verified (weather_observations)",
+      "status": "PASS",
+      "duration_ms": 1
+    },
+    {
+      "gate": 5,
+      "name": "Event derivation transparency verified (classification_type & confidence_reason)",
+      "status": "PASS",
+      "duration_ms": 1022
+    },
+    {
+      "gate": 6,
+      "name": "PostGIS spatial query and nearby radius retrieval verified",
+      "status": "PASS",
+      "duration_ms": 2
+    },
+    {
+      "gate": 7,
+      "name": "Real-time deduplication prevents duplicate signal for identical station + timestamp",
+      "status": "PASS",
+      "duration_ms": 313
+    },
+    {
+      "gate": 8,
+      "name": "Meteorological safety invariants verified (RAIN != FLOOD & Wind != CYCLONE)",
+      "status": "PASS",
+      "duration_ms": 741
+    },
+    {
+      "gate": 9,
+      "name": "Strict mode isolation verified: zero demo/seeded records in LIVE queries",
+      "status": "PASS",
+      "duration_ms": 17
+    },
+    {
+      "gate": 10,
+      "name": "Quota tracking verified: 5 calls logged today (Limit: 1,000)",
+      "status": "PASS",
+      "duration_ms": 42
+    },
+    {
+      "gate": 11,
+      "name": "HTTP endpoints verified: /live/weather, /live/status, /live/poll",
+      "status": "PASS",
+      "duration_ms": 12218
+    },
+    {
+      "gate": 12,
+      "name": "Secret hygiene verified: OPENWEATHER_API_KEY is never exposed",
+      "status": "PASS",
+      "duration_ms": 0
+    }
+  ],
+  "invariants": {
+    "rain_not_flood": "PASS",
+    "wind_not_cyclone": "PASS",
+    "strict_live_mode": "PASS",
+    "provider_timestamp_dt_preserved": "PASS",
+    "postgis_bounds_validated": "PASS"
+  },
+  "secret_hygiene": {
+    "key_present_in_output": false,
+    "key_redacted_in_urls": true,
+    "verified": true
+  },
+  "summary": {
+    "total_gates": 12,
+    "passed_gates": 12,
+    "failed_gates": 0,
+    "pass_rate_pct": 100,
+    "overall_status": "PASSED"
+  }
+}

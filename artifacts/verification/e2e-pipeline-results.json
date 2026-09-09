@@ -1,0 +1,55 @@
+{
+  "verification_title": "WeatherNexus Deterministic End-to-End Pipeline Verification",
+  "sih_problem_statement": "SIH26069: National Weather Big Data Analytics Platform",
+  "generated_at": "2026-09-09T20:38:45.681Z",
+  "git": {
+    "commit": "029c4c283abdb658d1119a8863dd921140bbdc90",
+    "branch": "master"
+  },
+  "environment": {
+    "node": "v22.5.1",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "stages_verified": [
+    {
+      "stage": 1,
+      "name": "Multi-Source Meteorological Ingestion",
+      "status": "PASS"
+    },
+    {
+      "stage": 2,
+      "name": "Canonical Normalization & Geolocation Integrity",
+      "status": "PASS"
+    },
+    {
+      "stage": 3,
+      "name": "Gemini AI Reasoning & Entity Extraction",
+      "status": "PASS"
+    },
+    {
+      "stage": 4,
+      "name": "5-Layer Deduplication Engine",
+      "status": "PASS"
+    },
+    {
+      "stage": 5,
+      "name": "7-Factor Evidence Fusion Engine",
+      "status": "PASS"
+    },
+    {
+      "stage": 6,
+      "name": "Authoritative Storage & PostGIS Proximity Search",
+      "status": "PASS"
+    },
+    {
+      "stage": 7,
+      "name": "Duty Forecaster Sign-Off & OASIS CAP 1.2 XML Generation",
+      "status": "PASS"
+    }
+  ],
+  "composite_confidence": 0.97,
+  "postgis_nearby_matches": 43,
+  "overall_status": "PASSED",
+  "exit_code": 0
+}
