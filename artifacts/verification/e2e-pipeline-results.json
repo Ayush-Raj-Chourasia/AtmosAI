@@ -1,9 +1,9 @@
 {
   "verification_title": "WeatherNexus Deterministic End-to-End Pipeline Verification",
   "sih_problem_statement": "SIH26069: National Weather Big Data Analytics Platform",
-  "generated_at": "2026-09-09T20:38:45.681Z",
+  "generated_at": "2026-09-09T20:42:13.965Z",
   "git": {
-    "commit": "029c4c283abdb658d1119a8863dd921140bbdc90",
+    "commit": "a78c83fa8ac22986d6d8ab02590719049e2eec1e",
     "branch": "master"
   },
   "environment": {
@@ -49,7 +49,7 @@
     }
   ],
   "composite_confidence": 0.97,
-  "postgis_nearby_matches": 43,
+  "postgis_nearby_matches": 49,
   "overall_status": "PASSED",
   "exit_code": 0
 }

@@ -1,9 +1,9 @@
 {
   "verification_title": "WeatherNexus / AtmosAI Live Meteorological Verification Suite",
   "sih_problem_statement": "SIH26069: National Weather Big Data Analytics Platform",
-  "generated_at": "2026-09-09T20:37:37.901Z",
+  "generated_at": "2026-09-09T20:41:24.329Z",
   "git": {
-    "commit": "029c4c283abdb658d1119a8863dd921140bbdc90",
+    "commit": "a78c83fa8ac22986d6d8ab02590719049e2eec1e",
     "branch": "master"
   },
   "environment": {
@@ -106,7 +106,7 @@
       "wind_speed_kmh": 0,
       "weather_condition": "Clouds",
       "weather_description": "overcast clouds",
-      "provider_timestamp": "2026-09-09T20:37:24.000Z",
+      "provider_timestamp": "2026-09-09T20:41:08.000Z",
       "data_mode": "LIVE"
     },
     {
@@ -120,7 +120,7 @@
       "wind_speed_kmh": 9.251999999999999,
       "weather_condition": "Clouds",
       "weather_description": "scattered clouds",
-      "provider_timestamp": "2026-09-09T20:37:24.000Z",
+      "provider_timestamp": "2026-09-09T20:41:08.000Z",
       "data_mode": "LIVE"
     },
     {
@@ -134,7 +134,7 @@
       "wind_speed_kmh": 11.124,
       "weather_condition": "Clouds",
       "weather_description": "overcast clouds",
-      "provider_timestamp": "2026-09-09T20:37:24.000Z",
+      "provider_timestamp": "2026-09-09T20:41:08.000Z",
       "data_mode": "LIVE"
     }
   ],
@@ -143,13 +143,13 @@
       "gate": 1,
       "name": "OpenWeather API connectivity verified with genuine key",
       "status": "PASS",
-      "duration_ms": 129
+      "duration_ms": 158
     },
     {
       "gate": 2,
       "name": "Real meteorological observation fetched across Indian stations",
       "status": "PASS",
-      "duration_ms": 449
+      "duration_ms": 447
     },
     {
       "gate": 3,
@@ -167,7 +167,7 @@
       "gate": 5,
       "name": "Event derivation transparency verified (classification_type & confidence_reason)",
       "status": "PASS",
-      "duration_ms": 1022
+      "duration_ms": 1027
     },
     {
       "gate": 6,
@@ -179,31 +179,31 @@
       "gate": 7,
       "name": "Real-time deduplication prevents duplicate signal for identical station + timestamp",
       "status": "PASS",
-      "duration_ms": 313
+      "duration_ms": 312
     },
     {
       "gate": 8,
       "name": "Meteorological safety invariants verified (RAIN != FLOOD & Wind != CYCLONE)",
       "status": "PASS",
-      "duration_ms": 741
+      "duration_ms": 818
     },
     {
       "gate": 9,
       "name": "Strict mode isolation verified: zero demo/seeded records in LIVE queries",
       "status": "PASS",
-      "duration_ms": 17
+      "duration_ms": 7
     },
     {
       "gate": 10,
       "name": "Quota tracking verified: 5 calls logged today (Limit: 1,000)",
       "status": "PASS",
-      "duration_ms": 42
+      "duration_ms": 37
     },
     {
       "gate": 11,
       "name": "HTTP endpoints verified: /live/weather, /live/status, /live/poll",
       "status": "PASS",
-      "duration_ms": 12218
+      "duration_ms": 14382
     },
     {
       "gate": 12,
