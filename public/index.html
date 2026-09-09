@@ -229,48 +229,7 @@
     </div>
   </div>
 
-  <!-- 1-CLICK DEMO SCENARIO QUICK-BAR (SECTION 38 JUDGE STORY) -->
-  <div class="h-11 bg-slate-950/80 border-b border-slate-800/80 flex items-center justify-between px-6 shrink-0 z-20 overflow-x-auto text-xs">
-    <div class="flex items-center space-x-2 shrink-0">
-      <span class="text-[11px] font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-        <span>Judge Demo Scenarios:</span>
-      </span>
-      <button onclick="runScenario('national-overview')" id="btn-all-india" class="px-2.5 py-1 rounded bg-gradient-to-r from-cyan-900 to-blue-900 hover:from-cyan-800 hover:to-blue-800 border border-cyan-500/60 text-white font-semibold transition flex items-center gap-1.5 shadow-lg shadow-cyan-900/40">
-        <span>🇮🇳 All India (7 Regions)</span>
-        <span class="text-[10px] bg-cyan-500/30 px-1 py-0.2 rounded font-mono text-cyan-200">Full Map</span>
-      </button>
-      <button onclick="runScenario('flood-guwahati')" id="btn-guwahati" class="px-2.5 py-1 rounded bg-blue-950/80 hover:bg-blue-900 border border-blue-700/60 text-blue-200 font-medium transition flex items-center gap-1.5">
-        <span>🌊 Guwahati Flood (94% Confirmed)</span>
-        <span class="text-[10px] bg-blue-600/50 px-1 py-0.2 rounded font-mono text-cyan-200">Scene 1-7</span>
-      </button>
-      <button onclick="runScenario('thunderstorm-delhi')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-medium transition">
-        ⛈️ Delhi NCR Squall (89%)
-      </button>
-      <button onclick="runScenario('mumbai-rainfall')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-medium transition">
-        🌧️ Mumbai Coastal Downpour
-      </button>
-      <button onclick="runScenario('heatwave-rajasthan')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-medium transition">
-        🔥 Rajasthan Heatwave (47.4°C)
-      </button>
-      <button onclick="runScenario('cyclone-kolkata')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-medium transition">
-        🌀 Kolkata Cyclone Remal
-      </button>
-      <button onclick="runScenario('cloudburst-bengaluru')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-medium transition">
-        ⛈️ Bengaluru Cloudburst
-      </button>
-      <button onclick="runScenario('fog-delhi')" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 font-medium transition">
-        🌫️ Delhi Dense Fog
-      </button>
-      <button onclick="simulateTime(2)" id="btn-decay" class="px-2.5 py-1 rounded bg-amber-950/80 hover:bg-amber-900 border border-amber-700/60 text-amber-200 font-medium transition flex items-center gap-1.5" title="Simulate 2 hours passing without new evidence per CONFIDENCE_DECAY.md">
-        <span>⏩ Simulate 2h Decay</span>
-        <span class="text-[10px] bg-amber-600/50 px-1 py-0.2 rounded font-mono text-amber-200">Decay Engine</span>
-      </button>
-    </div>
-    <div class="text-[11px] text-slate-400 font-mono hidden xl:block">
-      Multi-Source Fusion • SEDOM-DD Clustering • Skeptic Misinfo Filter
-    </div>
-  </div>
+
 
   <!-- MAIN OPERATIONAL WORKSPACE -->
   <div class="flex-1 flex overflow-hidden relative">

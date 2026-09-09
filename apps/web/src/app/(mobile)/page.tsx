@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import GoogleIcon from '@/components/ui/GoogleIcon';
 import WeatherFilterBar from '@/components/dashboard/WeatherFilterBar';
-import DemoScenarioBar from '@/components/dashboard/DemoScenarioBar';
 import EventIntelligenceDrawer, { WeatherEventDetail } from '@/components/dashboard/EventIntelligenceDrawer';
 import CitizenReportModal from '@/components/modals/CitizenReportModal';
 import { useIncidentDataStream } from '@/hooks/useIncidentDataStream';
@@ -112,9 +111,6 @@ export default function DashboardPage() {
 
       {/* Main Operations Body */}
       <main className="flex-1 p-4 sm:p-6 space-y-4 max-w-7xl w-full mx-auto">
-        {/* Judge Demo Control Panel */}
-        <DemoScenarioBar onScenarioTriggered={fetchEvents} />
-
         {/* Filter Controls */}
         <WeatherFilterBar
           selectedCategory={selectedCategory}
