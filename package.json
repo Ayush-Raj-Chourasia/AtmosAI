@@ -3,11 +3,9 @@
   "version": "1.0.0",
   "description": "WeatherNexus — National Weather Big Data Analytics Platform (SIH26069)",
   "packageManager": "npm@10.8.2",
-  "devEngines": {
-    "packageManager": {
-      "name": "npm",
-      "version": "10.8.2"
-    }
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
   },
   "private": true,
   "bin": {
