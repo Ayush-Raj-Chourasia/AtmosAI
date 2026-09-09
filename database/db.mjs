@@ -185,7 +185,11 @@ class DatabaseEngine {
       if (fs.existsSync(targetPath)) {
         const raw = fs.readFileSync(targetPath, 'utf8');
         const data = JSON.parse(raw);
-        if (data.sources) this.tables.sources = new Map(Object.entries(data.sources));
+        if (data.sources && Object.keys(data.sources).length > 0) {
+          this.tables.sources = new Map(Object.entries(data.sources));
+        } else {
+          this.seedDefaults();
+        }
         if (data.signals) this.tables.signals = new Map(Object.entries(data.signals).map(([k, v]) => [k, { ...v, data_mode: v.data_mode || 'DEMO' }]));
         if (data.weather_events) {
           this.tables.weather_events = new Map(

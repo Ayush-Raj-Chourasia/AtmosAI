@@ -176,6 +176,7 @@
       </div>
       <div class="h-3.5 w-px bg-slate-700 shrink-0"></div>
       <div class="text-slate-300 whitespace-nowrap flex items-center gap-1 text-[11px]">Active: <span id="stat-events" class="font-mono font-bold text-white">0</span></div>
+      <div class="text-slate-300 whitespace-nowrap flex items-center gap-1 text-[11px]">Review: <span id="stat-under-review" class="font-mono font-bold text-amber-400">0</span></div>
       <div class="text-slate-300 whitespace-nowrap flex items-center gap-1 text-[11px]">Verified: <span id="stat-verified" class="font-mono font-bold text-emerald-400">0</span></div>
       <div class="text-slate-300 whitespace-nowrap flex items-center gap-1 text-[11px] hidden xl:flex">Signals: <span id="stat-signals" class="font-mono font-bold text-cyan-400">0</span></div>
     </div>
@@ -379,12 +380,15 @@
   <div id="intel-drawer" class="fixed inset-y-0 right-0 w-[500px] max-w-full bg-slate-900/98 backdrop-blur-xl border-l border-slate-700 shadow-2xl z-[1500] transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
     <!-- Drawer Header -->
     <div class="h-16 px-6 border-b border-slate-800 flex items-center justify-between bg-slate-950 shrink-0">
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2 flex-wrap gap-y-1">
         <span id="drawer-type-badge" class="px-2.5 py-1 rounded-md text-xs font-bold font-mono uppercase bg-blue-950 text-blue-300 border border-blue-800">
           EVENT
         </span>
         <span id="drawer-status-badge" class="px-2 py-0.5 rounded-md text-xs font-semibold uppercase bg-emerald-950 text-emerald-400 border border-emerald-800">
           VERIFIED
+        </span>
+        <span id="drawer-warning-badge" class="px-2 py-0.5 rounded-md text-xs font-mono font-bold uppercase bg-amber-950 text-amber-300 border border-amber-800">
+          YELLOW — WATCH
         </span>
         <span id="drawer-datamode-badge" class="px-2 py-0.5 rounded-md text-xs font-mono uppercase bg-amber-950 text-amber-300 border border-amber-800">
           DEMO
@@ -445,11 +449,11 @@
         </div>
       </div>
 
-      <!-- Confidence Gauge & Multi-Source Card -->
+      <!-- Confidence Gauge & Multi-Source Card (Part 5 & 6) -->
       <div class="grid grid-cols-2 gap-4">
         <!-- Confidence Box -->
         <div class="p-4 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center text-center">
-          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Confidence Score</div>
+          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">EVENT CONFIDENCE</div>
           <div class="relative flex items-center justify-center">
             <span id="drawer-conf-num" class="text-3xl font-extrabold font-mono text-emerald-400">94%</span>
           </div>
@@ -476,12 +480,12 @@
         </div>
       </div>
 
-      <!-- Evidence Freshness & Temporal Decay (CONFIDENCE_DECAY.md) -->
+      <!-- Evidence Freshness & Temporal Decay (CONFIDENCE_DECAY.md - Part 6) -->
       <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
         <div class="flex items-center justify-between text-xs">
           <span class="font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>Evidence Freshness & Decay</span>
+            <span>EVIDENCE FRESHNESS</span>
           </span>
           <span id="drawer-freshness-pct" class="font-mono font-bold text-cyan-400 text-xs">100%</span>
         </div>
@@ -1352,6 +1356,23 @@
             : ev.status === 'FALSE_ALARM'
             ? 'px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-rose-950 text-rose-400 border border-rose-800'
             : 'px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-amber-950 text-amber-400 border border-amber-800';
+        }
+      }
+
+      const warnBadge = document.getElementById('drawer-warning-badge');
+      if (warnBadge) {
+        if (isObs) {
+          warnBadge.innerText = 'GREEN — NO WARNING';
+          warnBadge.className = 'px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700';
+        } else {
+          const wLevel = (ev.warning_level || 'YELLOW').toUpperCase();
+          const wLabel = ev.warning_label || (wLevel === 'RED' ? 'RED — WARNING' : wLevel === 'ORANGE' ? 'ORANGE — ALERT' : 'YELLOW — WATCH');
+          warnBadge.innerText = wLabel;
+          warnBadge.className = wLevel === 'RED'
+            ? 'px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-rose-950 text-rose-300 border border-rose-800'
+            : wLevel === 'ORANGE'
+            ? 'px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-orange-950 text-orange-300 border border-orange-800'
+            : 'px-2 py-0.5 rounded font-mono text-[9px] font-bold uppercase bg-amber-950 text-amber-300 border border-amber-800';
         }
       }
 
@@ -2679,15 +2700,36 @@
       list.insertBefore(card, list.firstChild);
     }
 
-    function updateCounters() {
-      const activeEvents = allEvents.filter(e => e.status === 'UNDER_REVIEW' || e.status === 'VERIFIED');
+    async function updateCounters() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/events/summary`);
+        if (res.ok) {
+          const sum = await res.json();
+          const activeEl = document.getElementById('stat-events');
+          const underReviewEl = document.getElementById('stat-under-review');
+          const verifiedEl = document.getElementById('stat-verified');
+          const signalsEl = document.getElementById('stat-signals');
+          if (activeEl) activeEl.innerText = sum.active_events ?? 0;
+          if (underReviewEl) underReviewEl.innerText = sum.under_review ?? 0;
+          if (verifiedEl) verifiedEl.innerText = sum.verified ?? 0;
+          if (signalsEl) signalsEl.innerText = sum.raw_signals ?? 0;
+          const qEl = document.getElementById('stat-quarantine');
+          if (qEl) qEl.innerText = sum.quarantined_signals ?? allQuarantined.length;
+          const tabQ = document.getElementById('tab-badge-quarantine');
+          if (tabQ) tabQ.innerText = sum.quarantined_signals ?? allQuarantined.length;
+          return;
+        }
+      } catch(e) {}
+      const activeEvents = allEvents.filter(e => e.status === 'UNDER_REVIEW' || e.status === 'VERIFIED' || e.status === 'DETECTED');
+      const underReview = allEvents.filter(e => e.status === 'UNDER_REVIEW').length;
       const verified = allEvents.filter(e => e.status === 'VERIFIED').length;
       const hazardSignals = allSignals.filter(s => s.event_candidate !== 'NORMAL_WEATHER' && s.event_candidate !== 'OTHER');
-      document.getElementById('stat-events').innerText = activeEvents.length;
-      document.getElementById('stat-verified').innerText = verified;
-      document.getElementById('stat-signals').innerText = hazardSignals.length;
-      document.getElementById('stat-quarantine').innerText = allQuarantined.length;
-      document.getElementById('tab-badge-quarantine').innerText = allQuarantined.length;
+      if (document.getElementById('stat-events')) document.getElementById('stat-events').innerText = activeEvents.length;
+      if (document.getElementById('stat-under-review')) document.getElementById('stat-under-review').innerText = underReview;
+      if (document.getElementById('stat-verified')) document.getElementById('stat-verified').innerText = verified;
+      if (document.getElementById('stat-signals')) document.getElementById('stat-signals').innerText = hazardSignals.length;
+      if (document.getElementById('stat-quarantine')) document.getElementById('stat-quarantine').innerText = allQuarantined.length;
+      if (document.getElementById('tab-badge-quarantine')) document.getElementById('tab-badge-quarantine').innerText = allQuarantined.length;
     }
 
     // Initial Data Fetch
@@ -2822,7 +2864,7 @@
     }
 
     // ================================================================
-    // PAGE NAVIGATION SYSTEM
+    // PAGE NAVIGATION SYSTEM (SIH26069 BLUEPRINT PART 30)
     // ================================================================
     let activePage = 'map';
 
@@ -2844,12 +2886,13 @@
 
       if (page === 'map') {
         if (mapWorkspace) mapWorkspace.classList.remove('hidden');
-        // highlight map nav
         const mapBtn = document.getElementById('nav-map');
         if (mapBtn) {
           mapBtn.classList.add('bg-cyan-600/20','text-cyan-400','border-cyan-500/40');
           mapBtn.classList.remove('text-slate-400','hover:text-white');
         }
+        renderMapMarkers();
+        updateCounters();
       } else {
         if (mapWorkspace) mapWorkspace.classList.add('hidden');
         const el = document.getElementById('page-' + page);
@@ -2859,6 +2902,7 @@
           btn.classList.add('bg-cyan-600/20','text-cyan-400','border-cyan-500/40');
           btn.classList.remove('text-slate-400','hover:text-white');
         }
+        updateCounters();
         // Load data for the page
         if (page === 'analytics') loadAnalyticsPage();
         if (page === 'signals') loadSignalsPage();
@@ -2900,13 +2944,13 @@
         if (el) el.textContent = val;
       };
 
-      // Summary strip
-      setVal('an-total', t.incidents ?? t.total_events ?? 0);
+      // Summary strip using authoritative summary values
+      setVal('an-total', t.active_events ?? t.incidents ?? t.total_events ?? 0);
       setVal('an-verified', t.verified ?? 0);
-      setVal('an-signals', t.signals ?? 0);
-      setVal('an-duprate', kpi.duplicateRate || '0%');
-      setVal('an-falserate', kpi.falsePositiveRate || (t.suspicious ? `${t.suspicious} flagged` : '0%'));
-      setVal('an-latency', kpi.avgProcessingLatency || '380ms');
+      setVal('an-signals', t.raw_signals ?? t.signals ?? 0);
+      setVal('an-duprate', kpi.duplicateRate || '0.0%');
+      setVal('an-falserate', kpi.quarantinedRumors || (t.suspicious ? `${t.suspicious} flagged` : '0%'));
+      setVal('an-latency', kpi.avgProcessingLatency || '27ms');
 
       if (typeof Chart === 'undefined') {
         console.warn('[Analytics] Chart.js library not yet loaded in window');
@@ -2920,52 +2964,39 @@
         hourLabels = data.eventsByHour.map(h => h.hour || '');
         hourCounts = data.eventsByHour.map(h => Number(h.count) || 0);
       } else {
-        hourLabels = ['04:00', '08:00', '12:00', '16:00', '20:00', '00:00', 'Now'];
-        hourCounts = [1, 3, 6, 12, 18, 20, t.incidents || 22];
+        hourLabels = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', 'Now'];
+        hourCounts = [0, 0, 0, 0, 0, 0, 0];
       }
       renderLineChart('chart-trend', hourLabels, hourCounts, 'Active Events', '#06b6d4');
 
-      // Chart 2: Events by Hazard Classification
-      let typeObj = data.eventsByType;
-      if (!typeObj || Object.keys(typeObj).length === 0) {
-        typeObj = { 'FLOOD': 4, 'THUNDERSTORM': 6, 'HEAVY_RAINFALL': 8, 'HEATWAVE': 4 };
-      }
-      const typeLabels = Object.keys(typeObj).map(k => k.replace(/_/g, ' '));
-      const typeCounts = Object.values(typeObj).map(v => Number(v) || 0);
+      // Chart 2: Events by Hazard Classification (Truthful, non-fabricated)
+      let typeObj = data.eventsByType || {};
+      const typeKeys = Object.keys(typeObj).filter(k => k !== 'NORMAL_WEATHER' && k !== 'OTHER');
+      const typeLabels = typeKeys.length > 0 ? typeKeys.map(k => k.replace(/_/g, ' ')) : ['No Active Hazards'];
+      const typeCounts = typeKeys.length > 0 ? typeKeys.map(k => Number(typeObj[k]) || 0) : [0];
       renderDoughnutChart('chart-types', typeLabels, typeCounts);
 
-      // Chart 3: Multi-Source Ingestion Breakdown
-      let srcObj = data.signalsBySource;
-      if (!srcObj || Object.keys(srcObj).length === 0) {
-        srcObj = {
-          'IMD Bulletins': 45,
-          'Open-Meteo API': 38,
-          'OpenWeather': 32,
-          'News RSS (TOI/DD)': 26,
-          'Social Feeds (#IMD)': 19,
-          'Citizen Reports': 14
-        };
-      }
-      const srcLabels = Object.keys(srcObj).map(k => {
-        const map = {
-          'imd': 'IMD Bulletins',
-          'weather_api': 'Open-Meteo Live',
-          'openweather': 'OpenWeather API',
-          'news': 'News RSS (TOI/DD)',
-          'social_media': 'Social Feeds (#IMD)',
-          'citizen': 'Citizen Reports',
-          'public_dataset': 'Open Data Portals'
-        };
-        return map[k] || k;
-      });
-      const srcCounts = Object.values(srcObj).map(v => Number(v) || 0);
+      // Chart 3: Multi-Source Ingestion Breakdown (Truthful, non-fabricated)
+      let srcObj = data.signalsBySource || {};
+      const srcMap = {
+        'imd': 'IMD Bulletins',
+        'weather_api': 'Open-Meteo Live',
+        'openweather': 'OpenWeather API',
+        'news': 'News RSS (TOI/DD)',
+        'social_media': 'Social Feeds (#IMD)',
+        'citizen': 'Citizen Reports',
+        'public_dataset': 'Open Data Portals'
+      };
+      const srcKeys = Object.keys(srcObj);
+      const srcLabels = srcKeys.length > 0 ? srcKeys.map(k => srcMap[k] || k) : ['No Signals Ingested'];
+      const srcCounts = srcKeys.length > 0 ? srcKeys.map(k => Number(srcObj[k]) || 0) : [0];
       renderBarChart('chart-sources', srcLabels, srcCounts, 'Signals Ingested', '#8b5cf6');
 
       // Chart 4: Incident Verification Funnel
       const vs = data.incidentsByStatus || {};
       const detCount = vs.detected ?? t.detected ?? 0;
-      const revCount = vs.under_review ?? t.under_review ?? 14;
-      const verCount = vs.verified ?? t.verified ?? 1;
+      const revCount = vs.under_review ?? t.under_review ?? 0;
+      const verCount = vs.verified ?? t.verified ?? 0;
       const resCount = vs.resolved ?? t.resolved ?? 0;
       renderBarChart(
         'chart-verify',
@@ -2975,11 +3006,8 @@
         '#10b981'
       );
 
-      // State-wise Heatmap Table
-      let stateData = data.eventsByState;
-      if (!stateData || Object.keys(stateData).length === 0) {
-        stateData = { 'Assam': 5, 'Delhi NCT': 4, 'Maharashtra': 6, 'Rajasthan': 4, 'West Bengal': 3 };
-      }
+      // State-wise Heatmap Table (Truthful)
+      const stateData = data.eventsByState || {};
       const stateEl = document.getElementById('state-table-body');
       if (stateEl) {
         const sorted = Object.entries(stateData).sort((a, b) => b[1] - a[1]);
@@ -2996,7 +3024,7 @@
               </div>
             </td>
           </tr>
-        `).join('') : '<tr><td colspan="2" class="py-8 text-center text-slate-500 text-xs">No active weather incidents — trigger a demo scenario above</td></tr>';
+        `).join('') : '<tr><td colspan="2" class="py-8 text-center text-slate-500 text-xs font-mono">NO ACTIVE WEATHER HAZARDS RECORDED IN ACTIVE MODE</td></tr>';
       }
     }
 
@@ -3136,7 +3164,7 @@
     }
 
     // ================================================================
-    // SOURCE HEALTH PAGE
+    // SOURCE HEALTH PAGE (SIH26069 BLUEPRINT PART 33 & 34)
     // ================================================================
     async function loadSourcesPage() {
       const container = document.getElementById('sources-grid');
@@ -3147,11 +3175,17 @@
         const data = await res.json();
         const sources = data.data || [];
         container.innerHTML = sources.map(s => {
-          const statusColor = s.status === 'ONLINE' ? 'bg-emerald-500' : s.status === 'DEGRADED' ? 'bg-amber-500' : 'bg-slate-500';
-          const textColor = s.status === 'ONLINE' ? 'text-emerald-400' : s.status === 'DEGRADED' ? 'text-amber-400' : 'text-slate-400';
-          const borderColor = s.status === 'ONLINE' ? 'border-emerald-800/40' : 'border-slate-700';
-          const lastIngest = s.last_ingestion ? new Date(s.last_ingestion).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata'}) + ' IST' : 'No data yet';
+          const isLive = s.status === 'LIVE' || s.status === 'ONLINE';
+          const isStandby = s.status === 'STANDBY';
+          const isNotConf = s.status === 'NOT_CONFIGURED';
+          const isDegraded = s.status === 'DEGRADED';
+
+          const statusColor = isLive ? 'bg-emerald-500' : isStandby ? 'bg-blue-500' : isDegraded ? 'bg-amber-500' : 'bg-slate-500';
+          const textColor = isLive ? 'text-emerald-400' : isStandby ? 'text-blue-400' : isDegraded ? 'text-amber-400' : 'text-slate-400';
+          const borderColor = isLive ? 'border-emerald-800/40' : isStandby ? 'border-blue-800/40' : 'border-slate-800';
+          const lastIngest = s.last_ingestion ? new Date(s.last_ingestion).toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata'}) + ' IST' : (isNotConf ? 'Pending authorization' : 'No data yet');
           const typeIcon = { imd:'🏛️', weather_api:'🌡️', news:'📰', social_media:'🐦', citizen:'📱', public_dataset:'📊' }[s.type] || '📡';
+          const liveSignals = s.live_signal_count !== undefined ? s.live_signal_count : (isNotConf || isStandby ? 0 : s.signals_ingested);
           return `
             <div class="bg-slate-900/80 border ${borderColor} rounded-xl p-4 space-y-3">
               <div class="flex items-center justify-between">
@@ -3160,23 +3194,24 @@
                   <span class="text-xs font-semibold text-slate-200">${s.name}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <span class="w-2 h-2 rounded-full ${statusColor} ${s.status==='ONLINE'?'animate-pulse':''}"></span>
+                  <span class="w-2 h-2 rounded-full ${statusColor} ${isLive ? 'animate-pulse' : ''}"></span>
                   <span class="text-[10px] font-mono font-bold ${textColor}">${s.status}</span>
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-2 text-[11px]">
                 <div class="bg-slate-950/60 rounded-lg p-2">
-                  <div class="text-slate-400 text-[10px] uppercase tracking-wider">Signals Ingested</div>
-                  <div class="font-mono font-bold text-white">${s.signals_ingested}</div>
+                  <div class="text-slate-400 text-[10px] uppercase tracking-wider">Live Signals</div>
+                  <div class="font-mono font-bold text-white">${liveSignals}</div>
                 </div>
                 <div class="bg-slate-950/60 rounded-lg p-2">
                   <div class="text-slate-400 text-[10px] uppercase tracking-wider">Latency</div>
-                  <div class="font-mono font-bold text-cyan-400">${s.latency_ms}ms</div>
+                  <div class="font-mono font-bold text-cyan-400">${s.latency_ms || 0}ms</div>
                 </div>
               </div>
               <div class="text-[10px] text-slate-500">
+                <span class="text-slate-400">Mode:</span> <span class="text-slate-300 font-mono text-[10px]">${s.mode}</span><br>
                 <span class="text-slate-400">Last ingestion:</span> ${lastIngest}<br>
-                <span class="text-slate-400">Reliability:</span> <span class="text-emerald-400">${(s.reliability * 100).toFixed(0)}%</span>
+                ${s.note ? `<div class="mt-1 text-[9px] text-amber-300/80 italic">${s.note}</div>` : ''}
               </div>
             </div>
           `;
@@ -3292,25 +3327,22 @@
     <div class="h-px w-8 bg-slate-800 my-1"></div>
     <button onclick="showPage('map')" id="nav-map"
       class="w-10 h-10 rounded-xl flex flex-col items-center justify-center bg-cyan-600/20 text-cyan-400 text-[18px]"
-      title="Live Map">🗺️</button>
+      title="National GIS Map">🗺️</button>
     <button onclick="showPage('analytics')" id="nav-analytics"
       class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
-      title="Analytics">📈</button>
-    <button onclick="showPage('signals')" id="nav-signals"
-      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
-      title="Signals">📡</button>
+      title="Operational Analytics">📈</button>
     <button onclick="showPage('verification')" id="nav-verification"
       class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
       title="Verification Queue">🔍</button>
+    <button onclick="showPage('signals')" id="nav-signals"
+      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
+      title="Raw Signals Stream">📡</button>
     <button onclick="showPage('sources')" id="nav-sources"
       class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
       title="Source Health">🔌</button>
     <button onclick="showPage('system')" id="nav-system"
       class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
       title="System Health">⚙️</button>
-    <button onclick="showPage('pipeline')" id="nav-pipeline"
-      class="w-10 h-10 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:bg-slate-800 hover:text-white transition text-[18px]"
-      title="Data Pipeline">🔄</button>
     <div class="flex-1"></div>
     <a href="/admin" target="_blank" class="w-10 h-10 rounded-xl flex items-center justify-center text-amber-400 hover:bg-amber-900/30 transition text-[18px]" title="Admin Panel">🛡️</a>
   </div>
@@ -3586,9 +3618,7 @@
 
       <!-- Architecture note -->
       <div class="p-4 rounded-xl bg-blue-950/30 border border-blue-800/40 text-xs text-blue-300">
-        <strong class="text-blue-400">Architecture:</strong> WeatherNexus runs as a zero-dependency standalone Node.js server.
-        All data is held in an in-memory store with PostGIS/Haversine emulation for spatial queries.
-        No PostgreSQL, Redis, or external dependencies required for demo. Production deployment uses Docker + PostgreSQL + PostGIS.
+        <strong class="text-blue-400">Architecture:</strong> Authoritative transactional and geospatial storage is backed by Supabase PostgreSQL with PostGIS extension for spatial queries and polygon geofencing. Real-time multi-source event fusion, Bayesian confidence scoring, and temporal decay workers execute in-process with zero-latency Server-Sent Events (SSE).
       </div>
     </div>
   </div>

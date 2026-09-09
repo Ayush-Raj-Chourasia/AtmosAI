@@ -1,9 +1,9 @@
 {
   "verification_title": "WeatherNexus Automated Architecture & Intelligence Test Suite",
   "sih_problem_statement": "SIH26069: National Weather Big Data Analytics Platform",
-  "generated_at": "2026-09-09T22:28:26.259Z",
+  "generated_at": "2026-09-09T22:59:31.855Z",
   "git": {
-    "commit": "7076bd2b113056ace07914a1899fe08a22b4fd7d",
+    "commit": "947025efe54fe8de8c92a8d3258ee9f00f23c586",
     "branch": "master"
   },
   "environment": {
@@ -12,12 +12,12 @@
     "arch": "x64"
   },
   "summary": {
-    "total_tests": 336,
-    "passed_tests": 336,
+    "total_tests": 311,
+    "passed_tests": 311,
     "failed_tests": 0,
-    "total_suites": 37,
+    "total_suites": 38,
     "pass_rate_pct": 100,
-    "duration_ms": 8329,
+    "duration_ms": 4095,
     "exit_code": 0
   },
   "test_suites": [
@@ -205,6 +205,11 @@
       "id": 37,
       "name": "Meteorological Observation vs Hazard Event Semantic Separation",
       "status": "PASS"
+    },
+    {
+      "id": 38,
+      "name": "SIH26069 Blueprint 20-Point Architectural Invariants",
+      "status": "PASS"
     }
   ],
   "invariants_validated": [
@@ -215,6 +220,10 @@
     "POSTGIS_SPATIAL_INTEGRITY (Coordinate bounds validation & spatial transparency)",
     "RBAC_SECURITY_GATES (Forecaster verification restricted to VERIFIER/ADMIN roles)",
     "OBSERVATION_HAZARD_SEPARATION (Normal baseline weather is an observation, never a hazard incident)",
+    "CANONICAL_CONFIDENCE_UNIFICATION (Unified confidence across APIs, decay, and UI)",
+    "MATHEMATICAL_FRESHNESS_SEPARATION (Confidence distinct from evidence decay)",
+    "CONNECTOR_TRUTHFULNESS (Unconfigured connectors report 0 live signals)",
+    "VERIFICATION_QUEUE_PURITY (Only reviewable hazards enter the human verification queue)",
     "SECRET_HYGIENE (Zero credentials leaked in logs, payload or artifacts)"
   ],
   "openweather_live_included": true
