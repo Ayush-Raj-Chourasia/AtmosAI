@@ -1082,6 +1082,10 @@ export async function ingestSignal(raw) {
     state: geo.state,
     location_confidence: geo.confidence,
     location_method: geo.method,
+    address: raw.address || null,
+    local_area: raw.local_area || raw.address || null,
+    reporter_name: raw.reporter_name || null,
+    contact: raw.contact || null,
     event_candidate: raw.event_candidate || classification.eventType,
     relevance_score: classification.probability,
     credibility_score: credibility,
@@ -1257,22 +1261,35 @@ export async function ingestSignal(raw) {
   // Find or Create Weather Event
   const allEvents = Array.from(memEvents.values());
   let targetEvent = allEvents.find(e => {
-    if (e.event_type !== signal.event_candidate) return false;
+    const isMatchingType = e.event_type === signal.event_candidate ||
+      (e.event_type === 'FLOOD' && (signal.event_candidate === 'RAINFALL' || signal.flood_indicator)) ||
+      (e.event_type === 'CYCLONE' && signal.event_candidate === 'STRONG_WIND');
+    if (!isMatchingType) return false;
     const dist = haversineKm(e.latitude, e.longitude, signal.latitude, signal.longitude);
     return dist <= 15.0 && e.status !== 'RESOLVED';
   });
 
   const eventId = targetEvent ? targetEvent.id : `evt_${Date.now()}`;
-  
-  // Gather signals for cluster
+  let eventType = (targetEvent?.event_type === 'FLOOD' || signal.event_candidate === 'FLOOD')
+    ? 'FLOOD'
+    : (targetEvent ? targetEvent.event_type : signal.event_candidate);
+
+  // Gather signals for cluster from memSignals
   const relatedSignals = Array.from(memSignals.values()).filter(s => {
-    if (s.event_candidate !== signal.event_candidate) return false;
     if (s.verification_status !== 'VERIFIED') return false;
+    const isMatchingType = s.event_candidate === eventType ||
+      (eventType === 'FLOOD' && (s.event_candidate === 'RAINFALL' || s.flood_indicator || s.event_candidate === 'FLOOD')) ||
+      (eventType === 'CYCLONE' && (s.event_candidate === 'STRONG_WIND' || s.event_candidate === 'CYCLONE'));
+    if (!isMatchingType) return false;
     const dist = haversineKm(signal.latitude, signal.longitude, s.latitude, s.longitude);
     return dist <= 15.0;
   });
 
-  // Calculate 7-Factor Confidence Score
+  if (!relatedSignals.some(s => s.id === signal.id)) {
+    relatedSignals.push(signal);
+  }
+
+  // Re-evaluate Confidence Fusion (7 Factors)
   const uniqueSources = new Set(relatedSignals.map(s => s.source_type));
   const n = relatedSignals.length;
   const avgSource = relatedSignals.reduce((acc, s) => acc + s.credibility_score, 0) / n;
@@ -1290,7 +1307,6 @@ export async function ingestSignal(raw) {
 
   const confidenceScore = Number(Math.min(0.98, fSource + fAi + fMedia + fSpatial + fTemporal + fCorroboration + fConsistency + synergy).toFixed(2));
   let eventStatus = confidenceScore >= 0.85 ? 'VERIFIED' : 'UNDER_REVIEW';
-  let eventType = signal.event_candidate;
 
   // Hardened Invariant: RAIN ≠ FLOOD Rule
   // Rain >= 50mm flags heavy rainfall with flood risk. But meteorological rain alone CANNOT trigger VERIFIED FLOOD
@@ -1443,7 +1459,20 @@ export async function ingestSignal(raw) {
   broadcastSSE({ type: 'incident_update', event: eventPayload });
   broadcastSSE({ type: 'signal_processed', signal, event: eventPayload });
 
-  return { signal, isHazard: true, isMisinformation: false, associatedEvent: eventPayload };
+  return {
+    signal,
+    isHazard: true,
+    isMisinformation: false,
+    associatedEvent: eventPayload,
+    corroboration: {
+      sources_count: uniqueSources.size,
+      source_types: Array.from(uniqueSources),
+      source_breakdown: sourceBreakdown,
+      signals_count: relatedSignals.length,
+      evidence_summary: evidenceSummary,
+      ai_reasoning: aiReasoning,
+    },
+  };
 }
 
 // -------------------------------------------------------------
@@ -2573,34 +2602,51 @@ export async function handleRequest(req, res) {
   }
 
   // --- CITIZEN & SIGNAL INGESTION ---
-  if ((pathname === '/api/v1/citizen/reports' || pathname === '/api/v1/citizen-reports') && req.method === 'POST') {
+  if ((pathname === '/api/v1/citizen/reports' || pathname === '/api/v1/citizen/report' || pathname === '/api/v1/citizen-reports') && req.method === 'POST') {
     const body = await getBody();
     if (!body.text || body.text.trim().length === 0) {
       return sendJson(400, { success: false, message: 'Citizen report observation text is required.' });
     }
 
-    let mediaUrls = body.photos || (body.photo_url ? [body.photo_url] : []);
+    let mediaUrls = Array.isArray(body.photos) ? [...body.photos] : (body.photo_url ? [body.photo_url] : []);
     let storedMediaRecords = [];
 
-    // Process base64 or raw media if provided
+    // Process array of media files or single base64 payload
+    const mediaFiles = Array.isArray(body.media_files) ? [...body.media_files] : [];
     if (body.media_base64 || body.image_base64) {
+      mediaFiles.push({
+        data: body.media_base64 || body.image_base64,
+        name: body.media_filename || 'citizen_observation.jpg',
+        type: body.media_mime_type || 'image/jpeg',
+      });
+    }
+
+    for (let i = 0; i < mediaFiles.length; i++) {
+      const mf = mediaFiles[i];
+      if (!mf || !mf.data) continue;
       try {
-        const rawB64 = (body.media_base64 || body.image_base64).replace(/^data:[^;]+;base64,/, '');
+        const rawB64 = mf.data.replace(/^data:[^;]+;base64,/, '');
         const buf = Buffer.from(rawB64, 'base64');
+        const filename = mf.name || `citizen_upload_${Date.now()}_${i + 1}.jpg`;
+        const mime = mf.type || (filename.match(/\.(mp4|mov|webm)$/i) ? 'video/mp4' : 'image/jpeg');
         const mediaRecord = await mediaStorageService.storeMedia({
           buffer: buf,
-          originalName: body.media_filename || 'citizen_observation.jpg',
-          mimeType: body.media_mime_type || 'image/jpeg',
+          originalName: filename,
+          mimeType: mime,
           eventId: null,
           signalId: null,
+          dataMode: body.data_mode || 'LIVE',
         });
         await db.insertMediaMetadata(mediaRecord);
         mediaUrls.push(mediaRecord.url);
         storedMediaRecords.push(mediaRecord);
       } catch (mErr) {
-        console.warn('[CITIZEN] Media processing warning:', mErr.message);
+        console.warn(`[CITIZEN] Media processing warning for item ${i}:`, mErr.message);
       }
-    } else if (body.photo_url) {
+    }
+
+    // Process external photo URLs
+    if (body.photo_url && !mediaUrls.includes(body.photo_url)) {
       const mediaRecord = {
         media_id: `med_${Date.now()}`,
         object_key: body.photo_url,
@@ -2612,24 +2658,46 @@ export async function handleRequest(req, res) {
       };
       await db.insertMediaMetadata(mediaRecord);
       storedMediaRecords.push(mediaRecord);
+      mediaUrls.push(body.photo_url);
     }
+
+    const lat = (body.latitude !== undefined && body.latitude !== null && !isNaN(Number(body.latitude))) ? Number(body.latitude) : undefined;
+    const lng = (body.longitude !== undefined && body.longitude !== null && !isNaN(Number(body.longitude))) ? Number(body.longitude) : undefined;
 
     const result = await ingestSignal({
       source_type: 'citizen',
       source_name: body.reporter_name ? `Citizen (${body.reporter_name})` : 'Public Citizen Report',
+      reporter_name: body.reporter_name || 'Anonymous Citizen',
+      contact: body.contact || null,
+      address: body.address || body.local_area || null,
+      local_area: body.local_area || body.address || null,
       text: body.text.trim(),
-      latitude: body.latitude,
-      longitude: body.longitude,
+      latitude: lat,
+      longitude: lng,
       city: body.city_hint || body.city,
       state: body.state_hint || body.state,
       media_urls: mediaUrls,
-      event_candidate: body.event_type || null,
+      event_candidate: body.event_type || body.hazard_type || null,
       raw_payload: body,
+      data_mode: body.data_mode || 'LIVE',
     });
+
+    const isMisinfo = Boolean(result.isMisinformation || result.signal?.verification_status === 'REJECTED');
+    const verdict = isMisinfo ? 'QUARANTINED_MISINFORMATION' : 'GENUINE_GROUND_REPORT';
 
     return sendJson(201, {
       success: true,
       data: result,
+      signal: result.signal,
+      associatedEvent: result.associatedEvent,
+      isHazard: result.isHazard,
+      isMisinformation: isMisinfo,
+      misinformation_verdict: verdict,
+      corroboration: result.corroboration || {
+        sources_count: 1,
+        source_types: ['citizen'],
+        evidence_summary: ['Initial citizen observation recorded awaiting corroborating satellite/radar sweeps.'],
+      },
       media_stored: storedMediaRecords.length > 0 ? storedMediaRecords : undefined,
     });
   }
